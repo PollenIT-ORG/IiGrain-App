@@ -1,0 +1,78 @@
+{
+  "v": 1,
+  "name": "Day 3 - Profile (any user)",
+  "folders": [],
+  "requests": [
+    {
+      "v": "1",
+      "name": "Get my profile",
+      "method": "GET",
+      "endpoint": "<<baseUrl>>/profile/me",
+      "headers": [],
+      "params": [],
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": ""
+    },
+    {
+      "v": "1",
+      "name": "Update my profile",
+      "method": "PATCH",
+      "endpoint": "<<baseUrl>>/profile/me",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json",
+          "active": true,
+          "description": ""
+        }
+      ],
+      "params": [],
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n  \"fullName\": \"New Name\",\n  \"phone\": \"+919999888877\"\n}"
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": ""
+    },
+    {
+      "v": "1",
+      "name": "Change my password",
+      "method": "POST",
+      "endpoint": "<<baseUrl>>/profile/change-password",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json",
+          "active": true,
+          "description": ""
+        }
+      ],
+      "params": [],
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n  \"currentPassword\": \"secret123\",\n  \"newPassword\": \"newsecret123\"\n}"
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": ""
+    }
+  ]
+}

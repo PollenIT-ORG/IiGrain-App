@@ -1,0 +1,10 @@
+# services/
+#
+# Business-logic layer. Controllers stay thin and call services here.
+# Each feature gets its own file, e.g.:
+#   - farmer.service.ts
+#   - product.service.ts
+#   - upload.service.ts   (wraps Cloudinary)
+#
+# Services contain the "how" (DB queries, external calls, rules); controllers
+# only handle the HTTP request/response and call into services.

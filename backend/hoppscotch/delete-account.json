@@ -1,0 +1,126 @@
+{
+  "v": 12,
+  "name": "Farmer App - Delete Account",
+  "folders": [
+    {
+      "v": 12,
+      "name": "Account (self)",
+      "folders": [],
+      "requests": [
+        {
+          "v": "17",
+          "name": "DELETE my account (token only)",
+          "method": "DELETE",
+          "endpoint": "<<baseUrl>>/profile/me",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Your account has been deleted.\"\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });\npw.test(\"success is true\", () => { pw.expect(pw.response.body.success).toBe(true); });",
+          "requestVariables": [],
+          "description": "Deletes the LOGGED-IN user's own account. Token-only - no id in the URL, no body; the account is taken from the JWT. Soft-deletes the account and revokes all refresh tokens (login is then blocked). Needs any user's Bearer token. After calling this, log the user out client-side (clear the token).\n\n### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Your account has been deleted.\"\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "DELETE my account (token only)",
+                "method": "DELETE",
+                "endpoint": "<<baseUrl>>/profile/me",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Your account has been deleted.\"\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "DELETE my account · already deleted (404)",
+          "method": "DELETE",
+          "endpoint": "<<baseUrl>>/profile/me",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (Not Found 404) =====\n{\n  \"success\": false,\n  \"message\": \"Account not found or already deleted.\",\n  \"code\": \"NOT_FOUND\"\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 404\", () => { pw.expect(pw.response.status).toBe(404); });",
+          "requestVariables": [],
+          "description": "Reference: calling delete again (or with a token of an already-deleted account) returns 404.\n\n### Expected response (Not Found 404)\n\n```json\n{\n  \"success\": false,\n  \"message\": \"Account not found or already deleted.\",\n  \"code\": \"NOT_FOUND\"\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "DELETE my account · already deleted (404)",
+                "method": "DELETE",
+                "endpoint": "<<baseUrl>>/profile/me",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "Not Found",
+              "code": 404,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"Account not found or already deleted.\",\n  \"code\": \"NOT_FOUND\"\n}"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "requests": []
+}

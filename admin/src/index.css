@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-gray-100 text-gray-900 font-sans antialiased;
+  }
+}
+
+@layer components {
+  /* Reusable building blocks so screens stay consistent and DRY. */
+  .card {
+    @apply bg-white rounded-xl shadow-card border border-gray-300/60;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-primary
+      px-4 py-2.5 text-sm font-semibold text-white transition-colors
+      hover:bg-primary-dark focus:outline-none focus:ring-2
+      focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border
+      border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700
+      transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2
+      focus:ring-primary/20 disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-danger
+      px-4 py-2.5 text-sm font-semibold text-white transition-colors
+      hover:bg-danger/90 focus:outline-none focus:ring-2 focus:ring-danger/40
+      disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
+  .input-field {
+    @apply w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5
+      text-sm text-gray-900 placeholder:text-gray-500 transition-colors
+      focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20;
+  }
+
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-gray-700;
+  }
+
+  /* Invalid input - red border + focus ring. Add alongside .input-field. */
+  .input-error {
+    @apply border-danger focus:border-danger focus:ring-danger/20;
+  }
+
+  /* Inline validation message shown under a field. */
+  .field-error {
+    @apply mt-1.5 text-xs font-medium text-danger;
+  }
+}
+
+/* Custom scrollbar - thin + green (primary #136F3F). */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: #136f3f;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #0e5a31;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #136f3f transparent;
+}
+
+/* Sidebar nav - extra-slim (2px) green scrollbar. */
+.sidebar-scroll::-webkit-scrollbar {
+  width: 2px !important;
+  height: 2px !important;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #136f3f !important;
+  border-radius: 9999px !important;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #0e5a31 !important;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #136f3f transparent;
+}

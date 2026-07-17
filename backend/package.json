@@ -1,0 +1,62 @@
+{
+  "name": "farmer-app-backend",
+  "version": "1.0.0",
+  "description": "Production-grade Node.js + Express + PostgreSQL backend for the Farmer App (TypeScript).",
+  "main": "dist/server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "prisma generate && tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "postinstall": "prisma generate",
+    "db:check": "tsx src/db/healthcheck.ts"
+  },
+  "keywords": [
+    "farmer-app",
+    "express",
+    "postgresql",
+    "typescript",
+    "node"
+  ],
+  "author": "Farmer App Team",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "@types/multer": "^2.1.0",
+    "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.5.1",
+    "compression": "^1.7.5",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.10.0",
+    "multer": "^2.2.0",
+    "nodemailer": "^9.0.1",
+    "pg": "^8.13.1",
+    "socket.io": "^4.8.3",
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/compression": "^1.7.5",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/morgan": "^1.9.9",
+    "@types/node": "^22.10.5",
+    "@types/nodemailer": "^8.0.1",
+    "@types/pg": "^8.11.10",
+    "prisma": "^6.19.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

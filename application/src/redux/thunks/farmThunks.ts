@@ -1,0 +1,103 @@
+import { createAsyncThunk } from '@reduxjs/toolkit';
+import * as farmApi from '../../api/farmApi';
+import * as fieldApi from '../../api/FieldApi';
+import type { CreateFarmInput, UpdateFarmInput } from '../../api/farmApi';
+import type { Farm } from '../../types/farm';
+import { handleApiError, StandardizedError } from '../../utils/handleApiError';
+
+type ThunkConfig = { rejectValue: StandardizedError };
+
+export interface UpdateFarmArgs {
+  farmId: string;
+  input: UpdateFarmInput;
+}
+
+export const fetchFarmsThunk = createAsyncThunk<Farm[], void, ThunkConfig>(
+  'farm/fetchFarms',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await farmApi.getMyFarms();
+    } catch (error) {
+      return rejectWithValue(handleApiError(error));
+    }
+  },
+);
+
+export const refreshFarmsThunk = createAsyncThunk<Farm[], void, ThunkConfig>(
+  'farm/refreshFarms',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await farmApi.getMyFarms();
+    } catch (error) {
+      return rejectWithValue(handleApiError(error));
+    }
+  },
+);
+
+export interface FieldCountsArgs {
+  farmIds: string[];
+  overwrite?: boolean;
+}
+
+export interface FieldCountsResult {
+  counts: Record<string, number>;
+  overwrite: boolean;
+}
+
+export const fetchFarmFieldCountsThunk = createAsyncThunk<
+  FieldCountsResult,
+  FieldCountsArgs,
+  ThunkConfig
+>('farm/fetchFieldCounts', async ({ farmIds, overwrite = false }, { rejectWithValue }) => {
+  try {
+    const entries = await Promise.all(
+      farmIds.map(async (id): Promise<readonly [string, number] | null> => {
+        try {
+          const fields = await fieldApi.getFarmFields(id);
+          return [id, fields.length] as const;
+        } catch {
+          return null;
+        }
+      }),
+    );
+    return {
+      counts: Object.fromEntries(entries.filter(Boolean) as (readonly [string, number])[]),
+      overwrite,
+    };
+  } catch (error) {
+    return rejectWithValue(handleApiError(error));
+  }
+});
+
+export const fetchFarmDetailThunk = createAsyncThunk<Farm, string, ThunkConfig>(
+  'farm/fetchFarmDetail',
+  async (farmId, { rejectWithValue }) => {
+    try {
+      return await farmApi.getFarmDetails(farmId);
+    } catch (error) {
+      return rejectWithValue(handleApiError(error));
+    }
+  },
+);
+
+export const createFarmThunk = createAsyncThunk<Farm, CreateFarmInput, ThunkConfig>(
+  'farm/createFarm',
+  async (input, { rejectWithValue }) => {
+    try {
+      return await farmApi.createMyFarm(input);
+    } catch (error) {
+      return rejectWithValue(handleApiError(error));
+    }
+  },
+);
+
+export const updateFarmThunk = createAsyncThunk<Farm, UpdateFarmArgs, ThunkConfig>(
+  'farm/updateFarm',
+  async ({ farmId, input }, { rejectWithValue }) => {
+    try {
+      return await farmApi.updateMyFarm(farmId, input);
+    } catch (error) {
+      return rejectWithValue(handleApiError(error));
+    }
+  },
+);

@@ -1,0 +1,1205 @@
+{
+  "v": 12,
+  "name": "Farmer App - Programs & Assessor Assessment",
+  "folders": [
+    {
+      "v": 12,
+      "name": "Programs (schemes · enrollment)",
+      "folders": [],
+      "requests": [
+        {
+          "v": "17",
+          "name": "GET List programs",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/programs",
+          "headers": [],
+          "params": [
+            {
+              "key": "page",
+              "value": "1",
+              "active": true,
+              "description": ""
+            },
+            {
+              "key": "limit",
+              "value": "10",
+              "active": true,
+              "description": ""
+            },
+            {
+              "key": "search",
+              "value": "",
+              "active": false,
+              "description": "name/code"
+            },
+            {
+              "key": "isActive",
+              "value": "true",
+              "active": false,
+              "description": "true|false"
+            }
+          ],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Programs fetched.\",\n  \"data\": {\n    \"programs\": [\n      {\n        \"id\": \"11111111-1111-4111-8111-111111111111\",\n        \"org_id\": \"22222222-2222-4222-8222-222222222222\",\n        \"org_name\": \"Green Valley Cooperative\",\n        \"name\": \"Govt Wheat Scheme 2026\",\n        \"code\": \"GWS-2026\",\n        \"description\": \"Regenerative wheat pilot.\",\n        \"type\": \"government\",\n        \"start_date\": \"2026-06-01\",\n        \"end_date\": \"2026-12-31\",\n        \"user_limit\": 50,\n        \"is_active\": true,\n        \"created_by\": \"33333333-3333-4333-8333-333333333333\",\n        \"enrolled_count\": 12,\n        \"created_at\": \"2026-06-30T12:00:00.000Z\",\n        \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n      }\n    ]\n  },\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total\": 1,\n    \"totalPages\": 1\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });\nconst d = pw.response.body.data; if (d && d.programs && d.programs.length) pw.env.set('programId', d.programs[0].id);",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Programs fetched.\",\n  \"data\": {\n    \"programs\": [\n      {\n        \"id\": \"11111111-1111-4111-8111-111111111111\",\n        \"org_id\": \"22222222-2222-4222-8222-222222222222\",\n        \"org_name\": \"Green Valley Cooperative\",\n        \"name\": \"Govt Wheat Scheme 2026\",\n        \"code\": \"GWS-2026\",\n        \"description\": \"Regenerative wheat pilot.\",\n        \"type\": \"government\",\n        \"start_date\": \"2026-06-01\",\n        \"end_date\": \"2026-12-31\",\n        \"user_limit\": 50,\n        \"is_active\": true,\n        \"created_by\": \"33333333-3333-4333-8333-333333333333\",\n        \"enrolled_count\": 12,\n        \"created_at\": \"2026-06-30T12:00:00.000Z\",\n        \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n      }\n    ]\n  },\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total\": 1,\n    \"totalPages\": 1\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "GET List programs",
+                "method": "GET",
+                "endpoint": "<<baseUrl>>/programs",
+                "headers": [],
+                "params": [
+                  {
+                    "key": "page",
+                    "value": "1",
+                    "active": true,
+                    "description": ""
+                  },
+                  {
+                    "key": "limit",
+                    "value": "10",
+                    "active": true,
+                    "description": ""
+                  },
+                  {
+                    "key": "search",
+                    "value": "",
+                    "active": false,
+                    "description": "name/code"
+                  },
+                  {
+                    "key": "isActive",
+                    "value": "true",
+                    "active": false,
+                    "description": "true|false"
+                  }
+                ],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Programs fetched.\",\n  \"data\": {\n    \"programs\": [\n      {\n        \"id\": \"11111111-1111-4111-8111-111111111111\",\n        \"org_id\": \"22222222-2222-4222-8222-222222222222\",\n        \"org_name\": \"Green Valley Cooperative\",\n        \"name\": \"Govt Wheat Scheme 2026\",\n        \"code\": \"GWS-2026\",\n        \"description\": \"Regenerative wheat pilot.\",\n        \"type\": \"government\",\n        \"start_date\": \"2026-06-01\",\n        \"end_date\": \"2026-12-31\",\n        \"user_limit\": 50,\n        \"is_active\": true,\n        \"created_by\": \"33333333-3333-4333-8333-333333333333\",\n        \"enrolled_count\": 12,\n        \"created_at\": \"2026-06-30T12:00:00.000Z\",\n        \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n      }\n    ]\n  },\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total\": 1,\n    \"totalPages\": 1\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "POST Create program",
+          "method": "POST",
+          "endpoint": "<<baseUrl>>/programs",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true,
+              "description": ""
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"name\": \"Govt Wheat Scheme 2026\",\n  \"code\": \"GWS-2026\",\n  \"type\": \"government\",\n  \"startDate\": \"2026-06-01\",\n  \"endDate\": \"2026-12-31\",\n  \"userLimit\": 50,\n  \"isActive\": true\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (Created 201) =====\n{\n  \"success\": true,\n  \"message\": \"Program created.\",\n  \"data\": {\n    \"program\": {\n      \"id\": \"11111111-1111-4111-8111-111111111111\",\n      \"org_id\": \"22222222-2222-4222-8222-222222222222\",\n      \"org_name\": \"Green Valley Cooperative\",\n      \"name\": \"Govt Wheat Scheme 2026\",\n      \"code\": \"GWS-2026\",\n      \"description\": \"Regenerative wheat pilot.\",\n      \"type\": \"government\",\n      \"start_date\": \"2026-06-01\",\n      \"end_date\": \"2026-12-31\",\n      \"user_limit\": 50,\n      \"is_active\": true,\n      \"created_by\": \"33333333-3333-4333-8333-333333333333\",\n      \"enrolled_count\": 12,\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 201\", () => { pw.expect(pw.response.status).toBe(201); });\nconst d = pw.response.body.data; if (d && d.program && d.program.id) pw.env.set('programId', d.program.id);",
+          "requestVariables": [],
+          "description": "### Expected response (Created 201)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Program created.\",\n  \"data\": {\n    \"program\": {\n      \"id\": \"11111111-1111-4111-8111-111111111111\",\n      \"org_id\": \"22222222-2222-4222-8222-222222222222\",\n      \"org_name\": \"Green Valley Cooperative\",\n      \"name\": \"Govt Wheat Scheme 2026\",\n      \"code\": \"GWS-2026\",\n      \"description\": \"Regenerative wheat pilot.\",\n      \"type\": \"government\",\n      \"start_date\": \"2026-06-01\",\n      \"end_date\": \"2026-12-31\",\n      \"user_limit\": 50,\n      \"is_active\": true,\n      \"created_by\": \"33333333-3333-4333-8333-333333333333\",\n      \"enrolled_count\": 12,\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "POST Create program",
+                "method": "POST",
+                "endpoint": "<<baseUrl>>/programs",
+                "headers": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "active": true,
+                    "description": ""
+                  }
+                ],
+                "params": [],
+                "body": {
+                  "contentType": "application/json",
+                  "body": "{\n  \"name\": \"Govt Wheat Scheme 2026\",\n  \"code\": \"GWS-2026\",\n  \"type\": \"government\",\n  \"startDate\": \"2026-06-01\",\n  \"endDate\": \"2026-12-31\",\n  \"userLimit\": 50,\n  \"isActive\": true\n}"
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "Created",
+              "code": 201,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Program created.\",\n  \"data\": {\n    \"program\": {\n      \"id\": \"11111111-1111-4111-8111-111111111111\",\n      \"org_id\": \"22222222-2222-4222-8222-222222222222\",\n      \"org_name\": \"Green Valley Cooperative\",\n      \"name\": \"Govt Wheat Scheme 2026\",\n      \"code\": \"GWS-2026\",\n      \"description\": \"Regenerative wheat pilot.\",\n      \"type\": \"government\",\n      \"start_date\": \"2026-06-01\",\n      \"end_date\": \"2026-12-31\",\n      \"user_limit\": 50,\n      \"is_active\": true,\n      \"created_by\": \"33333333-3333-4333-8333-333333333333\",\n      \"enrolled_count\": 12,\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "GET Get program by id",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/programs/<<programId>>",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Program fetched.\",\n  \"data\": {\n    \"program\": {\n      \"id\": \"11111111-1111-4111-8111-111111111111\",\n      \"org_id\": \"22222222-2222-4222-8222-222222222222\",\n      \"org_name\": \"Green Valley Cooperative\",\n      \"name\": \"Govt Wheat Scheme 2026\",\n      \"code\": \"GWS-2026\",\n      \"description\": \"Regenerative wheat pilot.\",\n      \"type\": \"government\",\n      \"start_date\": \"2026-06-01\",\n      \"end_date\": \"2026-12-31\",\n      \"user_limit\": 50,\n      \"is_active\": true,\n      \"created_by\": \"33333333-3333-4333-8333-333333333333\",\n      \"enrolled_count\": 12,\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Program fetched.\",\n  \"data\": {\n    \"program\": {\n      \"id\": \"11111111-1111-4111-8111-111111111111\",\n      \"org_id\": \"22222222-2222-4222-8222-222222222222\",\n      \"org_name\": \"Green Valley Cooperative\",\n      \"name\": \"Govt Wheat Scheme 2026\",\n      \"code\": \"GWS-2026\",\n      \"description\": \"Regenerative wheat pilot.\",\n      \"type\": \"government\",\n      \"start_date\": \"2026-06-01\",\n      \"end_date\": \"2026-12-31\",\n      \"user_limit\": 50,\n      \"is_active\": true,\n      \"created_by\": \"33333333-3333-4333-8333-333333333333\",\n      \"enrolled_count\": 12,\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "GET Get program by id",
+                "method": "GET",
+                "endpoint": "<<baseUrl>>/programs/<<programId>>",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Program fetched.\",\n  \"data\": {\n    \"program\": {\n      \"id\": \"11111111-1111-4111-8111-111111111111\",\n      \"org_id\": \"22222222-2222-4222-8222-222222222222\",\n      \"org_name\": \"Green Valley Cooperative\",\n      \"name\": \"Govt Wheat Scheme 2026\",\n      \"code\": \"GWS-2026\",\n      \"description\": \"Regenerative wheat pilot.\",\n      \"type\": \"government\",\n      \"start_date\": \"2026-06-01\",\n      \"end_date\": \"2026-12-31\",\n      \"user_limit\": 50,\n      \"is_active\": true,\n      \"created_by\": \"33333333-3333-4333-8333-333333333333\",\n      \"enrolled_count\": 12,\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "PATCH Update program",
+          "method": "PATCH",
+          "endpoint": "<<baseUrl>>/programs/<<programId>>",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true,
+              "description": ""
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"name\": \"Govt Wheat Scheme 2026 (v2)\",\n  \"userLimit\": null\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200 · unlimited) =====\n{\n  \"success\": true,\n  \"message\": \"Program updated.\",\n  \"data\": {\n    \"program\": {\n      \"id\": \"11111111-1111-4111-8111-111111111111\",\n      \"org_id\": \"22222222-2222-4222-8222-222222222222\",\n      \"org_name\": \"Green Valley Cooperative\",\n      \"name\": \"Govt Wheat Scheme 2026 (v2)\",\n      \"code\": \"GWS-2026\",\n      \"description\": \"Regenerative wheat pilot.\",\n      \"type\": \"government\",\n      \"start_date\": \"2026-06-01\",\n      \"end_date\": \"2026-12-31\",\n      \"user_limit\": null,\n      \"is_active\": true,\n      \"created_by\": \"33333333-3333-4333-8333-333333333333\",\n      \"enrolled_count\": 12,\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200 · unlimited)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Program updated.\",\n  \"data\": {\n    \"program\": {\n      \"id\": \"11111111-1111-4111-8111-111111111111\",\n      \"org_id\": \"22222222-2222-4222-8222-222222222222\",\n      \"org_name\": \"Green Valley Cooperative\",\n      \"name\": \"Govt Wheat Scheme 2026 (v2)\",\n      \"code\": \"GWS-2026\",\n      \"description\": \"Regenerative wheat pilot.\",\n      \"type\": \"government\",\n      \"start_date\": \"2026-06-01\",\n      \"end_date\": \"2026-12-31\",\n      \"user_limit\": null,\n      \"is_active\": true,\n      \"created_by\": \"33333333-3333-4333-8333-333333333333\",\n      \"enrolled_count\": 12,\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "PATCH Update program",
+                "method": "PATCH",
+                "endpoint": "<<baseUrl>>/programs/<<programId>>",
+                "headers": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "active": true,
+                    "description": ""
+                  }
+                ],
+                "params": [],
+                "body": {
+                  "contentType": "application/json",
+                  "body": "{\n  \"name\": \"Govt Wheat Scheme 2026 (v2)\",\n  \"userLimit\": null\n}"
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Program updated.\",\n  \"data\": {\n    \"program\": {\n      \"id\": \"11111111-1111-4111-8111-111111111111\",\n      \"org_id\": \"22222222-2222-4222-8222-222222222222\",\n      \"org_name\": \"Green Valley Cooperative\",\n      \"name\": \"Govt Wheat Scheme 2026 (v2)\",\n      \"code\": \"GWS-2026\",\n      \"description\": \"Regenerative wheat pilot.\",\n      \"type\": \"government\",\n      \"start_date\": \"2026-06-01\",\n      \"end_date\": \"2026-12-31\",\n      \"user_limit\": null,\n      \"is_active\": true,\n      \"created_by\": \"33333333-3333-4333-8333-333333333333\",\n      \"enrolled_count\": 12,\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "DELETE Delete program (soft)",
+          "method": "DELETE",
+          "endpoint": "<<baseUrl>>/programs/<<programId>>",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Program deleted.\"\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Program deleted.\"\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "DELETE Delete program (soft)",
+                "method": "DELETE",
+                "endpoint": "<<baseUrl>>/programs/<<programId>>",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Program deleted.\"\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "GET List enrollments",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/programs/<<programId>>/enrollments",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Enrollments fetched.\",\n  \"data\": {\n    \"enrollments\": [\n      {\n        \"id\": \"44444444-4444-4444-8444-444444444444\",\n        \"program_id\": \"11111111-1111-4111-8111-111111111111\",\n        \"farmer_id\": \"55555555-5555-4555-8555-555555555555\",\n        \"farmer_name\": \"John Smith\",\n        \"farmer_email\": \"john@example.com\",\n        \"enrolled_by\": \"33333333-3333-4333-8333-333333333333\",\n        \"status\": \"active\",\n        \"note\": \"wheat fields only\",\n        \"enrolled_at\": \"2026-06-30T12:00:00.000Z\",\n        \"fields\": [\n          {\n            \"id\": \"66666666-6666-4666-8666-666666666666\",\n            \"field_id\": \"77777777-7777-4777-8777-777777777777\",\n            \"field_name\": \"North Field\",\n            \"farm_name\": \"Green Valley Farm\"\n          },\n          {\n            \"id\": \"88888888-8888-4888-8888-888888888888\",\n            \"field_id\": \"99999999-9999-4999-8999-999999999999\",\n            \"field_name\": \"East Field\",\n            \"farm_name\": \"Green Valley Farm\"\n          }\n        ],\n        \"created_at\": \"2026-06-30T12:00:00.000Z\",\n        \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n      }\n    ]\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });\nconst d = pw.response.body.data; if (d && d.enrollments && d.enrollments.length) pw.env.set('enrollmentId', d.enrollments[0].id);",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Enrollments fetched.\",\n  \"data\": {\n    \"enrollments\": [\n      {\n        \"id\": \"44444444-4444-4444-8444-444444444444\",\n        \"program_id\": \"11111111-1111-4111-8111-111111111111\",\n        \"farmer_id\": \"55555555-5555-4555-8555-555555555555\",\n        \"farmer_name\": \"John Smith\",\n        \"farmer_email\": \"john@example.com\",\n        \"enrolled_by\": \"33333333-3333-4333-8333-333333333333\",\n        \"status\": \"active\",\n        \"note\": \"wheat fields only\",\n        \"enrolled_at\": \"2026-06-30T12:00:00.000Z\",\n        \"fields\": [\n          {\n            \"id\": \"66666666-6666-4666-8666-666666666666\",\n            \"field_id\": \"77777777-7777-4777-8777-777777777777\",\n            \"field_name\": \"North Field\",\n            \"farm_name\": \"Green Valley Farm\"\n          },\n          {\n            \"id\": \"88888888-8888-4888-8888-888888888888\",\n            \"field_id\": \"99999999-9999-4999-8999-999999999999\",\n            \"field_name\": \"East Field\",\n            \"farm_name\": \"Green Valley Farm\"\n          }\n        ],\n        \"created_at\": \"2026-06-30T12:00:00.000Z\",\n        \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n      }\n    ]\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "GET List enrollments",
+                "method": "GET",
+                "endpoint": "<<baseUrl>>/programs/<<programId>>/enrollments",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Enrollments fetched.\",\n  \"data\": {\n    \"enrollments\": [\n      {\n        \"id\": \"44444444-4444-4444-8444-444444444444\",\n        \"program_id\": \"11111111-1111-4111-8111-111111111111\",\n        \"farmer_id\": \"55555555-5555-4555-8555-555555555555\",\n        \"farmer_name\": \"John Smith\",\n        \"farmer_email\": \"john@example.com\",\n        \"enrolled_by\": \"33333333-3333-4333-8333-333333333333\",\n        \"status\": \"active\",\n        \"note\": \"wheat fields only\",\n        \"enrolled_at\": \"2026-06-30T12:00:00.000Z\",\n        \"fields\": [\n          {\n            \"id\": \"66666666-6666-4666-8666-666666666666\",\n            \"field_id\": \"77777777-7777-4777-8777-777777777777\",\n            \"field_name\": \"North Field\",\n            \"farm_name\": \"Green Valley Farm\"\n          },\n          {\n            \"id\": \"88888888-8888-4888-8888-888888888888\",\n            \"field_id\": \"99999999-9999-4999-8999-999999999999\",\n            \"field_name\": \"East Field\",\n            \"farm_name\": \"Green Valley Farm\"\n          }\n        ],\n        \"created_at\": \"2026-06-30T12:00:00.000Z\",\n        \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n      }\n    ]\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "POST Enroll farmer (specific fields)",
+          "method": "POST",
+          "endpoint": "<<baseUrl>>/programs/<<programId>>/enrollments",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true,
+              "description": ""
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"farmerId\": \"<<farmerId>>\",\n  \"fieldIds\": [\n    \"<<fieldId>>\"\n  ],\n  \"note\": \"wheat fields only\"\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (Created 201) =====\n{\n  \"success\": true,\n  \"message\": \"Farmer enrolled.\",\n  \"data\": {\n    \"enrollment\": {\n      \"id\": \"44444444-4444-4444-8444-444444444444\",\n      \"program_id\": \"11111111-1111-4111-8111-111111111111\",\n      \"farmer_id\": \"55555555-5555-4555-8555-555555555555\",\n      \"farmer_name\": \"John Smith\",\n      \"farmer_email\": \"john@example.com\",\n      \"enrolled_by\": \"33333333-3333-4333-8333-333333333333\",\n      \"status\": \"active\",\n      \"note\": \"wheat fields only\",\n      \"enrolled_at\": \"2026-06-30T12:00:00.000Z\",\n      \"fields\": [\n        {\n          \"id\": \"66666666-6666-4666-8666-666666666666\",\n          \"field_id\": \"77777777-7777-4777-8777-777777777777\",\n          \"field_name\": \"North Field\",\n          \"farm_name\": \"Green Valley Farm\"\n        },\n        {\n          \"id\": \"88888888-8888-4888-8888-888888888888\",\n          \"field_id\": \"99999999-9999-4999-8999-999999999999\",\n          \"field_name\": \"East Field\",\n          \"farm_name\": \"Green Valley Farm\"\n        }\n      ],\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 201\", () => { pw.expect(pw.response.status).toBe(201); });\nconst d = pw.response.body.data; if (d && d.enrollment && d.enrollment.id) pw.env.set('enrollmentId', d.enrollment.id);",
+          "requestVariables": [],
+          "description": "### Expected response (Created 201)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Farmer enrolled.\",\n  \"data\": {\n    \"enrollment\": {\n      \"id\": \"44444444-4444-4444-8444-444444444444\",\n      \"program_id\": \"11111111-1111-4111-8111-111111111111\",\n      \"farmer_id\": \"55555555-5555-4555-8555-555555555555\",\n      \"farmer_name\": \"John Smith\",\n      \"farmer_email\": \"john@example.com\",\n      \"enrolled_by\": \"33333333-3333-4333-8333-333333333333\",\n      \"status\": \"active\",\n      \"note\": \"wheat fields only\",\n      \"enrolled_at\": \"2026-06-30T12:00:00.000Z\",\n      \"fields\": [\n        {\n          \"id\": \"66666666-6666-4666-8666-666666666666\",\n          \"field_id\": \"77777777-7777-4777-8777-777777777777\",\n          \"field_name\": \"North Field\",\n          \"farm_name\": \"Green Valley Farm\"\n        },\n        {\n          \"id\": \"88888888-8888-4888-8888-888888888888\",\n          \"field_id\": \"99999999-9999-4999-8999-999999999999\",\n          \"field_name\": \"East Field\",\n          \"farm_name\": \"Green Valley Farm\"\n        }\n      ],\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "POST Enroll farmer (specific fields)",
+                "method": "POST",
+                "endpoint": "<<baseUrl>>/programs/<<programId>>/enrollments",
+                "headers": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "active": true,
+                    "description": ""
+                  }
+                ],
+                "params": [],
+                "body": {
+                  "contentType": "application/json",
+                  "body": "{\n  \"farmerId\": \"<<farmerId>>\",\n  \"fieldIds\": [\n    \"<<fieldId>>\"\n  ],\n  \"note\": \"wheat fields only\"\n}"
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "Created",
+              "code": 201,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Farmer enrolled.\",\n  \"data\": {\n    \"enrollment\": {\n      \"id\": \"44444444-4444-4444-8444-444444444444\",\n      \"program_id\": \"11111111-1111-4111-8111-111111111111\",\n      \"farmer_id\": \"55555555-5555-4555-8555-555555555555\",\n      \"farmer_name\": \"John Smith\",\n      \"farmer_email\": \"john@example.com\",\n      \"enrolled_by\": \"33333333-3333-4333-8333-333333333333\",\n      \"status\": \"active\",\n      \"note\": \"wheat fields only\",\n      \"enrolled_at\": \"2026-06-30T12:00:00.000Z\",\n      \"fields\": [\n        {\n          \"id\": \"66666666-6666-4666-8666-666666666666\",\n          \"field_id\": \"77777777-7777-4777-8777-777777777777\",\n          \"field_name\": \"North Field\",\n          \"farm_name\": \"Green Valley Farm\"\n        },\n        {\n          \"id\": \"88888888-8888-4888-8888-888888888888\",\n          \"field_id\": \"99999999-9999-4999-8999-999999999999\",\n          \"field_name\": \"East Field\",\n          \"farm_name\": \"Green Valley Farm\"\n        }\n      ],\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "PATCH Update enrolled fields",
+          "method": "PATCH",
+          "endpoint": "<<baseUrl>>/programs/<<programId>>/enrollments/<<enrollmentId>>",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true,
+              "description": ""
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"fieldIds\": [\n    \"<<fieldId>>\"\n  ]\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Enrollment updated.\",\n  \"data\": {\n    \"enrollment\": {\n      \"id\": \"44444444-4444-4444-8444-444444444444\",\n      \"program_id\": \"11111111-1111-4111-8111-111111111111\",\n      \"farmer_id\": \"55555555-5555-4555-8555-555555555555\",\n      \"farmer_name\": \"John Smith\",\n      \"farmer_email\": \"john@example.com\",\n      \"enrolled_by\": \"33333333-3333-4333-8333-333333333333\",\n      \"status\": \"active\",\n      \"note\": \"wheat fields only\",\n      \"enrolled_at\": \"2026-06-30T12:00:00.000Z\",\n      \"fields\": [\n        {\n          \"id\": \"66666666-6666-4666-8666-666666666666\",\n          \"field_id\": \"77777777-7777-4777-8777-777777777777\",\n          \"field_name\": \"North Field\",\n          \"farm_name\": \"Green Valley Farm\"\n        },\n        {\n          \"id\": \"88888888-8888-4888-8888-888888888888\",\n          \"field_id\": \"99999999-9999-4999-8999-999999999999\",\n          \"field_name\": \"East Field\",\n          \"farm_name\": \"Green Valley Farm\"\n        }\n      ],\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Enrollment updated.\",\n  \"data\": {\n    \"enrollment\": {\n      \"id\": \"44444444-4444-4444-8444-444444444444\",\n      \"program_id\": \"11111111-1111-4111-8111-111111111111\",\n      \"farmer_id\": \"55555555-5555-4555-8555-555555555555\",\n      \"farmer_name\": \"John Smith\",\n      \"farmer_email\": \"john@example.com\",\n      \"enrolled_by\": \"33333333-3333-4333-8333-333333333333\",\n      \"status\": \"active\",\n      \"note\": \"wheat fields only\",\n      \"enrolled_at\": \"2026-06-30T12:00:00.000Z\",\n      \"fields\": [\n        {\n          \"id\": \"66666666-6666-4666-8666-666666666666\",\n          \"field_id\": \"77777777-7777-4777-8777-777777777777\",\n          \"field_name\": \"North Field\",\n          \"farm_name\": \"Green Valley Farm\"\n        },\n        {\n          \"id\": \"88888888-8888-4888-8888-888888888888\",\n          \"field_id\": \"99999999-9999-4999-8999-999999999999\",\n          \"field_name\": \"East Field\",\n          \"farm_name\": \"Green Valley Farm\"\n        }\n      ],\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "PATCH Update enrolled fields",
+                "method": "PATCH",
+                "endpoint": "<<baseUrl>>/programs/<<programId>>/enrollments/<<enrollmentId>>",
+                "headers": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "active": true,
+                    "description": ""
+                  }
+                ],
+                "params": [],
+                "body": {
+                  "contentType": "application/json",
+                  "body": "{\n  \"fieldIds\": [\n    \"<<fieldId>>\"\n  ]\n}"
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Enrollment updated.\",\n  \"data\": {\n    \"enrollment\": {\n      \"id\": \"44444444-4444-4444-8444-444444444444\",\n      \"program_id\": \"11111111-1111-4111-8111-111111111111\",\n      \"farmer_id\": \"55555555-5555-4555-8555-555555555555\",\n      \"farmer_name\": \"John Smith\",\n      \"farmer_email\": \"john@example.com\",\n      \"enrolled_by\": \"33333333-3333-4333-8333-333333333333\",\n      \"status\": \"active\",\n      \"note\": \"wheat fields only\",\n      \"enrolled_at\": \"2026-06-30T12:00:00.000Z\",\n      \"fields\": [\n        {\n          \"id\": \"66666666-6666-4666-8666-666666666666\",\n          \"field_id\": \"77777777-7777-4777-8777-777777777777\",\n          \"field_name\": \"North Field\",\n          \"farm_name\": \"Green Valley Farm\"\n        },\n        {\n          \"id\": \"88888888-8888-4888-8888-888888888888\",\n          \"field_id\": \"99999999-9999-4999-8999-999999999999\",\n          \"field_name\": \"East Field\",\n          \"farm_name\": \"Green Valley Farm\"\n        }\n      ],\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "DELETE Unenroll farmer",
+          "method": "DELETE",
+          "endpoint": "<<baseUrl>>/programs/<<programId>>/enrollments/<<enrollmentId>>",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Farmer unenrolled.\"\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Farmer unenrolled.\"\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "DELETE Unenroll farmer",
+                "method": "DELETE",
+                "endpoint": "<<baseUrl>>/programs/<<programId>>/enrollments/<<enrollmentId>>",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Farmer unenrolled.\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "v": 12,
+      "name": "Assessor Assessment (fresh · compare)",
+      "folders": [],
+      "requests": [
+        {
+          "v": "17",
+          "name": "GET My fields to assess",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessor/fields",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Assessor fields fetched.\",\n  \"data\": {\n    \"year\": 2026,\n    \"title\": \"2026 Annual Assessment\",\n    \"counts\": {\n      \"total\": 2,\n      \"notStarted\": 1,\n      \"inProgress\": 0,\n      \"completed\": 1\n    },\n    \"fields\": [\n      {\n        \"field\": {\n          \"id\": \"77777777-7777-4777-8777-777777777777\",\n          \"name\": \"North Field\",\n          \"crop\": \"Wheat\",\n          \"status\": \"monitor\"\n        },\n        \"farm\": {\n          \"id\": \"22222222-2222-4222-8222-222222222222\",\n          \"name\": \"Green Valley Farm\"\n        },\n        \"farmer\": {\n          \"id\": \"55555555-5555-4555-8555-555555555555\",\n          \"name\": \"John Smith\"\n        },\n        \"assessment\": {\n          \"status\": \"completed\",\n          \"inProgress\": false,\n          \"completed\": true,\n          \"totalQuestions\": 31,\n          \"answered\": 31,\n          \"percentage\": 90,\n          \"submittedAt\": \"2026-06-29T10:00:00.000Z\",\n          \"farmerSubmitted\": true\n        }\n      },\n      {\n        \"field\": {\n          \"id\": \"99999999-9999-4999-8999-999999999999\",\n          \"name\": \"East Field\",\n          \"crop\": \"Wheat\",\n          \"status\": \"healthy\"\n        },\n        \"farm\": {\n          \"id\": \"22222222-2222-4222-8222-222222222222\",\n          \"name\": \"Green Valley Farm\"\n        },\n        \"farmer\": {\n          \"id\": \"55555555-5555-4555-8555-555555555555\",\n          \"name\": \"John Smith\"\n        },\n        \"assessment\": {\n          \"status\": \"not_started\",\n          \"inProgress\": false,\n          \"completed\": false,\n          \"totalQuestions\": 31,\n          \"answered\": 0,\n          \"percentage\": 0,\n          \"submittedAt\": null,\n          \"farmerSubmitted\": true\n        }\n      }\n    ]\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });\nconst d = pw.response.body.data; if (d && d.fields && d.fields.length) pw.env.set('fieldId', d.fields[0].field.id);",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Assessor fields fetched.\",\n  \"data\": {\n    \"year\": 2026,\n    \"title\": \"2026 Annual Assessment\",\n    \"counts\": {\n      \"total\": 2,\n      \"notStarted\": 1,\n      \"inProgress\": 0,\n      \"completed\": 1\n    },\n    \"fields\": [\n      {\n        \"field\": {\n          \"id\": \"77777777-7777-4777-8777-777777777777\",\n          \"name\": \"North Field\",\n          \"crop\": \"Wheat\",\n          \"status\": \"monitor\"\n        },\n        \"farm\": {\n          \"id\": \"22222222-2222-4222-8222-222222222222\",\n          \"name\": \"Green Valley Farm\"\n        },\n        \"farmer\": {\n          \"id\": \"55555555-5555-4555-8555-555555555555\",\n          \"name\": \"John Smith\"\n        },\n        \"assessment\": {\n          \"status\": \"completed\",\n          \"inProgress\": false,\n          \"completed\": true,\n          \"totalQuestions\": 31,\n          \"answered\": 31,\n          \"percentage\": 90,\n          \"submittedAt\": \"2026-06-29T10:00:00.000Z\",\n          \"farmerSubmitted\": true\n        }\n      },\n      {\n        \"field\": {\n          \"id\": \"99999999-9999-4999-8999-999999999999\",\n          \"name\": \"East Field\",\n          \"crop\": \"Wheat\",\n          \"status\": \"healthy\"\n        },\n        \"farm\": {\n          \"id\": \"22222222-2222-4222-8222-222222222222\",\n          \"name\": \"Green Valley Farm\"\n        },\n        \"farmer\": {\n          \"id\": \"55555555-5555-4555-8555-555555555555\",\n          \"name\": \"John Smith\"\n        },\n        \"assessment\": {\n          \"status\": \"not_started\",\n          \"inProgress\": false,\n          \"completed\": false,\n          \"totalQuestions\": 31,\n          \"answered\": 0,\n          \"percentage\": 0,\n          \"submittedAt\": null,\n          \"farmerSubmitted\": true\n        }\n      }\n    ]\n  }\n}\n```\n\n**Future-start programs:** a field enrolled ONLY in a future-start (upcoming) program is NOT assessable yet - assessment endpoints return 404 for it, and it does not appear in the assessable-fields list. It becomes assessable on the program start date.",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "GET My fields to assess",
+                "method": "GET",
+                "endpoint": "<<baseUrl>>/assessor/fields",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Assessor fields fetched.\",\n  \"data\": {\n    \"year\": 2026,\n    \"title\": \"2026 Annual Assessment\",\n    \"counts\": {\n      \"total\": 2,\n      \"notStarted\": 1,\n      \"inProgress\": 0,\n      \"completed\": 1\n    },\n    \"fields\": [\n      {\n        \"field\": {\n          \"id\": \"77777777-7777-4777-8777-777777777777\",\n          \"name\": \"North Field\",\n          \"crop\": \"Wheat\",\n          \"status\": \"monitor\"\n        },\n        \"farm\": {\n          \"id\": \"22222222-2222-4222-8222-222222222222\",\n          \"name\": \"Green Valley Farm\"\n        },\n        \"farmer\": {\n          \"id\": \"55555555-5555-4555-8555-555555555555\",\n          \"name\": \"John Smith\"\n        },\n        \"assessment\": {\n          \"status\": \"completed\",\n          \"inProgress\": false,\n          \"completed\": true,\n          \"totalQuestions\": 31,\n          \"answered\": 31,\n          \"percentage\": 90,\n          \"submittedAt\": \"2026-06-29T10:00:00.000Z\",\n          \"farmerSubmitted\": true\n        }\n      },\n      {\n        \"field\": {\n          \"id\": \"99999999-9999-4999-8999-999999999999\",\n          \"name\": \"East Field\",\n          \"crop\": \"Wheat\",\n          \"status\": \"healthy\"\n        },\n        \"farm\": {\n          \"id\": \"22222222-2222-4222-8222-222222222222\",\n          \"name\": \"Green Valley Farm\"\n        },\n        \"farmer\": {\n          \"id\": \"55555555-5555-4555-8555-555555555555\",\n          \"name\": \"John Smith\"\n        },\n        \"assessment\": {\n          \"status\": \"not_started\",\n          \"inProgress\": false,\n          \"completed\": false,\n          \"totalQuestions\": 31,\n          \"answered\": 0,\n          \"percentage\": 0,\n          \"submittedAt\": null,\n          \"farmerSubmitted\": true\n        }\n      }\n    ]\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "GET Assessor summary",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/summary",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Assessment summary fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"farmer\": {\n      \"id\": \"55555555-5555-4555-8555-555555555555\",\n      \"name\": \"John Smith\"\n    },\n    \"assessment\": {\n      \"title\": \"2026 Annual Assessment (Assessor)\",\n      \"year\": 2026,\n      \"status\": \"in_progress\",\n      \"totalQuestions\": 31,\n      \"answered\": 12,\n      \"percentage\": 38.7\n    },\n    \"categories\": [\n      {\n        \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n        \"name\": \"Soil Management\",\n        \"totalQuestions\": 8,\n        \"answered\": 5,\n        \"percentage\": 62.5\n      }\n    ]\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });\nconst d = pw.response.body.data; if (d && d.categories && d.categories.length) pw.env.set('categoryId', d.categories[0].id);",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Assessment summary fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"farmer\": {\n      \"id\": \"55555555-5555-4555-8555-555555555555\",\n      \"name\": \"John Smith\"\n    },\n    \"assessment\": {\n      \"title\": \"2026 Annual Assessment (Assessor)\",\n      \"year\": 2026,\n      \"status\": \"in_progress\",\n      \"totalQuestions\": 31,\n      \"answered\": 12,\n      \"percentage\": 38.7\n    },\n    \"categories\": [\n      {\n        \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n        \"name\": \"Soil Management\",\n        \"totalQuestions\": 8,\n        \"answered\": 5,\n        \"percentage\": 62.5\n      }\n    ]\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "GET Assessor summary",
+                "method": "GET",
+                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/summary",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Assessment summary fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"farmer\": {\n      \"id\": \"55555555-5555-4555-8555-555555555555\",\n      \"name\": \"John Smith\"\n    },\n    \"assessment\": {\n      \"title\": \"2026 Annual Assessment (Assessor)\",\n      \"year\": 2026,\n      \"status\": \"in_progress\",\n      \"totalQuestions\": 31,\n      \"answered\": 12,\n      \"percentage\": 38.7\n    },\n    \"categories\": [\n      {\n        \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n        \"name\": \"Soil Management\",\n        \"totalQuestions\": 8,\n        \"answered\": 5,\n        \"percentage\": 62.5\n      }\n    ]\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "GET Category question list",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/categories/<<categoryId>>/questions/list",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Category question list fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"category\": {\n      \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n      \"name\": \"Soil Management\"\n    },\n    \"progress\": {\n      \"totalQuestions\": 2,\n      \"answered\": 1,\n      \"percentage\": 50\n    },\n    \"questions\": [\n      {\n        \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n        \"questionCode\": \"SM-01\",\n        \"questionText\": \"Carbon sequestration evidence\",\n        \"guidanceNote\": \"Soil sampling records.\",\n        \"answered\": true\n      },\n      {\n        \"id\": \"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\n        \"questionCode\": \"SM-02\",\n        \"questionText\": \"Cover crop usage\",\n        \"guidanceNote\": null,\n        \"answered\": false\n      }\n    ]\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });\nconst d = pw.response.body.data; if (d && d.questions && d.questions.length) pw.env.set('questionId', d.questions[0].id);",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Category question list fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"category\": {\n      \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n      \"name\": \"Soil Management\"\n    },\n    \"progress\": {\n      \"totalQuestions\": 2,\n      \"answered\": 1,\n      \"percentage\": 50\n    },\n    \"questions\": [\n      {\n        \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n        \"questionCode\": \"SM-01\",\n        \"questionText\": \"Carbon sequestration evidence\",\n        \"guidanceNote\": \"Soil sampling records.\",\n        \"answered\": true\n      },\n      {\n        \"id\": \"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\n        \"questionCode\": \"SM-02\",\n        \"questionText\": \"Cover crop usage\",\n        \"guidanceNote\": null,\n        \"answered\": false\n      }\n    ]\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "GET Category question list",
+                "method": "GET",
+                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/categories/<<categoryId>>/questions/list",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Category question list fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"category\": {\n      \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n      \"name\": \"Soil Management\"\n    },\n    \"progress\": {\n      \"totalQuestions\": 2,\n      \"answered\": 1,\n      \"percentage\": 50\n    },\n    \"questions\": [\n      {\n        \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n        \"questionCode\": \"SM-01\",\n        \"questionText\": \"Carbon sequestration evidence\",\n        \"guidanceNote\": \"Soil sampling records.\",\n        \"answered\": true\n      },\n      {\n        \"id\": \"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\n        \"questionCode\": \"SM-02\",\n        \"questionText\": \"Cover crop usage\",\n        \"guidanceNote\": null,\n        \"answered\": false\n      }\n    ]\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "GET Single question detail",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/categories/<<categoryId>>/questions/<<questionId>>",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Question fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"category\": {\n      \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n      \"name\": \"Soil Management\"\n    },\n    \"question\": {\n      \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n      \"questionCode\": \"SM-01\",\n      \"questionText\": \"Carbon sequestration evidence\",\n      \"guidanceNote\": \"Soil sampling records.\",\n      \"scoreDescriptions\": {\n        \"score0\": \"No evidence\",\n        \"score1\": \"Single sample\",\n        \"score2\": \"Multiple samples\",\n        \"score3\": \"Replicated sampling at multiple depths\"\n      },\n      \"answerScore\": 3,\n      \"answerComment\": \"assessor says 3\",\n      \"answerEvidenceUrls\": [\n        \"https://res.cloudinary.com/demo/image/upload/v1/evidence/a.jpg\"\n      ],\n      \"answered\": true\n    },\n    \"locked\": false\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Question fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"category\": {\n      \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n      \"name\": \"Soil Management\"\n    },\n    \"question\": {\n      \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n      \"questionCode\": \"SM-01\",\n      \"questionText\": \"Carbon sequestration evidence\",\n      \"guidanceNote\": \"Soil sampling records.\",\n      \"scoreDescriptions\": {\n        \"score0\": \"No evidence\",\n        \"score1\": \"Single sample\",\n        \"score2\": \"Multiple samples\",\n        \"score3\": \"Replicated sampling at multiple depths\"\n      },\n      \"answerScore\": 3,\n      \"answerComment\": \"assessor says 3\",\n      \"answerEvidenceUrls\": [\n        \"https://res.cloudinary.com/demo/image/upload/v1/evidence/a.jpg\"\n      ],\n      \"answered\": true\n    },\n    \"locked\": false\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "GET Single question detail",
+                "method": "GET",
+                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/categories/<<categoryId>>/questions/<<questionId>>",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Question fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"category\": {\n      \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n      \"name\": \"Soil Management\"\n    },\n    \"question\": {\n      \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n      \"questionCode\": \"SM-01\",\n      \"questionText\": \"Carbon sequestration evidence\",\n      \"guidanceNote\": \"Soil sampling records.\",\n      \"scoreDescriptions\": {\n        \"score0\": \"No evidence\",\n        \"score1\": \"Single sample\",\n        \"score2\": \"Multiple samples\",\n        \"score3\": \"Replicated sampling at multiple depths\"\n      },\n      \"answerScore\": 3,\n      \"answerComment\": \"assessor says 3\",\n      \"answerEvidenceUrls\": [\n        \"https://res.cloudinary.com/demo/image/upload/v1/evidence/a.jpg\"\n      ],\n      \"answered\": true\n    },\n    \"locked\": false\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "GET Category questions (full)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/categories/<<categoryId>>/questions",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Category questions fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"category\": {\n      \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n      \"name\": \"Soil Management\"\n    },\n    \"progress\": {\n      \"totalQuestions\": 2,\n      \"answered\": 1,\n      \"percentage\": 50\n    },\n    \"questions\": [\n      {\n        \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n        \"questionCode\": \"SM-01\",\n        \"questionText\": \"Carbon sequestration evidence\",\n        \"guidanceNote\": \"Soil sampling records.\",\n        \"scoreDescriptions\": {\n          \"score0\": \"No evidence\",\n          \"score1\": \"Single sample\",\n          \"score2\": \"Multiple samples\",\n          \"score3\": \"Replicated sampling at multiple depths\"\n        },\n        \"answerScore\": 3,\n        \"answerComment\": \"assessor says 3\",\n        \"answerEvidenceUrls\": [\n          \"https://res.cloudinary.com/demo/image/upload/v1/evidence/a.jpg\"\n        ],\n        \"answered\": true\n      }\n    ]\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Category questions fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"category\": {\n      \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n      \"name\": \"Soil Management\"\n    },\n    \"progress\": {\n      \"totalQuestions\": 2,\n      \"answered\": 1,\n      \"percentage\": 50\n    },\n    \"questions\": [\n      {\n        \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n        \"questionCode\": \"SM-01\",\n        \"questionText\": \"Carbon sequestration evidence\",\n        \"guidanceNote\": \"Soil sampling records.\",\n        \"scoreDescriptions\": {\n          \"score0\": \"No evidence\",\n          \"score1\": \"Single sample\",\n          \"score2\": \"Multiple samples\",\n          \"score3\": \"Replicated sampling at multiple depths\"\n        },\n        \"answerScore\": 3,\n        \"answerComment\": \"assessor says 3\",\n        \"answerEvidenceUrls\": [\n          \"https://res.cloudinary.com/demo/image/upload/v1/evidence/a.jpg\"\n        ],\n        \"answered\": true\n      }\n    ]\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "GET Category questions (full)",
+                "method": "GET",
+                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/categories/<<categoryId>>/questions",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Category questions fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"category\": {\n      \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n      \"name\": \"Soil Management\"\n    },\n    \"progress\": {\n      \"totalQuestions\": 2,\n      \"answered\": 1,\n      \"percentage\": 50\n    },\n    \"questions\": [\n      {\n        \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n        \"questionCode\": \"SM-01\",\n        \"questionText\": \"Carbon sequestration evidence\",\n        \"guidanceNote\": \"Soil sampling records.\",\n        \"scoreDescriptions\": {\n          \"score0\": \"No evidence\",\n          \"score1\": \"Single sample\",\n          \"score2\": \"Multiple samples\",\n          \"score3\": \"Replicated sampling at multiple depths\"\n        },\n        \"answerScore\": 3,\n        \"answerComment\": \"assessor says 3\",\n        \"answerEvidenceUrls\": [\n          \"https://res.cloudinary.com/demo/image/upload/v1/evidence/a.jpg\"\n        ],\n        \"answered\": true\n      }\n    ]\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "PUT Save assessor answer",
+          "method": "PUT",
+          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/questions/<<questionId>>/answer",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true,
+              "description": ""
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"score\": 3,\n  \"comment\": \"assessor says 3\",\n  \"evidenceUrls\": []\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Answer saved.\",\n  \"data\": {\n    \"response\": {\n      \"id\": \"dddddddd-dddd-4ddd-8ddd-dddddddddddd\",\n      \"field_id\": \"77777777-7777-4777-8777-777777777777\",\n      \"question_id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n      \"score\": 3,\n      \"comment\": \"assessor says 3\",\n      \"evidence_urls\": [],\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });\npw.test(\"success\", () => { pw.expect(pw.response.body.success).toBe(true); });",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Answer saved.\",\n  \"data\": {\n    \"response\": {\n      \"id\": \"dddddddd-dddd-4ddd-8ddd-dddddddddddd\",\n      \"field_id\": \"77777777-7777-4777-8777-777777777777\",\n      \"question_id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n      \"score\": 3,\n      \"comment\": \"assessor says 3\",\n      \"evidence_urls\": [],\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "PUT Save assessor answer",
+                "method": "PUT",
+                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/questions/<<questionId>>/answer",
+                "headers": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "active": true,
+                    "description": ""
+                  }
+                ],
+                "params": [],
+                "body": {
+                  "contentType": "application/json",
+                  "body": "{\n  \"score\": 3,\n  \"comment\": \"assessor says 3\",\n  \"evidenceUrls\": []\n}"
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Answer saved.\",\n  \"data\": {\n    \"response\": {\n      \"id\": \"dddddddd-dddd-4ddd-8ddd-dddddddddddd\",\n      \"field_id\": \"77777777-7777-4777-8777-777777777777\",\n      \"question_id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n      \"score\": 3,\n      \"comment\": \"assessor says 3\",\n      \"evidence_urls\": [],\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "GET Review & Submit",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/review",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Assessment review fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"submission\": {\n      \"status\": \"in_progress\",\n      \"submittedAt\": null,\n      \"totalQuestions\": 31,\n      \"answered\": 12,\n      \"percentage\": 38.7\n    },\n    \"categories\": [\n      {\n        \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n        \"name\": \"Soil Management\",\n        \"totalQuestions\": 2,\n        \"answered\": 2,\n        \"percentage\": 100,\n        \"questions\": [\n          {\n            \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n            \"questionCode\": \"SM-01\",\n            \"questionText\": \"Carbon sequestration evidence\",\n            \"answerScore\": 3,\n            \"answerComment\": \"assessor says 3\",\n            \"answerEvidenceUrls\": [],\n            \"answered\": true\n          }\n        ]\n      }\n    ]\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Assessment review fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"submission\": {\n      \"status\": \"in_progress\",\n      \"submittedAt\": null,\n      \"totalQuestions\": 31,\n      \"answered\": 12,\n      \"percentage\": 38.7\n    },\n    \"categories\": [\n      {\n        \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n        \"name\": \"Soil Management\",\n        \"totalQuestions\": 2,\n        \"answered\": 2,\n        \"percentage\": 100,\n        \"questions\": [\n          {\n            \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n            \"questionCode\": \"SM-01\",\n            \"questionText\": \"Carbon sequestration evidence\",\n            \"answerScore\": 3,\n            \"answerComment\": \"assessor says 3\",\n            \"answerEvidenceUrls\": [],\n            \"answered\": true\n          }\n        ]\n      }\n    ]\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "GET Review & Submit",
+                "method": "GET",
+                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/review",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Assessment review fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"submission\": {\n      \"status\": \"in_progress\",\n      \"submittedAt\": null,\n      \"totalQuestions\": 31,\n      \"answered\": 12,\n      \"percentage\": 38.7\n    },\n    \"categories\": [\n      {\n        \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n        \"name\": \"Soil Management\",\n        \"totalQuestions\": 2,\n        \"answered\": 2,\n        \"percentage\": 100,\n        \"questions\": [\n          {\n            \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n            \"questionCode\": \"SM-01\",\n            \"questionText\": \"Carbon sequestration evidence\",\n            \"answerScore\": 3,\n            \"answerComment\": \"assessor says 3\",\n            \"answerEvidenceUrls\": [],\n            \"answered\": true\n          }\n        ]\n      }\n    ]\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "POST Submit assessor assessment",
+          "method": "POST",
+          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/submit",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Assessment submitted successfully.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"assessment\": {\n      \"id\": \"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee\",\n      \"field_id\": \"77777777-7777-4777-8777-777777777777\",\n      \"status\": \"submitted\",\n      \"total_questions\": 31,\n      \"answered\": 12,\n      \"total_score\": 30,\n      \"max_score\": 36,\n      \"percentage\": \"83.33\",\n      \"submitted_at\": \"2026-06-30T12:00:00.000Z\",\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Assessment submitted successfully.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"assessment\": {\n      \"id\": \"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee\",\n      \"field_id\": \"77777777-7777-4777-8777-777777777777\",\n      \"status\": \"submitted\",\n      \"total_questions\": 31,\n      \"answered\": 12,\n      \"total_score\": 30,\n      \"max_score\": 36,\n      \"percentage\": \"83.33\",\n      \"submitted_at\": \"2026-06-30T12:00:00.000Z\",\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "POST Submit assessor assessment",
+                "method": "POST",
+                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/submit",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Assessment submitted successfully.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"assessment\": {\n      \"id\": \"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee\",\n      \"field_id\": \"77777777-7777-4777-8777-777777777777\",\n      \"status\": \"submitted\",\n      \"total_questions\": 31,\n      \"answered\": 12,\n      \"total_score\": 30,\n      \"max_score\": 36,\n      \"percentage\": \"83.33\",\n      \"submitted_at\": \"2026-06-30T12:00:00.000Z\",\n      \"created_at\": \"2026-06-30T12:00:00.000Z\",\n      \"updated_at\": \"2026-06-30T12:00:00.000Z\"\n    }\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "GET View farmer's assessment (read)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/farmer-assessment",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Farmer assessment fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"farmerSubmitted\": true,\n    \"submittedAt\": \"2026-06-29T10:00:00.000Z\",\n    \"categories\": [\n      {\n        \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n        \"name\": \"Soil Management\",\n        \"questions\": [\n          {\n            \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n            \"questionCode\": \"SM-01\",\n            \"questionText\": \"Carbon sequestration evidence\",\n            \"answerScore\": 2,\n            \"answerComment\": \"farmer says 2\",\n            \"answerEvidenceUrls\": [],\n            \"answered\": true\n          }\n        ]\n      }\n    ]\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Farmer assessment fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"farmerSubmitted\": true,\n    \"submittedAt\": \"2026-06-29T10:00:00.000Z\",\n    \"categories\": [\n      {\n        \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n        \"name\": \"Soil Management\",\n        \"questions\": [\n          {\n            \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n            \"questionCode\": \"SM-01\",\n            \"questionText\": \"Carbon sequestration evidence\",\n            \"answerScore\": 2,\n            \"answerComment\": \"farmer says 2\",\n            \"answerEvidenceUrls\": [],\n            \"answered\": true\n          }\n        ]\n      }\n    ]\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "GET View farmer's assessment (read)",
+                "method": "GET",
+                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/farmer-assessment",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Farmer assessment fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"farmerSubmitted\": true,\n    \"submittedAt\": \"2026-06-29T10:00:00.000Z\",\n    \"categories\": [\n      {\n        \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n        \"name\": \"Soil Management\",\n        \"questions\": [\n          {\n            \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n            \"questionCode\": \"SM-01\",\n            \"questionText\": \"Carbon sequestration evidence\",\n            \"answerScore\": 2,\n            \"answerComment\": \"farmer says 2\",\n            \"answerEvidenceUrls\": [],\n            \"answered\": true\n          }\n        ]\n      }\n    ]\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "GET Comparison (farmer vs assessor)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/comparison",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Comparison fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"farmer\": {\n      \"submitted\": true,\n      \"percentage\": 66.67\n    },\n    \"assessor\": {\n      \"submitted\": true,\n      \"percentage\": 100\n    },\n    \"categories\": [\n      {\n        \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n        \"name\": \"Soil Management\",\n        \"questions\": [\n          {\n            \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n            \"questionCode\": \"SM-01\",\n            \"questionText\": \"Carbon sequestration evidence\",\n            \"farmerScore\": 2,\n            \"assessorScore\": 3,\n            \"difference\": 1\n          },\n          {\n            \"id\": \"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\n            \"questionCode\": \"SM-02\",\n            \"questionText\": \"Cover crop usage\",\n            \"farmerScore\": 2,\n            \"assessorScore\": 3,\n            \"difference\": 1\n          }\n        ]\n      }\n    ]\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });\npw.test(\"has both sides\", () => { const d = pw.response.body.data; pw.expect(d.farmer).toBeType('object'); pw.expect(d.assessor).toBeType('object'); });",
+          "requestVariables": [],
+          "description": "### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Comparison fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"farmer\": {\n      \"submitted\": true,\n      \"percentage\": 66.67\n    },\n    \"assessor\": {\n      \"submitted\": true,\n      \"percentage\": 100\n    },\n    \"categories\": [\n      {\n        \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n        \"name\": \"Soil Management\",\n        \"questions\": [\n          {\n            \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n            \"questionCode\": \"SM-01\",\n            \"questionText\": \"Carbon sequestration evidence\",\n            \"farmerScore\": 2,\n            \"assessorScore\": 3,\n            \"difference\": 1\n          },\n          {\n            \"id\": \"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\n            \"questionCode\": \"SM-02\",\n            \"questionText\": \"Cover crop usage\",\n            \"farmerScore\": 2,\n            \"assessorScore\": 3,\n            \"difference\": 1\n          }\n        ]\n      }\n    ]\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "GET Comparison (farmer vs assessor)",
+                "method": "GET",
+                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/comparison",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Comparison fetched.\",\n  \"data\": {\n    \"field\": {\n      \"id\": \"77777777-7777-4777-8777-777777777777\",\n      \"name\": \"North Field\"\n    },\n    \"farmer\": {\n      \"submitted\": true,\n      \"percentage\": 66.67\n    },\n    \"assessor\": {\n      \"submitted\": true,\n      \"percentage\": 100\n    },\n    \"categories\": [\n      {\n        \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n        \"name\": \"Soil Management\",\n        \"questions\": [\n          {\n            \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n            \"questionCode\": \"SM-01\",\n            \"questionText\": \"Carbon sequestration evidence\",\n            \"farmerScore\": 2,\n            \"assessorScore\": 3,\n            \"difference\": 1\n          },\n          {\n            \"id\": \"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\n            \"questionCode\": \"SM-02\",\n            \"questionText\": \"Cover crop usage\",\n            \"farmerScore\": 2,\n            \"assessorScore\": 3,\n            \"difference\": 1\n          }\n        ]\n      }\n    ]\n  }\n}"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "requests": []
+}

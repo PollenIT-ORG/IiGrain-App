@@ -1,0 +1,25 @@
+<resources>
+
+    <!-- Base application theme.
+         Light-only: the app never follows the OS dark theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+
+        <!-- WHITE window background so the very first frames (before JS paints) are
+             white - never a blank/dark frame that an OEM would cover with its own
+             "loading" ring. -->
+        <item name="android:windowBackground">@android:color/white</item>
+
+        <!-- Force light mode app-wide (belt-and-suspenders alongside the Light parent). -->
+        <item name="android:forceDarkAllowed">false</item>
+
+        <!-- Status bar = primary green with LIGHT (white) icons.
+             On Android 15+ the OS forces edge-to-edge and IGNORES statusBarColor -
+             the JS StatusBarBackground overlay paints the strip there. On Android <15
+             (opaque status bar) this colours it directly. windowLightStatusBar=false
+             keeps the clock/icons white for contrast on the dark green. -->
+        <item name="android:statusBarColor">#167A45</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+</resources>

@@ -1,0 +1,189 @@
+{
+  "v": 12,
+  "name": "Farmer App - Dashboard",
+  "folders": [
+    {
+      "v": 12,
+      "name": "Farmer Dashboard (2-step)",
+      "folders": [],
+      "requests": [
+        {
+          "v": "17",
+          "name": "1. GET my farms (selector)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/dashboard/my/farms",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Dashboard farms fetched.\",\n  \"data\": {\n    \"farms\": [\n      {\n        \"id\": \"11111111-1111-4111-8111-111111111111\",\n        \"name\": \"Green Valley Farm\",\n        \"fieldCount\": 3\n      },\n      {\n        \"id\": \"22222222-2222-4222-8222-222222222222\",\n        \"name\": \"River Bend Farm\",\n        \"fieldCount\": 1\n      }\n    ],\n    \"defaultFarmId\": \"11111111-1111-4111-8111-111111111111\"\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });\nconst d = pw.response.body.data; if (d && d.defaultFarmId) pw.env.set('farmId', d.defaultFarmId);",
+          "requestVariables": [],
+          "description": "STEP 1 - the farmer's farms for the dashboard dropdown (+ defaultFarmId). Client selects the default farm, then calls step 2. Needs a FARMER token. (The test script auto-saves defaultFarmId to the `farmId` env var.)\n\n### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Dashboard farms fetched.\",\n  \"data\": {\n    \"farms\": [\n      {\n        \"id\": \"11111111-1111-4111-8111-111111111111\",\n        \"name\": \"Green Valley Farm\",\n        \"fieldCount\": 3\n      },\n      {\n        \"id\": \"22222222-2222-4222-8222-222222222222\",\n        \"name\": \"River Bend Farm\",\n        \"fieldCount\": 1\n      }\n    ],\n    \"defaultFarmId\": \"11111111-1111-4111-8111-111111111111\"\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "1. GET my farms (selector)",
+                "method": "GET",
+                "endpoint": "<<baseUrl>>/dashboard/my/farms",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Dashboard farms fetched.\",\n  \"data\": {\n    \"farms\": [\n      {\n        \"id\": \"11111111-1111-4111-8111-111111111111\",\n        \"name\": \"Green Valley Farm\",\n        \"fieldCount\": 3\n      },\n      {\n        \"id\": \"22222222-2222-4222-8222-222222222222\",\n        \"name\": \"River Bend Farm\",\n        \"fieldCount\": 1\n      }\n    ],\n    \"defaultFarmId\": \"11111111-1111-4111-8111-111111111111\"\n  }\n}"
+            }
+          }
+        },
+        {
+          "v": "17",
+          "name": "2. GET farm dashboard (all data)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/dashboard/my/farms/<<farmId>>",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Farm dashboard fetched.\",\n  \"data\": {\n    \"farm\": {\n      \"id\": \"11111111-1111-4111-8111-111111111111\",\n      \"name\": \"Green Valley Farm\"\n    },\n    \"regenHealthIndex\": 55,\n    \"trendVsLastYear\": null,\n    \"categories\": [\n      {\n        \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n        \"name\": \"Animal welfare\",\n        \"score\": 58,\n        \"answered\": 4,\n        \"totalQuestions\": 4\n      },\n      {\n        \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n        \"name\": \"Biodiversity & habitat\",\n        \"score\": 61,\n        \"answered\": 6,\n        \"totalQuestions\": 6\n      },\n      {\n        \"id\": \"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\n        \"name\": \"Carbon & nutrient cycling\",\n        \"score\": 40,\n        \"answered\": 5,\n        \"totalQuestions\": 5\n      },\n      {\n        \"id\": \"dddddddd-dddd-4ddd-8ddd-dddddddddddd\",\n        \"name\": \"Management & planning\",\n        \"score\": 67,\n        \"answered\": 5,\n        \"totalQuestions\": 5\n      },\n      {\n        \"id\": \"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee\",\n        \"name\": \"Soil health & biology\",\n        \"score\": 61,\n        \"answered\": 6,\n        \"totalQuestions\": 6\n      },\n      {\n        \"id\": \"ffffffff-ffff-4fff-8fff-ffffffffffff\",\n        \"name\": \"Water cycle & management\",\n        \"score\": 40,\n        \"answered\": 5,\n        \"totalQuestions\": 5\n      }\n    ],\n    \"upcoming\": {\n      \"hasUpcoming\": true,\n      \"programs\": [\n        {\n          \"programId\": \"99999999-9999-4999-8999-999999999999\",\n          \"programName\": \"Govt Rice Scheme 2027\",\n          \"startDate\": \"2027-01-01\",\n          \"endDate\": \"2027-06-30\",\n          \"alreadyEnrolled\": false,\n          \"status\": \"upcoming\"\n        }\n      ]\n    },\n    \"recentActivity\": [\n      {\n        \"type\": \"assessment_submitted\",\n        \"title\": \"Self assessment completed\",\n        \"detail\": \"31/31 answered · 54.84%\",\n        \"at\": \"2026-06-28T09:30:00.000Z\",\n        \"fieldId\": \"88888888-8888-4888-8888-888888888888\",\n        \"fieldName\": \"East Field\"\n      },\n      {\n        \"type\": \"assessment_started\",\n        \"title\": \"Assessment started\",\n        \"detail\": null,\n        \"at\": \"2026-06-25T10:00:00.000Z\",\n        \"fieldId\": \"77777777-7777-4777-8777-777777777777\",\n        \"fieldName\": \"North Field\"\n      },\n      {\n        \"type\": \"enrolled_in_program\",\n        \"title\": \"Enrolled in Govt Wheat Scheme\",\n        \"detail\": null,\n        \"at\": \"2026-06-20T08:00:00.000Z\",\n        \"fieldId\": null,\n        \"fieldName\": \"Govt Wheat Scheme\"\n      }\n    ],\n    \"summary\": {\n      \"assessmentsCompleted\": 1,\n      \"averageScore\": 55,\n      \"topCategory\": \"Management & planning\"\n    },\n    \"recommendations\": []\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });\npw.test(\"has categories\", () => { pw.expect(Array.isArray(pw.response.body.data.categories)).toBe(true); });",
+          "requestVariables": [],
+          "description": "STEP 2 - the full dashboard for the selected farm in ONE response: Regen Health Index, 6 category scores (0-100), upcoming/next assessment, recent activity, and summary. All REAL data from the farmer's assessments; `trendVsLastYear` and `recommendations` are null/[] (not computed yet). Scores are null until fields are assessed. Needs a FARMER token.\n\n### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Farm dashboard fetched.\",\n  \"data\": {\n    \"farm\": {\n      \"id\": \"11111111-1111-4111-8111-111111111111\",\n      \"name\": \"Green Valley Farm\"\n    },\n    \"regenHealthIndex\": 55,\n    \"trendVsLastYear\": null,\n    \"categories\": [\n      {\n        \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n        \"name\": \"Animal welfare\",\n        \"score\": 58,\n        \"answered\": 4,\n        \"totalQuestions\": 4\n      },\n      {\n        \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n        \"name\": \"Biodiversity & habitat\",\n        \"score\": 61,\n        \"answered\": 6,\n        \"totalQuestions\": 6\n      },\n      {\n        \"id\": \"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\n        \"name\": \"Carbon & nutrient cycling\",\n        \"score\": 40,\n        \"answered\": 5,\n        \"totalQuestions\": 5\n      },\n      {\n        \"id\": \"dddddddd-dddd-4ddd-8ddd-dddddddddddd\",\n        \"name\": \"Management & planning\",\n        \"score\": 67,\n        \"answered\": 5,\n        \"totalQuestions\": 5\n      },\n      {\n        \"id\": \"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee\",\n        \"name\": \"Soil health & biology\",\n        \"score\": 61,\n        \"answered\": 6,\n        \"totalQuestions\": 6\n      },\n      {\n        \"id\": \"ffffffff-ffff-4fff-8fff-ffffffffffff\",\n        \"name\": \"Water cycle & management\",\n        \"score\": 40,\n        \"answered\": 5,\n        \"totalQuestions\": 5\n      }\n    ],\n    \"upcoming\": {\n      \"hasUpcoming\": true,\n      \"programs\": [\n        {\n          \"programId\": \"99999999-9999-4999-8999-999999999999\",\n          \"programName\": \"Govt Rice Scheme 2027\",\n          \"startDate\": \"2027-01-01\",\n          \"endDate\": \"2027-06-30\",\n          \"alreadyEnrolled\": false,\n          \"status\": \"upcoming\"\n        }\n      ]\n    },\n    \"recentActivity\": [\n      {\n        \"type\": \"assessment_submitted\",\n        \"title\": \"Self assessment completed\",\n        \"detail\": \"31/31 answered · 54.84%\",\n        \"at\": \"2026-06-28T09:30:00.000Z\",\n        \"fieldId\": \"88888888-8888-4888-8888-888888888888\",\n        \"fieldName\": \"East Field\"\n      },\n      {\n        \"type\": \"enrolled_in_program\",\n        \"title\": \"Enrolled in Govt Wheat Scheme\",\n        \"detail\": null,\n        \"at\": \"2026-06-20T08:00:00.000Z\",\n        \"fieldId\": null,\n        \"fieldName\": \"Govt Wheat Scheme\"\n      }\n    ],\n    \"summary\": {\n      \"assessmentsCompleted\": 1,\n      \"averageScore\": 55,\n      \"topCategory\": \"Management & planning\"\n    },\n    \"recommendations\": []\n  }\n}\n```\n\n**Upcoming (programs only):** `upcoming.programs` lists the future-start program schemes in the farm’s ORG - the farmer can’t enroll yet (enrollment opens on `startDate`), soonest first, each with `status: \"upcoming\"`. Pending field assessments are NOT here - the app reads those from `/assessments/my/fields`.\n\n**Recent activity types (farmer's OWN past actions):** `assessment_submitted`, `assessment_started` (first answer saved), `enrolled_in_program`. `fieldId`/`fieldName` are null for `enrolled_in_program`. Future/available programs are NOT activity - they live in `upcoming.programs`.",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "2. GET farm dashboard (all data)",
+                "method": "GET",
+                "endpoint": "<<baseUrl>>/dashboard/my/farms/<<farmId>>",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Farm dashboard fetched.\",\n  \"data\": {\n    \"farm\": {\n      \"id\": \"11111111-1111-4111-8111-111111111111\",\n      \"name\": \"Green Valley Farm\"\n    },\n    \"regenHealthIndex\": 55,\n    \"trendVsLastYear\": null,\n    \"categories\": [\n      {\n        \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n        \"name\": \"Animal welfare\",\n        \"score\": 58,\n        \"answered\": 4,\n        \"totalQuestions\": 4\n      },\n      {\n        \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n        \"name\": \"Biodiversity & habitat\",\n        \"score\": 61,\n        \"answered\": 6,\n        \"totalQuestions\": 6\n      },\n      {\n        \"id\": \"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\n        \"name\": \"Carbon & nutrient cycling\",\n        \"score\": 40,\n        \"answered\": 5,\n        \"totalQuestions\": 5\n      },\n      {\n        \"id\": \"dddddddd-dddd-4ddd-8ddd-dddddddddddd\",\n        \"name\": \"Management & planning\",\n        \"score\": 67,\n        \"answered\": 5,\n        \"totalQuestions\": 5\n      },\n      {\n        \"id\": \"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee\",\n        \"name\": \"Soil health & biology\",\n        \"score\": 61,\n        \"answered\": 6,\n        \"totalQuestions\": 6\n      },\n      {\n        \"id\": \"ffffffff-ffff-4fff-8fff-ffffffffffff\",\n        \"name\": \"Water cycle & management\",\n        \"score\": 40,\n        \"answered\": 5,\n        \"totalQuestions\": 5\n      }\n    ],\n    \"upcoming\": {\n      \"hasUpcoming\": true,\n      \"programs\": [\n        {\n          \"programId\": \"99999999-9999-4999-8999-999999999999\",\n          \"programName\": \"Govt Rice Scheme 2027\",\n          \"startDate\": \"2027-01-01\",\n          \"endDate\": \"2027-06-30\",\n          \"alreadyEnrolled\": false,\n          \"status\": \"upcoming\"\n        }\n      ]\n    },\n    \"recentActivity\": [\n      {\n        \"type\": \"assessment_submitted\",\n        \"title\": \"Self assessment completed\",\n        \"detail\": \"31/31 answered · 54.84%\",\n        \"at\": \"2026-06-28T09:30:00.000Z\",\n        \"fieldId\": \"88888888-8888-4888-8888-888888888888\",\n        \"fieldName\": \"East Field\"\n      },\n      {\n        \"type\": \"enrolled_in_program\",\n        \"title\": \"Enrolled in Govt Wheat Scheme\",\n        \"detail\": null,\n        \"at\": \"2026-06-20T08:00:00.000Z\",\n        \"fieldId\": null,\n        \"fieldName\": \"Govt Wheat Scheme\"\n      }\n    ],\n    \"summary\": {\n      \"assessmentsCompleted\": 1,\n      \"averageScore\": 55,\n      \"topCategory\": \"Management & planning\"\n    },\n    \"recommendations\": []\n  }\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "v": 12,
+      "name": "Admin Dashboard (analytics)",
+      "folders": [],
+      "requests": [
+        {
+          "v": "17",
+          "name": "GET admin dashboard (platform analytics)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/dashboard/admin",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "/* ===== EXPECTED RESPONSE (OK 200) =====\n{\n  \"success\": true,\n  \"message\": \"Admin dashboard fetched.\",\n  \"data\": {\n    \"kpis\": {\n      \"enrolledAcreage\": 980,\n      \"farmsEnrolled\": 7,\n      \"farmersEnrolled\": 5,\n      \"fieldsEnrolled\": 7,\n      \"assessmentsSubmitted\": 3,\n      \"completionPct\": 42.9,\n      \"avgRhi\": 60.6,\n      \"totalPrograms\": 1\n    },\n    \"acreageEnrolled\": [ { \"month\": \"Jul\", \"acres\": 980 } ],\n    \"programSplit\": [ { \"name\": \"Govt Rice Scheme\", \"acres\": 920, \"value\": 100, \"color\": \"#136F3F\" } ],\n    \"assessmentTrends\": [ { \"month\": \"Jul\", \"completion\": 3, \"score\": 60.6 } ],\n    \"rhiByProgram\": [ { \"region\": \"Govt Rice Scheme\", \"rhi\": 61 } ]\n  }\n}\n===== END EXPECTED RESPONSE ===== */",
+          "testScript": "pw.test(\"Status is 200\", () => { pw.expect(pw.response.status).toBe(200); });\npw.test(\"has kpis\", () => { pw.expect(typeof pw.response.body.data.kpis).toBe('object'); });\npw.test(\"has charts\", () => { const d = pw.response.body.data; pw.expect(Array.isArray(d.acreageEnrolled)).toBe(true); pw.expect(Array.isArray(d.programSplit)).toBe(true); pw.expect(Array.isArray(d.assessmentTrends)).toBe(true); pw.expect(Array.isArray(d.rhiByProgram)).toBe(true); });",
+          "requestVariables": [],
+          "description": "Platform-wide admin analytics in ONE response - headline KPIs (enrolled acreage, farms/farmers/fields enrolled, assessments submitted, completion %, avg RHI, total programs), cumulative acreage over the last 8 months (area chart), enrollment-by-program split (donut, with colors + %), monthly assessment submission/score trends (line), and average RHI per program (bar). All REAL data from the live DB. Needs an ADMIN or SUPER_ADMIN token.\n\nNOTE: the schema has no per-farm \"region\" column, so RHI is benchmarked per PROGRAM. The `rhiByProgram` items keep the key `region` (the program name) so the existing bar chart works unchanged.\n\n### Expected response (OK 200)\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Admin dashboard fetched.\",\n  \"data\": {\n    \"kpis\": {\n      \"enrolledAcreage\": 980,\n      \"farmsEnrolled\": 7,\n      \"farmersEnrolled\": 5,\n      \"fieldsEnrolled\": 7,\n      \"assessmentsSubmitted\": 3,\n      \"completionPct\": 42.9,\n      \"avgRhi\": 60.6,\n      \"totalPrograms\": 1\n    },\n    \"acreageEnrolled\": [\n      { \"month\": \"Jul\", \"acres\": 980 }\n    ],\n    \"programSplit\": [\n      { \"name\": \"Govt Rice Scheme\", \"acres\": 920, \"value\": 100, \"color\": \"#136F3F\" }\n    ],\n    \"assessmentTrends\": [\n      { \"month\": \"Jul\", \"completion\": 3, \"score\": 60.6 }\n    ],\n    \"rhiByProgram\": [\n      { \"region\": \"Govt Rice Scheme\", \"rhi\": 61 }\n    ]\n  }\n}\n```",
+          "responses": {
+            "Success example": {
+              "name": "Success example",
+              "originalRequest": {
+                "v": "6",
+                "name": "GET admin dashboard (platform analytics)",
+                "method": "GET",
+                "endpoint": "<<baseUrl>>/dashboard/admin",
+                "headers": [],
+                "params": [],
+                "body": {
+                  "contentType": null,
+                  "body": null
+                },
+                "auth": {
+                  "authType": "bearer",
+                  "authActive": true,
+                  "token": "<<token>>"
+                },
+                "preRequestScript": "",
+                "testScript": "",
+                "requestVariables": [],
+                "responses": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "headers": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Admin dashboard fetched.\",\n  \"data\": {\n    \"kpis\": {\n      \"enrolledAcreage\": 980,\n      \"farmsEnrolled\": 7,\n      \"farmersEnrolled\": 5,\n      \"fieldsEnrolled\": 7,\n      \"assessmentsSubmitted\": 3,\n      \"completionPct\": 42.9,\n      \"avgRhi\": 60.6,\n      \"totalPrograms\": 1\n    },\n    \"acreageEnrolled\": [\n      { \"month\": \"Dec\", \"acres\": 0 },\n      { \"month\": \"Jan\", \"acres\": 0 },\n      { \"month\": \"Feb\", \"acres\": 0 },\n      { \"month\": \"Mar\", \"acres\": 0 },\n      { \"month\": \"Apr\", \"acres\": 0 },\n      { \"month\": \"May\", \"acres\": 0 },\n      { \"month\": \"Jun\", \"acres\": 0 },\n      { \"month\": \"Jul\", \"acres\": 980 }\n    ],\n    \"programSplit\": [\n      { \"name\": \"Govt Rice Scheme\", \"acres\": 920, \"value\": 100, \"color\": \"#136F3F\" }\n    ],\n    \"assessmentTrends\": [\n      { \"month\": \"Dec\", \"completion\": 0, \"score\": null },\n      { \"month\": \"Jan\", \"completion\": 0, \"score\": null },\n      { \"month\": \"Feb\", \"completion\": 0, \"score\": null },\n      { \"month\": \"Mar\", \"completion\": 0, \"score\": null },\n      { \"month\": \"Apr\", \"completion\": 0, \"score\": null },\n      { \"month\": \"May\", \"completion\": 0, \"score\": null },\n      { \"month\": \"Jun\", \"completion\": 0, \"score\": null },\n      { \"month\": \"Jul\", \"completion\": 3, \"score\": 60.6 }\n    ],\n    \"rhiByProgram\": [\n      { \"region\": \"Govt Rice Scheme\", \"rhi\": 61 }\n    ]\n  }\n}"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "requests": []
+}

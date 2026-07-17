@@ -1,0 +1,548 @@
+{
+  "v": 1,
+  "name": "Farmer App - Assessments",
+  "folders": [
+    {
+      "v": 1,
+      "name": "Admin - Categories",
+      "folders": [],
+      "requests": [
+        {
+          "v": "1",
+          "name": "List categories (with question_count)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/categories",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Create category",
+          "method": "POST",
+          "endpoint": "<<baseUrl>>/assessments/categories",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true,
+              "description": ""
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"name\": \"Soil Health & Biology\",\n  \"description\": \"Soil organic matter, biology, tillage\",\n  \"isActive\": true\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "pw.test(\"save categoryId\", () => {\n  const d = pw.response.body.data;\n  if (d && d.category && d.category.id) pw.env.set('categoryId', d.category.id);\n});"
+        },
+        {
+          "v": "1",
+          "name": "Get category by id",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/categories/<<categoryId>>",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Update category (name / active)",
+          "method": "PATCH",
+          "endpoint": "<<baseUrl>>/assessments/categories/<<categoryId>>",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true,
+              "description": ""
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"name\": \"Soil Health & Biology (updated)\",\n  \"isActive\": true\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Reorder categories (drag-drop order)",
+          "method": "PATCH",
+          "endpoint": "<<baseUrl>>/assessments/categories/reorder",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true,
+              "description": ""
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"items\": [\n    { \"id\": \"<<categoryId>>\", \"sortOrder\": 0 }\n  ]\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Delete category (soft)",
+          "method": "DELETE",
+          "endpoint": "<<baseUrl>>/assessments/categories/<<categoryId>>",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        }
+      ]
+    },
+    {
+      "v": 1,
+      "name": "Admin - Questions",
+      "folders": [],
+      "requests": [
+        {
+          "v": "1",
+          "name": "List questions (page / categoryId / isActive / search)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/questions",
+          "headers": [],
+          "params": [
+            {
+              "key": "page",
+              "value": "1",
+              "active": true,
+              "description": ""
+            },
+            {
+              "key": "limit",
+              "value": "50",
+              "active": true,
+              "description": ""
+            },
+            {
+              "key": "categoryId",
+              "value": "<<categoryId>>",
+              "active": false,
+              "description": ""
+            },
+            {
+              "key": "isActive",
+              "value": "true",
+              "active": false,
+              "description": ""
+            },
+            {
+              "key": "search",
+              "value": "soil",
+              "active": false,
+              "description": ""
+            }
+          ],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Create question (with score 0-3 descriptions)",
+          "method": "POST",
+          "endpoint": "<<baseUrl>>/assessments/questions",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true,
+              "description": ""
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"categoryId\": \"<<categoryId>>\",\n  \"questionCode\": \"s1\",\n  \"questionText\": \"Soil organic matter (SOM) trend\",\n  \"guidanceNote\": \"Compare current SOM % to baseline or 3-yr average\",\n  \"score0Description\": \"No data / declining\",\n  \"score1Description\": \"Stable - no measurable change\",\n  \"score2Description\": \"Increasing slowly (<0.1%/yr)\",\n  \"score3Description\": \"Increasing measurably (>=0.1%/yr) with records\",\n  \"isActive\": true\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "pw.test(\"save questionId\", () => {\n  const d = pw.response.body.data;\n  if (d && d.question && d.question.id) pw.env.set('questionId', d.question.id);\n});"
+        },
+        {
+          "v": "1",
+          "name": "Get question by id",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/questions/<<questionId>>",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Update question (text / score desc / active)",
+          "method": "PATCH",
+          "endpoint": "<<baseUrl>>/assessments/questions/<<questionId>>",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true,
+              "description": ""
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"questionText\": \"Soil organic matter (SOM) trend (updated)\",\n  \"isActive\": true\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Reorder questions (drag-drop order)",
+          "method": "PATCH",
+          "endpoint": "<<baseUrl>>/assessments/questions/reorder",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true,
+              "description": ""
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"items\": [\n    { \"id\": \"<<questionId>>\", \"sortOrder\": 0 }\n  ]\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Import questions from Excel (creates categories + questions)",
+          "method": "POST",
+          "endpoint": "<<baseUrl>>/assessments/questions/import",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": "multipart/form-data",
+            "body": [
+              {
+                "key": "file",
+                "value": "",
+                "active": true,
+                "isFile": true,
+                "contentType": ""
+              }
+            ]
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Delete question (soft)",
+          "method": "DELETE",
+          "endpoint": "<<baseUrl>>/assessments/questions/<<questionId>>",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        }
+      ]
+    },
+    {
+      "v": 1,
+      "name": "Mobile - My Assessment (per field)",
+      "folders": [],
+      "requests": [
+        {
+          "v": "1",
+          "name": "Upload evidence (multipart files → returns Cloudinary URLs)",
+          "method": "POST",
+          "endpoint": "<<baseUrl>>/assessments/evidence",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": "multipart/form-data",
+            "body": [
+              {
+                "key": "files",
+                "value": "",
+                "active": true,
+                "isFile": true,
+                "contentType": ""
+              }
+            ]
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "pw.test(\"save first evidence URL\", () => {\n  const d = pw.response.body.data;\n  if (d && d.urls && d.urls.length) pw.env.set('evidenceUrl', d.urls[0]);\n});"
+        },
+        {
+          "v": "1",
+          "name": "Field assessment summary (header + per-category progress)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/summary",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "pw.test(\"save first categoryId\", () => {\n  const d = pw.response.body.data;\n  if (d && d.categories && d.categories.length) pw.env.set('categoryId', d.categories[0].id);\n});",
+          "description": "\n\n**Future-start programs:** if this field is enrolled ONLY in a future-start (upcoming) program, it is NOT assessable yet - this returns 404. It becomes assessable on the program start date (enrollment + assessment both open then)."
+        },
+        {
+          "v": "17",
+          "name": "GET Field Regen Health Index (score-based + categories)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/regen-index",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "pw.test(\"200\", () => pw.expect(pw.response.status).toBe(200));",
+          "requestVariables": [],
+          "description": "The Regen Health Index for ONE field - the SCORE-based overall index (0-100, from the farmer's answers scored 0-3) plus per-category scores, a rating label (Excellent/Good/Fair/Needs work/Poor), and the top category. This is the per-field version of the farm dashboard's Regen Index. Field must belong to the caller (else 404). FARMER token.\n\nNOTE: this is different from `/summary` - summary shows COMPLETION % (how many questions answered), this shows the SCORE % (how good the answers are).\n\n### Expected (200)\n```json\n{\n  \"success\": true,\n  \"message\": \"Field regen health index fetched.\",\n  \"data\": {\n    \"field\": { \"id\": \"...\", \"name\": \"Good Yard\", \"farmId\": \"...\", \"farmName\": \"Red Line\" },\n    \"regenHealthIndex\": 68,\n    \"rating\": \"Good\",\n    \"topCategory\": \"Biodiversity & habitat\",\n    \"categories\": [\n      { \"id\": \"...\", \"name\": \"Soil health & biology\", \"score\": 56, \"answered\": 6 },\n      { \"id\": \"...\", \"name\": \"Water cycle & management\", \"score\": 73, \"answered\": 5 },\n      { \"id\": \"...\", \"name\": \"Biodiversity & habitat\", \"score\": 89, \"answered\": 6 }\n    ]\n  }\n}\n```\n(`regenHealthIndex`/`score`/`rating` are null when nothing is answered yet.)",
+          "responses": {}
+        },
+        {
+          "v": "1",
+          "name": "Category question LIST (lightweight - name + desc + answered)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/categories/<<categoryId>>/questions/list",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "pw.test(\"save first questionId\", () => {\n  const d = pw.response.body.data;\n  if (d && d.questions && d.questions.length) pw.env.set('questionId', d.questions[0].id);\n});"
+        },
+        {
+          "v": "1",
+          "name": "Single question detail (on click / Next - score desc + my answer + evidence)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/categories/<<categoryId>>/questions/<<questionId>>",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Whole category (all questions full data - Review/offline use)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/categories/<<categoryId>>/questions",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Save answer (create or update - score 0-3 + comment + up to 5 evidence URLs)",
+          "method": "PUT",
+          "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/questions/<<questionId>>/answer",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true,
+              "description": ""
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"score\": 2,\n  \"comment\": \"Planted flowering strips and installed bird boxes.\",\n  \"evidenceUrls\": [\n    \"https://res.cloudinary.com/dmcdeuw12/image/upload/v1/sample1.jpg\",\n    \"https://res.cloudinary.com/dmcdeuw12/image/upload/v1/sample2.jpg\"\n  ]\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "",
+          "description": "\n\n**Future-start programs:** if this field is enrolled ONLY in a future-start (upcoming) program, it is NOT assessable yet - this returns 404. It becomes assessable on the program start date (enrollment + assessment both open then)."
+        },
+        {
+          "v": "1",
+          "name": "Review & Submit screen (all categories + questions + my answers)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/review",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Submit assessment (locks answers - view only after)",
+          "method": "POST",
+          "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/submit",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "",
+          "description": "\n\n**Future-start programs:** if this field is enrolled ONLY in a future-start (upcoming) program, it is NOT assessable yet - this returns 404. It becomes assessable on the program start date (enrollment + assessment both open then)."
+        }
+      ]
+    }
+  ],
+  "requests": []
+}

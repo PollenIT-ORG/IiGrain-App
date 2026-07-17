@@ -1,0 +1,326 @@
+{
+  "v": 1,
+  "name": "Sprint 1 - Farms (admin + mobile)",
+  "folders": [],
+  "requests": [
+    {
+      "v": "1",
+      "name": "Cc (admin)",
+      "method": "POST",
+      "endpoint": "<<baseUrl>>/farms",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json",
+          "active": true,
+          "description": ""
+        }
+      ],
+      "params": [],
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n  \"name\": \"North Field\",\n  \"areaAcres\": 12.5,\n  \"location\": \"Nashik, Maharashtra\",\n  \"ownerId\": \"<<farmerId>>\",\n  \"orgId\": \"<<orgId>>\",\n  \"isActive\": true\n}"
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": "pw.test(\"save farmId\", () => {\n  const d = pw.response.body.data;\n  if (d && d.farm && d.farm.id) pw.env.set('farmId', d.farm.id);\n});",
+      "description": "\n\n**GPS coordinates (map picker):** send optional `latitude` (-90..90) and `longitude` (-180..180) to store the farm point captured from the Leaflet map. Out-of-range values 400. Both optional; GET responses return them as numbers or null. Stored as NUMERIC(9,6)."
+    },
+    {
+      "v": "1",
+      "name": "List farms (admin, paginated/filter/search)",
+      "method": "GET",
+      "endpoint": "<<baseUrl>>/farms",
+      "headers": [],
+      "params": [
+        {
+          "key": "page",
+          "value": "1",
+          "active": true,
+          "description": ""
+        },
+        {
+          "key": "limit",
+          "value": "10",
+          "active": true,
+          "description": ""
+        },
+        {
+          "key": "status",
+          "value": "active",
+          "active": false,
+          "description": ""
+        },
+        {
+          "key": "ownerId",
+          "value": "<<farmerId>>",
+          "active": false,
+          "description": ""
+        },
+        {
+          "key": "orgId",
+          "value": "<<orgId>>",
+          "active": false,
+          "description": ""
+        },
+        {
+          "key": "search",
+          "value": "north",
+          "active": false,
+          "description": ""
+        }
+      ],
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": "",
+      "description": ""
+    },
+    {
+      "v": "1",
+      "name": "Get farm by id (admin)",
+      "method": "GET",
+      "endpoint": "<<baseUrl>>/farms/<<farmId>>",
+      "headers": [],
+      "params": [],
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": "",
+      "description": "\n\n**Area accounting (single-farm fetch only):** the response now also includes `used_area` (sum of this farm's fields' area), `available_area` (`area_acres` - used, clamped to 0, or null if no total), and `field_count`. Lets the UI show \"X of Y acres used\" - e.g. a 150-acre farm with two 50-acre fields → used_area \"100.00\", available_area \"50.00\", field_count 2."
+    },
+    {
+      "v": "1",
+      "name": "Update farm (admin)",
+      "method": "PATCH",
+      "endpoint": "<<baseUrl>>/farms/<<farmId>>",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json",
+          "active": true,
+          "description": ""
+        }
+      ],
+      "params": [],
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n  \"name\": \"North Field (updated)\",\n  \"areaAcres\": 15,\n  \"isActive\": true\n}"
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": "",
+      "description": "\n\n**GPS coordinates (map picker):** send optional `latitude` (-90..90) and `longitude` (-180..180) to store the farm point captured from the Leaflet map. Out-of-range values 400. Both optional; GET responses return them as numbers or null. Stored as NUMERIC(9,6)."
+    },
+    {
+      "v": "1",
+      "name": "Delete farm (admin, soft)",
+      "method": "DELETE",
+      "endpoint": "<<baseUrl>>/farms/<<farmId>>",
+      "headers": [],
+      "params": [],
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": "",
+      "description": ""
+    },
+    {
+      "v": "1",
+      "name": "My farms (mobile - logged-in user)",
+      "method": "GET",
+      "endpoint": "<<baseUrl>>/farms/me/farms",
+      "headers": [],
+      "params": [],
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": "",
+      "description": ""
+    },
+    {
+      "v": "1",
+      "name": "My farm by id (mobile - own farm only)",
+      "method": "GET",
+      "endpoint": "<<baseUrl>>/farms/me/farms/<<farmId>>",
+      "headers": [],
+      "params": [],
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": "",
+      "description": "\n\n**Area accounting (single-farm fetch only):** the response now also includes `used_area` (sum of this farm's fields' area), `available_area` (`area_acres` - used, clamped to 0, or null if no total), and `field_count`. Lets the UI show \"X of Y acres used\" - e.g. a 150-acre farm with two 50-acre fields → used_area \"100.00\", available_area \"50.00\", field_count 2."
+    },
+    {
+      "v": "1",
+      "name": "Create my farm (mobile - farmer; owner+org server-side)",
+      "method": "POST",
+      "endpoint": "<<baseUrl>>/farms/me/farms",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json",
+          "active": true,
+          "description": ""
+        }
+      ],
+      "params": [],
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n  \"name\": \"My Home Farm\",\n  \"areaAcres\": 8.5,\n  \"location\": \"Village, District\"\n}"
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": "pw.test(\"save farmId\", () => {\n  const d = pw.response.body.data;\n  if (d && d.farm && d.farm.id) pw.env.set('farmId', d.farm.id);\n});",
+      "description": "\n\n**GPS coordinates (map picker):** send optional `latitude` (-90..90) and `longitude` (-180..180) to store the farm point captured from the Leaflet map. Out-of-range values 400. Both optional; GET responses return them as numbers or null. Stored as NUMERIC(9,6)."
+    },
+    {
+      "v": "1",
+      "name": "Update my farm (mobile - name/area/location only)",
+      "method": "PATCH",
+      "endpoint": "<<baseUrl>>/farms/me/farms/<<farmId>>",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json",
+          "active": true,
+          "description": ""
+        }
+      ],
+      "params": [],
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n  \"name\": \"My Home Farm (updated)\",\n  \"areaAcres\": 10,\n  \"location\": \"New Village\"\n}"
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": "",
+      "description": "\n\n**GPS coordinates (map picker):** send optional `latitude` (-90..90) and `longitude` (-180..180) to store the farm point captured from the Leaflet map. Out-of-range values 400. Both optional; GET responses return them as numbers or null. Stored as NUMERIC(9,6)."
+    },
+    {
+      "v": "1",
+      "name": "Add field to my farm (mobile)",
+      "method": "POST",
+      "endpoint": "<<baseUrl>>/farms/<<farmId>>/fields",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json",
+          "active": true,
+          "description": ""
+        }
+      ],
+      "params": [],
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n  \"name\": \"North Plot\",\n  \"areaAcres\": 3.5,\n  \"crop\": \"Rice\",\n  \"season\": \"Kharif 2025\",\n  \"irrigation\": \"Rain-fed\",\n  \"status\": \"healthy\"\n}"
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": "pw.test(\"save fieldId\", () => {\n  const d = pw.response.body.data;\n  if (d && d.field && d.field.id) pw.env.set('fieldId', d.field.id);\n});",
+      "description": "\n\n**GPS coordinates (map picker):** send optional `latitude` (-90..90) and `longitude` (-180..180) to store the farm point captured from the Leaflet map. Out-of-range values 400. Both optional; GET responses return them as numbers or null. Stored as NUMERIC(9,6)."
+    },
+    {
+      "v": "1",
+      "name": "Update field on my farm (mobile)",
+      "method": "PATCH",
+      "endpoint": "<<baseUrl>>/farms/<<farmId>>/fields/<<fieldId>>",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json",
+          "active": true,
+          "description": ""
+        }
+      ],
+      "params": [],
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n  \"status\": \"monitor\",\n  \"crop\": \"Maize\"\n}"
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": "",
+      "description": "\n\n**GPS coordinates (map picker):** send optional `latitude` (-90..90) and `longitude` (-180..180) to store the farm point captured from the Leaflet map. Out-of-range values 400. Both optional; GET responses return them as numbers or null. Stored as NUMERIC(9,6)."
+    },
+    {
+      "v": "1",
+      "name": "My organization (mobile - logged-in user)",
+      "method": "GET",
+      "endpoint": "<<baseUrl>>/profile/organization",
+      "headers": [],
+      "params": [],
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": "",
+      "description": ""
+    }
+  ]
+}

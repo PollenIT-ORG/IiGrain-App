@@ -1,0 +1,10 @@
+# db/migrations/
+#
+# SQL migration files, applied in order. Name them with a numeric/timestamp
+# prefix so they sort chronologically, e.g.:
+#   001_create_farmers_table.sql
+#   002_add_phone_to_farmers.sql
+#
+# Because the project's schemas will keep changing, every schema change should
+# be a NEW migration file here (never edit an old one) so every environment can
+# replay the same history.

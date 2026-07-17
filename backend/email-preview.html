@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>iiGrain | Email templates</title>
+<style>
+  :root {
+    --bg: #eaf0ec;
+    --surface: #ffffff;
+    --rail: #f3f6f4;
+    --ink: #171d18;
+    --muted: #5c6b62;
+    --faint: #8a978f;
+    --line: #d9e2dc;
+    --brand: #136F3F;
+    --brand-soft: #e7f1ec;
+    --shadow: 0 1px 2px rgba(19,111,63,.06), 0 8px 24px rgba(20,30,25,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10140f; --surface: #191d17; --rail: #14180f; --ink: #e8ede9;
+      --muted: #93a099; --faint: #6f7d75; --line: #26302a; --brand: #4caf7d;
+      --brand-soft: #17251d; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10140f; --surface: #191d17; --rail: #14180f; --ink: #e8ede9;
+    --muted: #93a099; --faint: #6f7d75; --line: #26302a; --brand: #4caf7d;
+    --brand-soft: #17251d; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #eaf0ec; --surface: #ffffff; --rail: #f3f6f4; --ink: #171d18;
+    --muted: #5c6b62; --faint: #8a978f; --line: #d9e2dc; --brand: #136F3F;
+    --brand-soft: #e7f1ec; --shadow: 0 1px 2px rgba(19,111,63,.06), 0 8px 24px rgba(20,30,25,.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 24px 72px; }
+  header.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; padding-bottom: 22px; border-bottom: 2px solid var(--ink); margin-bottom: 8px; }
+  .brandmark { display: inline-flex; align-items: center; gap: 10px; }
+  .dot { width: 26px; height: 26px; border-radius: 7px; background: var(--brand); box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--brand) 60%, #000 8%); }
+  h1 { font-size: 25px; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+  .sub { color: var(--muted); font-size: 14px; margin: 4px 0 0; }
+  .count { font: 600 12px/1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brand); background: var(--brand-soft); border: 1px solid color-mix(in srgb, var(--brand) 22%, transparent); padding: 8px 12px; border-radius: 999px; }
+
+  .feed { display: flex; flex-direction: column; gap: 26px; margin-top: 30px; }
+  .card {
+    display: grid; grid-template-columns: 300px 1fr; gap: 0;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+    overflow: hidden; box-shadow: var(--shadow);
+  }
+  .rail { background: var(--rail); border-right: 1px solid var(--line); padding: 22px 20px; }
+  .rail-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .num { font: 700 12px/1 ui-monospace, Menlo, monospace; color: var(--faint); }
+  .fn { font: 600 13px/1.3 ui-monospace, "SF Mono", Menlo, monospace; color: var(--brand); background: var(--brand-soft); padding: 4px 8px; border-radius: 6px; word-break: break-word; }
+  .eyebrow { font: 600 10.5px/1 ui-sans-serif, system-ui; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); margin: 16px 0 5px; }
+  .trigger { font-size: 15px; font-weight: 650; margin: 0; color: var(--ink); }
+  .when { font-size: 13px; color: var(--muted); margin: 0; }
+  .meta { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 12px; }
+  .meta .k { display: block; font: 600 10.5px/1 ui-sans-serif, system-ui; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); margin-bottom: 3px; }
+  .meta .v { font-size: 13px; color: var(--ink); }
+  .meta .subj { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; color: var(--muted); word-break: break-word; display: block; }
+
+  .frame { padding: 22px; display: flex; justify-content: center; background:
+      repeating-linear-gradient(45deg, transparent, transparent 11px, color-mix(in srgb, var(--line) 40%, transparent) 11px, color-mix(in srgb, var(--line) 40%, transparent) 12px); }
+  .frame iframe { width: 520px; max-width: 100%; height: 640px; border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: 0 6px 20px rgba(20,30,25,.12); }
+
+  footer { margin-top: 40px; color: var(--faint); font-size: 12.5px; text-align: center; }
+
+  @media (max-width: 820px) {
+    .card { grid-template-columns: 1fr; }
+    .rail { border-right: none; border-bottom: 1px solid var(--line); }
+    .frame iframe { height: 560px; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <span class="brandmark"><span class="dot"></span><h1>Email templates</h1></span>
+        <p class="sub">All transactional emails, rendered at size beside the event that sends them. Sample data shown.</p>
+      </div>
+      <span class="count">11 templates</span>
+    </header>
+    <div class="feed">
+      
+      <article class="card">
+        <div class="rail">
+          <div class="rail-head">
+            <span class="num">01</span>
+            <code class="fn">verifyEmailEmail</code>
+          </div>
+          <p class="eyebrow">Trigger</p>
+          <p class="trigger">Sign-up / resend verification</p>
+          <p class="eyebrow">When it fires</p>
+          <p class="when">POST /auth/register | on a fresh signup, and again if an unverified email registers a second time.</p>
+          <div class="meta">
+            <div><span class="k">To</span><span class="v">New user (the person signing up)</span></div>
+            <div><span class="k">Subject</span><code class="v subj">Verify your email | iiGrain</code></div>
+          </div>
+        </div>
+        <div class="frame">
+          <iframe title="verifyEmailEmail" loading="lazy" srcdoc="<!doctype html>
+<html>
+  <body style=&quot;margin:0;padding:0;background:#F5F7F9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;&quot;>
+    <span style=&quot;display:none;font-size:1px;color:#F5F7F9;max-height:0;max-width:0;opacity:0;overflow:hidden;&quot;>Your verification code is 481920</span>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#F5F7F9;padding:24px 0;&quot;>
+      <tr>
+        <td align=&quot;center&quot;>
+          <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:520px;width:100%;&quot;>
+            <tr>
+              <td style=&quot;background:#136F3F;border-radius:12px 12px 0 0;padding:20px 28px;&quot;>
+                <span style=&quot;color:#FFFFFF;font-size:18px;font-weight:700;letter-spacing:0.2px;&quot;>iiGrain</span>
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;background:#FFFFFF;border:1px solid #DEE2E6;border-top:none;border-radius:0 0 12px 12px;padding:28px;&quot;>
+                
+    <h1 style=&quot;margin:0 0 12px;color:#212829;font-size:20px;&quot;>Welcome to iiGrain</h1>
+    <p style=&quot;margin:0 0 16px;color:#495057;font-size:14px;line-height:1.6;&quot;>Hi Ravi Kumar, thanks for signing up. Enter this code in the app to verify your email and activate your account.</p>
+    <div style=&quot;background:#E7F1EC;border-radius:10px;padding:18px 0;margin:4px 0 8px;text-align:center;&quot;>
+      <div style=&quot;font-size:30px;font-weight:700;letter-spacing:6px;color:#136F3F;&quot;>481920</div>
+    </div>
+    <p style=&quot;margin:0 0 16px;color:#495057;font-size:14px;line-height:1.6;&quot;>The code expires in 10 minutes.</p>
+    <div style=&quot;background:#FFF8E6;border:1px solid #FFC107;border-radius:8px;padding:12px 14px;margin:18px 0;color:#8A6D00;font-size:13px;line-height:1.5;&quot;>If you didn't request this, you can ignore this email.</div>
+  
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;padding:18px 28px;text-align:center;&quot;>
+                <span style=&quot;color:#ADB5BD;font-size:12px;&quot;>
+                  &amp;copy; 2026 iiGrain. All rights reserved.
+                </span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>"></iframe>
+        </div>
+      </article>
+      <article class="card">
+        <div class="rail">
+          <div class="rail-head">
+            <span class="num">02</span>
+            <code class="fn">signInCodeEmail</code>
+          </div>
+          <p class="eyebrow">Trigger</p>
+          <p class="trigger">Passwordless sign-in</p>
+          <p class="eyebrow">When it fires</p>
+          <p class="when">POST /auth/request-otp | user asks for a one-time login code.</p>
+          <div class="meta">
+            <div><span class="k">To</span><span class="v">Existing user logging in without a password</span></div>
+            <div><span class="k">Subject</span><code class="v subj">735210 is your sign-in code</code></div>
+          </div>
+        </div>
+        <div class="frame">
+          <iframe title="signInCodeEmail" loading="lazy" srcdoc="<!doctype html>
+<html>
+  <body style=&quot;margin:0;padding:0;background:#F5F7F9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;&quot;>
+    <span style=&quot;display:none;font-size:1px;color:#F5F7F9;max-height:0;max-width:0;opacity:0;overflow:hidden;&quot;>Your sign-in code is 735210</span>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#F5F7F9;padding:24px 0;&quot;>
+      <tr>
+        <td align=&quot;center&quot;>
+          <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:520px;width:100%;&quot;>
+            <tr>
+              <td style=&quot;background:#136F3F;border-radius:12px 12px 0 0;padding:20px 28px;&quot;>
+                <span style=&quot;color:#FFFFFF;font-size:18px;font-weight:700;letter-spacing:0.2px;&quot;>iiGrain</span>
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;background:#FFFFFF;border:1px solid #DEE2E6;border-top:none;border-radius:0 0 12px 12px;padding:28px;&quot;>
+                
+    <h1 style=&quot;margin:0 0 12px;color:#212829;font-size:20px;&quot;>Your sign-in code</h1>
+    <p style=&quot;margin:0 0 16px;color:#495057;font-size:14px;line-height:1.6;&quot;>Use this code to sign in to iiGrain. It expires in 10 minutes.</p>
+    <div style=&quot;background:#E7F1EC;border-radius:10px;padding:18px 0;margin:4px 0 8px;text-align:center;&quot;>
+      <div style=&quot;font-size:30px;font-weight:700;letter-spacing:6px;color:#136F3F;&quot;>735210</div>
+    </div>
+    <div style=&quot;background:#FFF8E6;border:1px solid #FFC107;border-radius:8px;padding:12px 14px;margin:18px 0;color:#8A6D00;font-size:13px;line-height:1.5;&quot;>Never share this code with anyone. If you didn't request this, you can ignore this email.</div>
+  
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;padding:18px 28px;text-align:center;&quot;>
+                <span style=&quot;color:#ADB5BD;font-size:12px;&quot;>
+                  &amp;copy; 2026 iiGrain. All rights reserved.
+                </span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>"></iframe>
+        </div>
+      </article>
+      <article class="card">
+        <div class="rail">
+          <div class="rail-head">
+            <span class="num">03</span>
+            <code class="fn">resetPasswordEmail</code>
+          </div>
+          <p class="eyebrow">Trigger</p>
+          <p class="trigger">Forgot password</p>
+          <p class="eyebrow">When it fires</p>
+          <p class="when">POST /auth/forgot-password | user requests a reset code.</p>
+          <div class="meta">
+            <div><span class="k">To</span><span class="v">User who forgot their password</span></div>
+            <div><span class="k">Subject</span><code class="v subj">Reset your iiGrain password</code></div>
+          </div>
+        </div>
+        <div class="frame">
+          <iframe title="resetPasswordEmail" loading="lazy" srcdoc="<!doctype html>
+<html>
+  <body style=&quot;margin:0;padding:0;background:#F5F7F9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;&quot;>
+    <span style=&quot;display:none;font-size:1px;color:#F5F7F9;max-height:0;max-width:0;opacity:0;overflow:hidden;&quot;>Your password reset code is 204815</span>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#F5F7F9;padding:24px 0;&quot;>
+      <tr>
+        <td align=&quot;center&quot;>
+          <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:520px;width:100%;&quot;>
+            <tr>
+              <td style=&quot;background:#136F3F;border-radius:12px 12px 0 0;padding:20px 28px;&quot;>
+                <span style=&quot;color:#FFFFFF;font-size:18px;font-weight:700;letter-spacing:0.2px;&quot;>iiGrain</span>
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;background:#FFFFFF;border:1px solid #DEE2E6;border-top:none;border-radius:0 0 12px 12px;padding:28px;&quot;>
+                
+    <h1 style=&quot;margin:0 0 12px;color:#212829;font-size:20px;&quot;>Reset your password</h1>
+    <p style=&quot;margin:0 0 16px;color:#495057;font-size:14px;line-height:1.6;&quot;>We received a request to reset your iiGrain password. Enter this code to choose a new one.</p>
+    <div style=&quot;background:#E7F1EC;border-radius:10px;padding:18px 0;margin:4px 0 8px;text-align:center;&quot;>
+      <div style=&quot;font-size:30px;font-weight:700;letter-spacing:6px;color:#136F3F;&quot;>204815</div>
+    </div>
+    <p style=&quot;margin:0 0 16px;color:#495057;font-size:14px;line-height:1.6;&quot;>The code expires in 10 minutes.</p>
+    <div style=&quot;background:#FFF8E6;border:1px solid #FFC107;border-radius:8px;padding:12px 14px;margin:18px 0;color:#8A6D00;font-size:13px;line-height:1.5;&quot;>If you didn't ask to reset your password, ignore this email and your password stays the same.</div>
+  
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;padding:18px 28px;text-align:center;&quot;>
+                <span style=&quot;color:#ADB5BD;font-size:12px;&quot;>
+                  &amp;copy; 2026 iiGrain. All rights reserved.
+                </span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>"></iframe>
+        </div>
+      </article>
+      <article class="card">
+        <div class="rail">
+          <div class="rail-head">
+            <span class="num">04</span>
+            <code class="fn">welcomeUserEmail</code>
+          </div>
+          <p class="eyebrow">Trigger</p>
+          <p class="trigger">Admin creates an account</p>
+          <p class="eyebrow">When it fires</p>
+          <p class="when">Admin creates a user (assessor / farmer / etc.). Carries the temporary password + a nudge to change it.</p>
+          <div class="meta">
+            <div><span class="k">To</span><span class="v">A user an admin just created</span></div>
+            <div><span class="k">Subject</span><code class="v subj">Your iiGrain account is ready</code></div>
+          </div>
+        </div>
+        <div class="frame">
+          <iframe title="welcomeUserEmail" loading="lazy" srcdoc="<!doctype html>
+<html>
+  <body style=&quot;margin:0;padding:0;background:#F5F7F9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;&quot;>
+    <span style=&quot;display:none;font-size:1px;color:#F5F7F9;max-height:0;max-width:0;opacity:0;overflow:hidden;&quot;>Your account details are inside</span>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#F5F7F9;padding:24px 0;&quot;>
+      <tr>
+        <td align=&quot;center&quot;>
+          <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:520px;width:100%;&quot;>
+            <tr>
+              <td style=&quot;background:#136F3F;border-radius:12px 12px 0 0;padding:20px 28px;&quot;>
+                <span style=&quot;color:#FFFFFF;font-size:18px;font-weight:700;letter-spacing:0.2px;&quot;>iiGrain</span>
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;background:#FFFFFF;border:1px solid #DEE2E6;border-top:none;border-radius:0 0 12px 12px;padding:28px;&quot;>
+                
+    <h1 style=&quot;margin:0 0 12px;color:#212829;font-size:20px;&quot;>Welcome to iiGrain</h1>
+    <p style=&quot;margin:0 0 16px;color:#495057;font-size:14px;line-height:1.6;&quot;>Hi Ravi Kumar, an account has been created for you. Sign in with the details below.</p>
+    <table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;width:100%;border:1px solid #DEE2E6;border-radius:8px;margin:8px 0 4px;&quot;><tr>
+        <td style=&quot;padding:12px 14px;border-bottom:1px solid #DEE2E6;&quot;>
+          <div style=&quot;color:#ADB5BD;font-size:12px;&quot;>Email</div>
+          <div style=&quot;color:#212829;font-size:14px;font-weight:600;&quot;>ravi@example.com</div>
+        </td>
+      </tr><tr>
+        <td style=&quot;padding:12px 14px;&quot;>
+          <div style=&quot;color:#ADB5BD;font-size:12px;&quot;>Temporary password</div>
+          <div style=&quot;color:#212829;font-size:14px;font-weight:600;font-family:monospace;&quot;>Temp@8f3K1</div>
+        </td>
+      </tr></table>
+    <div style=&quot;background:#FFF8E6;border:1px solid #FFC107;border-radius:8px;padding:12px 14px;margin:18px 0;color:#8A6D00;font-size:13px;line-height:1.5;&quot;><strong>Change this password right away.</strong> Use <em>Forgot password</em> on the sign-in screen, or update it from your <em>Profile</em> once you're in.</div>
+    <p style=&quot;margin:20px 0 0;&quot;><a href=&quot;https://admin.farmer.tcqitsolution.com/login&quot; style=&quot;display:inline-block;background:#136F3F;color:#FFFFFF;text-decoration:none;font-weight:600;font-size:14px;padding:11px 22px;border-radius:8px;&quot;>Sign in</a></p>
+  
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;padding:18px 28px;text-align:center;&quot;>
+                <span style=&quot;color:#ADB5BD;font-size:12px;&quot;>
+                  &amp;copy; 2026 iiGrain. All rights reserved.
+                </span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>"></iframe>
+        </div>
+      </article>
+      <article class="card">
+        <div class="rail">
+          <div class="rail-head">
+            <span class="num">05</span>
+            <code class="fn">passwordChangedEmail</code>
+          </div>
+          <p class="eyebrow">Trigger</p>
+          <p class="trigger">Password changed (security)</p>
+          <p class="eyebrow">When it fires</p>
+          <p class="when">POST /auth/reset-password AND POST /profile/change-password | a confirmation so account takeover is noticed.</p>
+          <div class="meta">
+            <div><span class="k">To</span><span class="v">The account owner</span></div>
+            <div><span class="k">Subject</span><code class="v subj">Your iiGrain password was changed</code></div>
+          </div>
+        </div>
+        <div class="frame">
+          <iframe title="passwordChangedEmail" loading="lazy" srcdoc="<!doctype html>
+<html>
+  <body style=&quot;margin:0;padding:0;background:#F5F7F9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;&quot;>
+    <span style=&quot;display:none;font-size:1px;color:#F5F7F9;max-height:0;max-width:0;opacity:0;overflow:hidden;&quot;>Password change confirmation</span>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#F5F7F9;padding:24px 0;&quot;>
+      <tr>
+        <td align=&quot;center&quot;>
+          <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:520px;width:100%;&quot;>
+            <tr>
+              <td style=&quot;background:#136F3F;border-radius:12px 12px 0 0;padding:20px 28px;&quot;>
+                <span style=&quot;color:#FFFFFF;font-size:18px;font-weight:700;letter-spacing:0.2px;&quot;>iiGrain</span>
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;background:#FFFFFF;border:1px solid #DEE2E6;border-top:none;border-radius:0 0 12px 12px;padding:28px;&quot;>
+                
+    <h1 style=&quot;margin:0 0 12px;color:#212829;font-size:20px;&quot;>Your password was changed</h1>
+    <p style=&quot;margin:0 0 16px;color:#495057;font-size:14px;line-height:1.6;&quot;>Hi Ravi Kumar, your iiGrain password was just changed. If this was you, nothing else to do.</p>
+    <div style=&quot;background:#FFF8E6;border:1px solid #FFC107;border-radius:8px;padding:12px 14px;margin:18px 0;color:#8A6D00;font-size:13px;line-height:1.5;&quot;>If you didn't make this change, reset your password immediately using <em>Forgot password</em>, and contact support.</div>
+    <p style=&quot;margin:20px 0 0;&quot;><a href=&quot;https://admin.farmer.tcqitsolution.com/login&quot; style=&quot;display:inline-block;background:#136F3F;color:#FFFFFF;text-decoration:none;font-weight:600;font-size:14px;padding:11px 22px;border-radius:8px;&quot;>Sign in</a></p>
+  
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;padding:18px 28px;text-align:center;&quot;>
+                <span style=&quot;color:#ADB5BD;font-size:12px;&quot;>
+                  &amp;copy; 2026 iiGrain. All rights reserved.
+                </span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>"></iframe>
+        </div>
+      </article>
+      <article class="card">
+        <div class="rail">
+          <div class="rail-head">
+            <span class="num">06</span>
+            <code class="fn">newProgramEmail</code>
+          </div>
+          <p class="eyebrow">Trigger</p>
+          <p class="trigger">New program opens</p>
+          <p class="eyebrow">When it fires</p>
+          <p class="when">Admin creates an active program (POST /programs). Fans out to all org farmers so they can enrol.</p>
+          <div class="meta">
+            <div><span class="k">To</span><span class="v">Every farmer in the organization</span></div>
+            <div><span class="k">Subject</span><code class="v subj">New program available: Govt Rice Scheme 2027</code></div>
+          </div>
+        </div>
+        <div class="frame">
+          <iframe title="newProgramEmail" loading="lazy" srcdoc="<!doctype html>
+<html>
+  <body style=&quot;margin:0;padding:0;background:#F5F7F9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;&quot;>
+    <span style=&quot;display:none;font-size:1px;color:#F5F7F9;max-height:0;max-width:0;opacity:0;overflow:hidden;&quot;>Govt Rice Scheme 2027 is open for enrolment</span>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#F5F7F9;padding:24px 0;&quot;>
+      <tr>
+        <td align=&quot;center&quot;>
+          <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:520px;width:100%;&quot;>
+            <tr>
+              <td style=&quot;background:#136F3F;border-radius:12px 12px 0 0;padding:20px 28px;&quot;>
+                <span style=&quot;color:#FFFFFF;font-size:18px;font-weight:700;letter-spacing:0.2px;&quot;>iiGrain</span>
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;background:#FFFFFF;border:1px solid #DEE2E6;border-top:none;border-radius:0 0 12px 12px;padding:28px;&quot;>
+                
+    <h1 style=&quot;margin:0 0 12px;color:#212829;font-size:20px;&quot;>A new program is open</h1>
+    <p style=&quot;margin:0 0 16px;color:#495057;font-size:14px;line-height:1.6;&quot;>Hi Ravi Kumar, a new program has been added and you can enrol your fields in it.</p>
+    <table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;width:100%;border:1px solid #DEE2E6;border-radius:8px;margin:8px 0 4px;&quot;><tr>
+        <td style=&quot;padding:12px 14px;border-bottom:1px solid #DEE2E6;&quot;>
+          <div style=&quot;color:#ADB5BD;font-size:12px;&quot;>Program</div>
+          <div style=&quot;color:#212829;font-size:14px;font-weight:600;&quot;>Govt Rice Scheme 2027</div>
+        </td>
+      </tr><tr>
+        <td style=&quot;padding:12px 14px;&quot;>
+          <div style=&quot;color:#ADB5BD;font-size:12px;&quot;>Dates</div>
+          <div style=&quot;color:#212829;font-size:14px;font-weight:600;&quot;>2027-01-01 to 2027-06-30</div>
+        </td>
+      </tr></table>
+    <p style=&quot;margin:0 0 16px;color:#495057;font-size:14px;line-height:1.6;&quot;>Open the app to pick which fields you want to enrol.</p>
+    <p style=&quot;margin:20px 0 0;&quot;><a href=&quot;https://admin.farmer.tcqitsolution.com/programs&quot; style=&quot;display:inline-block;background:#136F3F;color:#FFFFFF;text-decoration:none;font-weight:600;font-size:14px;padding:11px 22px;border-radius:8px;&quot;>View program</a></p>
+  
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;padding:18px 28px;text-align:center;&quot;>
+                <span style=&quot;color:#ADB5BD;font-size:12px;&quot;>
+                  &amp;copy; 2026 iiGrain. All rights reserved.
+                </span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>"></iframe>
+        </div>
+      </article>
+      <article class="card">
+        <div class="rail">
+          <div class="rail-head">
+            <span class="num">07</span>
+            <code class="fn">enrolledInProgramEmail</code>
+          </div>
+          <p class="eyebrow">Trigger</p>
+          <p class="trigger">Enrolment confirmed</p>
+          <p class="eyebrow">When it fires</p>
+          <p class="when">Farmer self-enrols (/enroll-self) or an admin enrols them (POST /programs/:id/enrollments).</p>
+          <div class="meta">
+            <div><span class="k">To</span><span class="v">The enrolled farmer</span></div>
+            <div><span class="k">Subject</span><code class="v subj">You're enrolled in Govt Rice Scheme</code></div>
+          </div>
+        </div>
+        <div class="frame">
+          <iframe title="enrolledInProgramEmail" loading="lazy" srcdoc="<!doctype html>
+<html>
+  <body style=&quot;margin:0;padding:0;background:#F5F7F9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;&quot;>
+    <span style=&quot;display:none;font-size:1px;color:#F5F7F9;max-height:0;max-width:0;opacity:0;overflow:hidden;&quot;>Enrolment confirmed for Govt Rice Scheme</span>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#F5F7F9;padding:24px 0;&quot;>
+      <tr>
+        <td align=&quot;center&quot;>
+          <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:520px;width:100%;&quot;>
+            <tr>
+              <td style=&quot;background:#136F3F;border-radius:12px 12px 0 0;padding:20px 28px;&quot;>
+                <span style=&quot;color:#FFFFFF;font-size:18px;font-weight:700;letter-spacing:0.2px;&quot;>iiGrain</span>
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;background:#FFFFFF;border:1px solid #DEE2E6;border-top:none;border-radius:0 0 12px 12px;padding:28px;&quot;>
+                
+    <h1 style=&quot;margin:0 0 12px;color:#212829;font-size:20px;&quot;>You're enrolled</h1>
+    <p style=&quot;margin:0 0 16px;color:#495057;font-size:14px;line-height:1.6;&quot;>Hi Ravi Kumar, your enrolment is confirmed.</p>
+    <table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;width:100%;border:1px solid #DEE2E6;border-radius:8px;margin:8px 0 4px;&quot;><tr>
+        <td style=&quot;padding:12px 14px;border-bottom:1px solid #DEE2E6;&quot;>
+          <div style=&quot;color:#ADB5BD;font-size:12px;&quot;>Program</div>
+          <div style=&quot;color:#212829;font-size:14px;font-weight:600;&quot;>Govt Rice Scheme</div>
+        </td>
+      </tr><tr>
+        <td style=&quot;padding:12px 14px;&quot;>
+          <div style=&quot;color:#ADB5BD;font-size:12px;&quot;>Fields</div>
+          <div style=&quot;color:#212829;font-size:14px;font-weight:600;&quot;>North Field, River Bend</div>
+        </td>
+      </tr></table>
+    <p style=&quot;margin:0 0 16px;color:#495057;font-size:14px;line-height:1.6;&quot;>You can start the assessment for these fields from the app.</p>
+    <p style=&quot;margin:20px 0 0;&quot;><a href=&quot;https://admin.farmer.tcqitsolution.com&quot; style=&quot;display:inline-block;background:#136F3F;color:#FFFFFF;text-decoration:none;font-weight:600;font-size:14px;padding:11px 22px;border-radius:8px;&quot;>Open app</a></p>
+  
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;padding:18px 28px;text-align:center;&quot;>
+                <span style=&quot;color:#ADB5BD;font-size:12px;&quot;>
+                  &amp;copy; 2026 iiGrain. All rights reserved.
+                </span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>"></iframe>
+        </div>
+      </article>
+      <article class="card">
+        <div class="rail">
+          <div class="rail-head">
+            <span class="num">08</span>
+            <code class="fn">assessorAssignedEmail</code>
+          </div>
+          <p class="eyebrow">Trigger</p>
+          <p class="trigger">Assessor assigned</p>
+          <p class="eyebrow">When it fires</p>
+          <p class="when">POST /assessor-assignments, enrol-with-assessor, or set-enrollment-assessor.</p>
+          <div class="meta">
+            <div><span class="k">To</span><span class="v">The farmer</span></div>
+            <div><span class="k">Subject</span><code class="v subj">John Assessor is your assessor</code></div>
+          </div>
+        </div>
+        <div class="frame">
+          <iframe title="assessorAssignedEmail" loading="lazy" srcdoc="<!doctype html>
+<html>
+  <body style=&quot;margin:0;padding:0;background:#F5F7F9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;&quot;>
+    <span style=&quot;display:none;font-size:1px;color:#F5F7F9;max-height:0;max-width:0;opacity:0;overflow:hidden;&quot;>An assessor has been assigned to your fields</span>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#F5F7F9;padding:24px 0;&quot;>
+      <tr>
+        <td align=&quot;center&quot;>
+          <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:520px;width:100%;&quot;>
+            <tr>
+              <td style=&quot;background:#136F3F;border-radius:12px 12px 0 0;padding:20px 28px;&quot;>
+                <span style=&quot;color:#FFFFFF;font-size:18px;font-weight:700;letter-spacing:0.2px;&quot;>iiGrain</span>
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;background:#FFFFFF;border:1px solid #DEE2E6;border-top:none;border-radius:0 0 12px 12px;padding:28px;&quot;>
+                
+    <h1 style=&quot;margin:0 0 12px;color:#212829;font-size:20px;&quot;>An assessor has been assigned</h1>
+    <p style=&quot;margin:0 0 16px;color:#495057;font-size:14px;line-height:1.6;&quot;>Hi Ravi Kumar, John Assessor will handle the assessment for your fields. They may visit your farm in person.</p>
+    <table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;width:100%;border:1px solid #DEE2E6;border-radius:8px;margin:8px 0 4px;&quot;><tr>
+        <td style=&quot;padding:12px 14px;border-bottom:1px solid #DEE2E6;&quot;>
+          <div style=&quot;color:#ADB5BD;font-size:12px;&quot;>Assessor</div>
+          <div style=&quot;color:#212829;font-size:14px;font-weight:600;&quot;>John Assessor</div>
+        </td>
+      </tr><tr>
+        <td style=&quot;padding:12px 14px;&quot;>
+          <div style=&quot;color:#ADB5BD;font-size:12px;&quot;>Program</div>
+          <div style=&quot;color:#212829;font-size:14px;font-weight:600;&quot;>Govt Rice Scheme</div>
+        </td>
+      </tr></table>
+    <p style=&quot;margin:20px 0 0;&quot;><a href=&quot;https://admin.farmer.tcqitsolution.com&quot; style=&quot;display:inline-block;background:#136F3F;color:#FFFFFF;text-decoration:none;font-weight:600;font-size:14px;padding:11px 22px;border-radius:8px;&quot;>Open app</a></p>
+  
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;padding:18px 28px;text-align:center;&quot;>
+                <span style=&quot;color:#ADB5BD;font-size:12px;&quot;>
+                  &amp;copy; 2026 iiGrain. All rights reserved.
+                </span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>"></iframe>
+        </div>
+      </article>
+      <article class="card">
+        <div class="rail">
+          <div class="rail-head">
+            <span class="num">09</span>
+            <code class="fn">visitStartedEmail</code>
+          </div>
+          <p class="eyebrow">Trigger</p>
+          <p class="trigger">Assessor starts a visit</p>
+          <p class="eyebrow">When it fires</p>
+          <p class="when">POST /visits | assessor begins travelling to a specific field. Farmer can then track live.</p>
+          <div class="meta">
+            <div><span class="k">To</span><span class="v">The field's farmer</span></div>
+            <div><span class="k">Subject</span><code class="v subj">John Assessor is on the way to North Field</code></div>
+          </div>
+        </div>
+        <div class="frame">
+          <iframe title="visitStartedEmail" loading="lazy" srcdoc="<!doctype html>
+<html>
+  <body style=&quot;margin:0;padding:0;background:#F5F7F9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;&quot;>
+    <span style=&quot;display:none;font-size:1px;color:#F5F7F9;max-height:0;max-width:0;opacity:0;overflow:hidden;&quot;>Visit started for North Field</span>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#F5F7F9;padding:24px 0;&quot;>
+      <tr>
+        <td align=&quot;center&quot;>
+          <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:520px;width:100%;&quot;>
+            <tr>
+              <td style=&quot;background:#136F3F;border-radius:12px 12px 0 0;padding:20px 28px;&quot;>
+                <span style=&quot;color:#FFFFFF;font-size:18px;font-weight:700;letter-spacing:0.2px;&quot;>iiGrain</span>
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;background:#FFFFFF;border:1px solid #DEE2E6;border-top:none;border-radius:0 0 12px 12px;padding:28px;&quot;>
+                
+    <h1 style=&quot;margin:0 0 12px;color:#212829;font-size:20px;&quot;>Your assessor is on the way</h1>
+    <p style=&quot;margin:0 0 16px;color:#495057;font-size:14px;line-height:1.6;&quot;>Hi Ravi Kumar, John Assessor has started a visit to North Field. You can follow their location live in the app.</p>
+    <table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;width:100%;border:1px solid #DEE2E6;border-radius:8px;margin:8px 0 4px;&quot;><tr>
+        <td style=&quot;padding:12px 14px;border-bottom:1px solid #DEE2E6;&quot;>
+          <div style=&quot;color:#ADB5BD;font-size:12px;&quot;>Assessor</div>
+          <div style=&quot;color:#212829;font-size:14px;font-weight:600;&quot;>John Assessor</div>
+        </td>
+      </tr><tr>
+        <td style=&quot;padding:12px 14px;&quot;>
+          <div style=&quot;color:#ADB5BD;font-size:12px;&quot;>Field</div>
+          <div style=&quot;color:#212829;font-size:14px;font-weight:600;&quot;>North Field</div>
+        </td>
+      </tr></table>
+    <p style=&quot;margin:20px 0 0;&quot;><a href=&quot;https://admin.farmer.tcqitsolution.com&quot; style=&quot;display:inline-block;background:#136F3F;color:#FFFFFF;text-decoration:none;font-weight:600;font-size:14px;padding:11px 22px;border-radius:8px;&quot;>Track the visit</a></p>
+  
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;padding:18px 28px;text-align:center;&quot;>
+                <span style=&quot;color:#ADB5BD;font-size:12px;&quot;>
+                  &amp;copy; 2026 iiGrain. All rights reserved.
+                </span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>"></iframe>
+        </div>
+      </article>
+      <article class="card">
+        <div class="rail">
+          <div class="rail-head">
+            <span class="num">10</span>
+            <code class="fn">assessmentSubmittedEmail</code>
+          </div>
+          <p class="eyebrow">Trigger</p>
+          <p class="trigger">Assessment submitted</p>
+          <p class="eyebrow">When it fires</p>
+          <p class="when">POST /assessments/my/fields/:id/submit | a receipt with the score.</p>
+          <div class="meta">
+            <div><span class="k">To</span><span class="v">The farmer who submitted (receipt)</span></div>
+            <div><span class="k">Subject</span><code class="v subj">Assessment submitted for North Field</code></div>
+          </div>
+        </div>
+        <div class="frame">
+          <iframe title="assessmentSubmittedEmail" loading="lazy" srcdoc="<!doctype html>
+<html>
+  <body style=&quot;margin:0;padding:0;background:#F5F7F9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;&quot;>
+    <span style=&quot;display:none;font-size:1px;color:#F5F7F9;max-height:0;max-width:0;opacity:0;overflow:hidden;&quot;>We received your assessment for North Field</span>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#F5F7F9;padding:24px 0;&quot;>
+      <tr>
+        <td align=&quot;center&quot;>
+          <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:520px;width:100%;&quot;>
+            <tr>
+              <td style=&quot;background:#136F3F;border-radius:12px 12px 0 0;padding:20px 28px;&quot;>
+                <span style=&quot;color:#FFFFFF;font-size:18px;font-weight:700;letter-spacing:0.2px;&quot;>iiGrain</span>
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;background:#FFFFFF;border:1px solid #DEE2E6;border-top:none;border-radius:0 0 12px 12px;padding:28px;&quot;>
+                
+    <h1 style=&quot;margin:0 0 12px;color:#212829;font-size:20px;&quot;>Assessment submitted</h1>
+    <p style=&quot;margin:0 0 16px;color:#495057;font-size:14px;line-height:1.6;&quot;>Hi Ravi Kumar, we've received your assessment for North Field. Your answers are now locked and your assessor can review them.</p>
+    <table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;width:100%;border:1px solid #DEE2E6;border-radius:8px;margin:8px 0 4px;&quot;><tr>
+        <td style=&quot;padding:12px 14px;border-bottom:1px solid #DEE2E6;&quot;>
+          <div style=&quot;color:#ADB5BD;font-size:12px;&quot;>Field</div>
+          <div style=&quot;color:#212829;font-size:14px;font-weight:600;&quot;>North Field</div>
+        </td>
+      </tr><tr>
+        <td style=&quot;padding:12px 14px;border-bottom:1px solid #DEE2E6;&quot;>
+          <div style=&quot;color:#ADB5BD;font-size:12px;&quot;>Answered</div>
+          <div style=&quot;color:#212829;font-size:14px;font-weight:600;&quot;>31 of 31</div>
+        </td>
+      </tr><tr>
+        <td style=&quot;padding:12px 14px;&quot;>
+          <div style=&quot;color:#ADB5BD;font-size:12px;&quot;>Score</div>
+          <div style=&quot;color:#212829;font-size:14px;font-weight:600;&quot;>67.7%</div>
+        </td>
+      </tr></table>
+    <p style=&quot;margin:20px 0 0;&quot;><a href=&quot;https://admin.farmer.tcqitsolution.com&quot; style=&quot;display:inline-block;background:#136F3F;color:#FFFFFF;text-decoration:none;font-weight:600;font-size:14px;padding:11px 22px;border-radius:8px;&quot;>View in app</a></p>
+  
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;padding:18px 28px;text-align:center;&quot;>
+                <span style=&quot;color:#ADB5BD;font-size:12px;&quot;>
+                  &amp;copy; 2026 iiGrain. All rights reserved.
+                </span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>"></iframe>
+        </div>
+      </article>
+      <article class="card">
+        <div class="rail">
+          <div class="rail-head">
+            <span class="num">11</span>
+            <code class="fn">assessmentSubmittedNoticeEmail</code>
+          </div>
+          <p class="eyebrow">Trigger</p>
+          <p class="trigger">Assessment submitted (assessor notice)</p>
+          <p class="eyebrow">When it fires</p>
+          <p class="when">Same submit event | tells the assigned assessor it's ready to review. (Admins get an in-app notice only, no email.)</p>
+          <div class="meta">
+            <div><span class="k">To</span><span class="v">The assigned assessor</span></div>
+            <div><span class="k">Subject</span><code class="v subj">Ravi Kumar submitted an assessment for North Field</code></div>
+          </div>
+        </div>
+        <div class="frame">
+          <iframe title="assessmentSubmittedNoticeEmail" loading="lazy" srcdoc="<!doctype html>
+<html>
+  <body style=&quot;margin:0;padding:0;background:#F5F7F9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;&quot;>
+    <span style=&quot;display:none;font-size:1px;color:#F5F7F9;max-height:0;max-width:0;opacity:0;overflow:hidden;&quot;>North Field is ready for review</span>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#F5F7F9;padding:24px 0;&quot;>
+      <tr>
+        <td align=&quot;center&quot;>
+          <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:520px;width:100%;&quot;>
+            <tr>
+              <td style=&quot;background:#136F3F;border-radius:12px 12px 0 0;padding:20px 28px;&quot;>
+                <span style=&quot;color:#FFFFFF;font-size:18px;font-weight:700;letter-spacing:0.2px;&quot;>iiGrain</span>
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;background:#FFFFFF;border:1px solid #DEE2E6;border-top:none;border-radius:0 0 12px 12px;padding:28px;&quot;>
+                
+    <h1 style=&quot;margin:0 0 12px;color:#212829;font-size:20px;&quot;>A farmer submitted an assessment</h1>
+    <p style=&quot;margin:0 0 16px;color:#495057;font-size:14px;line-height:1.6;&quot;>Hi John Assessor, Ravi Kumar has submitted a self-assessment. It's ready for your review.</p>
+    <table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;width:100%;border:1px solid #DEE2E6;border-radius:8px;margin:8px 0 4px;&quot;><tr>
+        <td style=&quot;padding:12px 14px;border-bottom:1px solid #DEE2E6;&quot;>
+          <div style=&quot;color:#ADB5BD;font-size:12px;&quot;>Farmer</div>
+          <div style=&quot;color:#212829;font-size:14px;font-weight:600;&quot;>Ravi Kumar</div>
+        </td>
+      </tr><tr>
+        <td style=&quot;padding:12px 14px;border-bottom:1px solid #DEE2E6;&quot;>
+          <div style=&quot;color:#ADB5BD;font-size:12px;&quot;>Field</div>
+          <div style=&quot;color:#212829;font-size:14px;font-weight:600;&quot;>North Field</div>
+        </td>
+      </tr><tr>
+        <td style=&quot;padding:12px 14px;&quot;>
+          <div style=&quot;color:#ADB5BD;font-size:12px;&quot;>Farmer's score</div>
+          <div style=&quot;color:#212829;font-size:14px;font-weight:600;&quot;>67.7%</div>
+        </td>
+      </tr></table>
+    <p style=&quot;margin:20px 0 0;&quot;><a href=&quot;https://admin.farmer.tcqitsolution.com&quot; style=&quot;display:inline-block;background:#136F3F;color:#FFFFFF;text-decoration:none;font-weight:600;font-size:14px;padding:11px 22px;border-radius:8px;&quot;>Review it</a></p>
+  
+              </td>
+            </tr>
+            <tr>
+              <td style=&quot;padding:18px 28px;text-align:center;&quot;>
+                <span style=&quot;color:#ADB5BD;font-size:12px;&quot;>
+                  &amp;copy; 2026 iiGrain. All rights reserved.
+                </span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>"></iframe>
+        </div>
+      </article>
+    </div>
+    <footer>iiGrain · brand green #136F3F · sent only when SMTP is enabled (otherwise logged for dev).</footer>
+  </div>
+</body>
+</html>

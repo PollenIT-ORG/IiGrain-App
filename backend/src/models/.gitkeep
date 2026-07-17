@@ -1,0 +1,9 @@
+# models/
+#
+# Data-access layer for each table. Since we use raw SQL via the pg pool
+# (not an ORM), each model file holds the queries for one table, e.g.:
+#   - farmer.model.ts   -> findById, create, update, delete...
+#
+# Use the typed query<T>() helper from db/pool.ts so rows come back typed.
+# Keeping queries here (not scattered in controllers) means schema changes
+# touch one file. Schemas WILL evolve - this isolation is what makes that safe.

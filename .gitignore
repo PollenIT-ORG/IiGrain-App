@@ -1,0 +1,50 @@
+# Root .gitignore - shared across all sub-projects
+# (backend / admin / application have their own too)
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# Internal working docs (not for the repo)
+DISCUSSION-auth-and-dashboard.md
+backend/AUDIT-REPORT.md
+
+# Environment files (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Dependency directories (defense-in-depth; sub-projects also ignore these)
+**/node_modules/
+
+# Misc
+*.pem
+.cache/
+tmp/
+temp/
+
+PROJECT_CONTEXT.md
+
+sprint-tracker/

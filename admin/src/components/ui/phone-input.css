@@ -1,0 +1,81 @@
+/* Themed react-phone-number-input - matches our .input-field / palette.
+   Palette: primary #136F3F, gray-300 #DEE2E6, gray-900 #212829, gray-500 #ADB5BD */
+
+.fa-phone-input {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  border: 1px solid #dee2e6;
+  border-radius: 0.5rem;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+/* Focus ring on the whole control when the inner input is focused. */
+.fa-phone-input:focus-within {
+  border-color: #136f3f;
+  box-shadow: 0 0 0 2px rgba(19, 111, 63, 0.2);
+}
+
+/* The number input. */
+.fa-phone-input .PhoneInputInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  color: #212829;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.fa-phone-input .PhoneInputInput::placeholder {
+  color: #adb5bd;
+}
+
+/* Country select wrapper (flag + chevron). */
+.fa-phone-input .PhoneInputCountry {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.6rem 0 0.75rem;
+  margin: 0;
+  border-right: 1px solid #dee2e6;
+  position: relative;
+}
+
+.fa-phone-input .PhoneInputCountryIcon {
+  width: 1.4em;
+  height: 1.05em;
+  box-shadow: none;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+/* The little dropdown arrow next to the flag. */
+.fa-phone-input .PhoneInputCountrySelectArrow {
+  color: #adb5bd;
+  opacity: 1;
+  margin-left: 0.1rem;
+  border-color: #adb5bd;
+}
+
+.fa-phone-input:focus-within .PhoneInputCountrySelectArrow {
+  color: #136f3f;
+  border-color: #136f3f;
+}
+
+/* Disabled state - match .input-field disabled. */
+.fa-phone-input:has(.PhoneInputInput:disabled) {
+  background: #f5f7f9;
+}
+.fa-phone-input .PhoneInputInput:disabled {
+  color: #adb5bd;
+  cursor: not-allowed;
+}
+
+/* The native country <select> overlay sits invisibly over the flag. */
+.fa-phone-input .PhoneInputCountrySelect {
+  cursor: pointer;
+}

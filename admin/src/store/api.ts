@@ -1,0 +1,35 @@
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { axiosBaseQuery } from "./axiosBaseQuery";
+
+export const apiSlice = createApi({
+  reducerPath: "api",
+  baseQuery: axiosBaseQuery(),
+  tagTypes: [
+    "Users",
+    "User",
+    "Profile",
+    "LoginLogs",
+    "Organizations",
+    "Organization",
+    "Farms",
+    "Farm",
+    "Fields",
+    "Field",
+    "FieldSoil",
+    "FieldDocuments",
+    "FieldHistory",
+    "AssessmentCategories",
+    "AssessmentCategory",
+    "AssessmentQuestions",
+    "AssessmentQuestion",
+    "Assignments",
+    "Programs",
+    "Program",
+    "Enrollments",
+    "Config",
+    "Dashboard",
+    "Visits",
+    "Notifications",
+  ],
+  endpoints: () => ({}),
+});

@@ -1,0 +1,186 @@
+{
+  "v": 1,
+  "name": "Sprint 1 - Organizations (admin)",
+  "folders": [],
+  "requests": [
+    {
+      "v": "1",
+      "name": "Create organization",
+      "method": "POST",
+      "endpoint": "<<baseUrl>>/organizations",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json",
+          "active": true,
+          "description": ""
+        }
+      ],
+      "params": [],
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n  \"name\": \"Green Valley Cooperative\",\n  \"code\": \"GVC-001\",\n  \"description\": \"Regenerative farming collective\",\n  \"contactEmail\": \"info@greenvalley.org\",\n  \"contactPhone\": \"+919876543210\",\n  \"address\": \"Pune, Maharashtra\",\n  \"isActive\": true\n}"
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": "pw.test(\"save orgId\", () => {\n  const d = pw.response.body.data;\n  if (d && d.organization && d.organization.id) pw.env.set('orgId', d.organization.id);\n});"
+    },
+    {
+      "v": "1",
+      "name": "List organizations (paginated/filter/search)",
+      "method": "GET",
+      "endpoint": "<<baseUrl>>/organizations",
+      "headers": [],
+      "params": [
+        {
+          "key": "page",
+          "value": "1",
+          "active": true,
+          "description": ""
+        },
+        {
+          "key": "limit",
+          "value": "10",
+          "active": true,
+          "description": ""
+        },
+        {
+          "key": "status",
+          "value": "active",
+          "active": false,
+          "description": ""
+        },
+        {
+          "key": "search",
+          "value": "green",
+          "active": false,
+          "description": ""
+        }
+      ],
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": ""
+    },
+    {
+      "v": "1",
+      "name": "Get organization (with members)",
+      "method": "GET",
+      "endpoint": "<<baseUrl>>/organizations/<<orgId>>",
+      "headers": [],
+      "params": [],
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": ""
+    },
+    {
+      "v": "1",
+      "name": "Update organization",
+      "method": "PATCH",
+      "endpoint": "<<baseUrl>>/organizations/<<orgId>>",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json",
+          "active": true,
+          "description": ""
+        }
+      ],
+      "params": [],
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n  \"name\": \"Green Valley Cooperative Ltd\",\n  \"isActive\": true\n}"
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": ""
+    },
+    {
+      "v": "1",
+      "name": "Assign user to organization",
+      "method": "POST",
+      "endpoint": "<<baseUrl>>/organizations/<<orgId>>/users",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json",
+          "active": true,
+          "description": ""
+        }
+      ],
+      "params": [],
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n  \"userId\": \"<<userId>>\"\n}"
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": ""
+    },
+    {
+      "v": "1",
+      "name": "Remove user from organization",
+      "method": "DELETE",
+      "endpoint": "<<baseUrl>>/organizations/<<orgId>>/users/<<userId>>",
+      "headers": [],
+      "params": [],
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": ""
+    },
+    {
+      "v": "1",
+      "name": "Delete organization (soft)",
+      "method": "DELETE",
+      "endpoint": "<<baseUrl>>/organizations/<<orgId>>",
+      "headers": [],
+      "params": [],
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "preRequestScript": "",
+      "testScript": ""
+    }
+  ]
+}

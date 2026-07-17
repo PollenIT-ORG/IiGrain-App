@@ -1,0 +1,197 @@
+{
+  "v": 12,
+  "name": "Farmer App - Field Visits (Realtime)",
+  "folders": [
+    {
+      "v": 12,
+      "name": "Assessor visit flow",
+      "folders": [],
+      "requests": [
+        {
+          "v": "17",
+          "name": "1. Start visit (assessor -> assessable field)",
+          "method": "POST",
+          "endpoint": "<<baseUrl>>/visits",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"fieldId\": \"<<fieldId>>\"\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "pw.test(\"201\", () => pw.expect(pw.response.status).toBe(201));\nconst v = pw.response.body.data.visit; if (v) pw.env.set('visitId', v.id);",
+          "requestVariables": [],
+          "description": "The assessor starts a visit to a SPECIFIC FIELD they are going to assess. Only `fieldId` is sent - the farmer and program are derived from the field on the server. Requires an ASSESSOR token.\n\nAuthorization: the assessor must be allowed to assess that field (it is enrolled in a program where they are the assigned assessor, and the program has started) - otherwise 403. Field must exist (else 404). One active visit per assessor (else 409). The destination pin is the field’s own coordinates.\n\nOn success the farmer gets a `visit:incoming` socket push AND a persistent notification naming the field (\"... has started a visit to \\\"North Field\\\".\").\n\n### Expected (201)\n```json\n{\n  \"success\": true,\n  \"message\": \"Visit started.\",\n  \"data\": { \"visit\": {\n    \"id\": \"...\", \"assessor_id\": \"...\", \"farmer_id\": \"...\",\n    \"field_id\": \"...\", \"field_name\": \"North Field\", \"program_id\": \"...\",\n    \"status\": \"en_route\", \"dest_latitude\": 28.55, \"dest_longitude\": 77.33,\n    \"last_latitude\": null, \"last_longitude\": null, \"started_at\": \"...\"\n  } }\n}\n```",
+          "responses": {}
+        },
+        {
+          "v": "17",
+          "name": "2. Push location (assessor live position)",
+          "method": "POST",
+          "endpoint": "<<baseUrl>>/visits/<<visitId>>/location",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"latitude\": 28.65,\n  \"longitude\": 77.15\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "pw.test(\"200\", () => pw.expect(pw.response.status).toBe(200));",
+          "requestVariables": [],
+          "description": "The assessor pushes a live GPS position on an active visit. Only the visit's OWN assessor may push (else 403); the visit must be active (else 400). Range-validated (lat -90..90, lng -180..180). REST mirrors the `visit:location` socket event and also broadcasts to the visit room, so the farmer/admin map updates either way.\n\n### Expected (200)\n```json\n{ \"success\": true, \"message\": \"Location updated.\", \"data\": { \"visit\": { \"status\": \"en_route\", \"last_latitude\": 28.65, \"last_longitude\": 77.15, \"last_location_at\": \"...\" } } }\n```",
+          "responses": {}
+        },
+        {
+          "v": "17",
+          "name": "3. Mark arrived",
+          "method": "POST",
+          "endpoint": "<<baseUrl>>/visits/<<visitId>>/arrive",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "pw.test(\"200\", () => pw.expect(pw.response.status).toBe(200));",
+          "requestVariables": [],
+          "description": "The assessor marks arrival (status en_route -> arrived). Assessor-only. Broadcasts `visit:status` to the room.\n\n### Expected (200)\n```json\n{ \"success\": true, \"message\": \"Marked as arrived.\", \"data\": { \"visit\": { \"status\": \"arrived\", \"arrived_at\": \"...\" } } }\n```",
+          "responses": {}
+        },
+        {
+          "v": "17",
+          "name": "4. End visit (completed / cancelled)",
+          "method": "POST",
+          "endpoint": "<<baseUrl>>/visits/<<visitId>>/end",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"outcome\": \"completed\"\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "pw.test(\"200\", () => pw.expect(pw.response.status).toBe(200));",
+          "requestVariables": [],
+          "description": "The assessor ends the visit - `outcome` is `completed` (default) or `cancelled`. Assessor-only; the visit must still be active. After ending, location pushes are rejected (visit no longer active) and location sharing stops.\n\n### Expected (200)\n```json\n{ \"success\": true, \"message\": \"Visit ended.\", \"data\": { \"visit\": { \"status\": \"completed\", \"ended_at\": \"...\" } } }\n```",
+          "responses": {}
+        },
+        {
+          "v": "17",
+          "name": "My active visit (assessor)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/visits/mine/assessor",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "pw.test(\"200\", () => pw.expect(pw.response.status).toBe(200));",
+          "requestVariables": [],
+          "description": "The assessor's current active visit, or `{ visit: null }`. Assessor-only. Use on app resume to re-attach to an in-progress visit.",
+          "responses": {}
+        }
+      ]
+    },
+    {
+      "v": 12,
+      "name": "Farmer + Admin views",
+      "folders": [],
+      "requests": [
+        {
+          "v": "17",
+          "name": "My incoming visit (farmer)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/visits/mine/farmer",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "pw.test(\"200\", () => pw.expect(pw.response.status).toBe(200));",
+          "requestVariables": [],
+          "description": "The visit currently heading to THIS farmer (someone en route/arrived), or `{ visit: null }`. Needs a FARMER token. The farmer then joins the socket room `visit:<id>` to watch the assessor move live.",
+          "responses": {}
+        },
+        {
+          "v": "17",
+          "name": "Get one visit (assessor / farmer / admin)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/visits/<<visitId>>",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "pw.test(\"200\", () => pw.expect(pw.response.status).toBe(200));",
+          "requestVariables": [],
+          "description": "One visit by id. Readable only by its assessor, its farmer, or an admin (else 403). Returns the current snapshot including `last_latitude`/`last_longitude` so a late joiner can render the position without replaying the socket stream.",
+          "responses": {}
+        },
+        {
+          "v": "17",
+          "name": "All active visits (admin live view)",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/visits/active",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "pw.test(\"200\", () => pw.expect(pw.response.status).toBe(200));",
+          "requestVariables": [],
+          "description": "Every currently-active visit across the platform. ADMIN / SUPER_ADMIN only. Powers the admin 'Live visits' page, which then subscribes to each visit's socket room for the live stream.\n\n### Expected (200)\n```json\n{ \"success\": true, \"message\": \"Active visits fetched.\", \"data\": { \"visits\": [ { \"id\": \"...\", \"assessor_name\": \"...\", \"farmer_name\": \"...\", \"status\": \"en_route\", \"last_latitude\": 28.65, \"last_longitude\": 77.15 } ] } }\n```",
+          "responses": {}
+        }
+      ]
+    }
+  ],
+  "requests": []
+}
