@@ -56,13 +56,13 @@ model assessment_responses {
   evidence_urls        String[]             @default([])
   author_role          String               @default("farmer") @db.VarChar(20)
   author_id            String?              @db.Uuid
-  program_id           String?              @db.Uuid
+  program_id           String               @db.Uuid
   created_at           DateTime             @default(now()) @db.Timestamptz(6)
   updated_at           DateTime             @default(now()) @db.Timestamptz(6)
   deleted_at           DateTime?            @db.Timestamptz(6)
   users                users?               @relation(fields: [author_id], references: [id], onUpdate: NoAction)
   fields               fields               @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  programs             programs?            @relation(fields: [program_id], references: [id], onUpdate: NoAction)
+  programs             programs             @relation(fields: [program_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   assessment_questions assessment_questions @relation(fields: [question_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
@@ -71,6 +71,7 @@ model farms {
   name          String         @db.VarChar(150)
   area_acres    Decimal?       @db.Decimal(10, 2)
   location      String?
+  business_entity String?      @db.VarChar(200)
   owner_id      String         @db.Uuid
   org_id        String?        @db.Uuid
   is_active     Boolean        @default(true)
@@ -100,14 +101,15 @@ model field_assessments {
   submitted_at    DateTime? @db.Timestamptz(6)
   author_role     String    @default("farmer") @db.VarChar(20)
   author_id       String?   @db.Uuid
-  program_id      String?   @db.Uuid
+  program_id      String    @db.Uuid
   created_at      DateTime  @default(now()) @db.Timestamptz(6)
   updated_at      DateTime  @default(now()) @db.Timestamptz(6)
   users           users?    @relation(fields: [author_id], references: [id], onUpdate: NoAction)
   fields          fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  programs        programs? @relation(fields: [program_id], references: [id], onUpdate: NoAction)
+  programs        programs  @relation(fields: [program_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
-  @@unique([field_id, author_role], map: "uq_field_assessments_field_role")
+  @@unique([field_id, author_role, program_id], map: "uq_field_assessments_field_role_program")
+  @@index([field_id, author_role, program_id], map: "idx_field_assessments_field_role_program")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -122,7 +124,6 @@ model fields {
   location                  String?
   sowing_date               DateTime?                   @db.Date
   expected_harvest          DateTime?                   @db.Date
-  status                    String                      @default("healthy") @db.VarChar(20)
   is_active                 Boolean                     @default(true)
   created_at                DateTime                    @default(now()) @db.Timestamptz(6)
   updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
@@ -162,7 +163,10 @@ model organizations {
   description          String?
   contact_email        String?                @db.VarChar(255)
   contact_phone        String?                @db.VarChar(20)
+  contact_hours        String?                @db.VarChar(200)
   address              String?
+  logo_url             String?
+  favicon_url          String?
   is_active            Boolean                @default(true)
   created_at           DateTime               @default(now()) @db.Timestamptz(6)
   updated_at           DateTime               @default(now()) @db.Timestamptz(6)
@@ -212,6 +216,8 @@ model users {
   full_name                                                    String?                @db.VarChar(150)
   email                                                        String                 @db.VarChar(255)
   phone                                                        String?                @db.VarChar(20)
+  avatar_url                                                   String?
+  enrollment_id                                                String?                @db.VarChar(30)
   password_hash                                                String?
   is_active                                                    Boolean                @default(true)
   is_email_verified                                            Boolean                @default(false)
@@ -236,6 +242,8 @@ model users {
   program_enrollments_program_enrollments_farmer_idTousers     program_enrollments[]  @relation("program_enrollments_farmer_idTousers")
   programs                                                     programs[]
   refresh_tokens                                               refresh_tokens[]
+  eligibility_submissions_reviewed                             eligibility_submissions[] @relation("eligibility_reviewer")
+  contracts_accepted                                           contracts[] @relation("contract_acceptor")
   organizations                                                organizations?         @relation(fields: [org_id], references: [id], onUpdate: NoAction)
   roles                                                        roles                  @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
@@ -387,4 +395,120 @@ model notifications {
   updated_at DateTime  @default(now()) @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
   users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model website_users {
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  full_name               String                    @db.VarChar(150)
+  email                   String                    @db.VarChar(255)
+  password_hash           String
+  phone                   String?                   @db.VarChar(20)
+  is_email_verified       Boolean                   @default(false)
+  last_login_at           DateTime?                 @db.Timestamptz(6)
+  created_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  deleted_at              DateTime?                 @db.Timestamptz(6)
+  eligibility_submissions eligibility_submissions[]
+}
+
+model survey_categories {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String             @db.VarChar(150)
+  description String?
+  icon        String?            @db.VarChar(50)
+  sort_order  Int                @default(0)
+  is_active   Boolean            @default(true)
+  created_at  DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime           @default(now()) @db.Timestamptz(6)
+  deleted_at  DateTime?          @db.Timestamptz(6)
+  questions   survey_questions[]
+}
+
+model survey_questions {
+  id                      String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  category_id             String?            @db.Uuid
+  question_text           String
+  help_text               String?
+  weight                  Int                @default(1)
+  score_yes               Int                @default(0)
+  score_no                Int                @default(0)
+  parent_question_id      String?            @db.Uuid
+  show_when_parent_answer String?            @db.VarChar(10)
+  sort_order              Int                @default(0)
+  is_active               Boolean            @default(true)
+  created_at              DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime           @default(now()) @db.Timestamptz(6)
+  deleted_at              DateTime?          @db.Timestamptz(6)
+  category                survey_categories? @relation(fields: [category_id], references: [id], onDelete: Cascade)
+  parent                  survey_questions?  @relation("survey_question_followups", fields: [parent_question_id], references: [id], onDelete: Cascade)
+  followups               survey_questions[] @relation("survey_question_followups")
+}
+
+model survey_scoring_rules {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  category   String   @db.VarChar(20)
+  min_score  Int
+  max_score  Int
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model eligibility_submissions {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  website_user_id String        @db.Uuid
+  first_name      String?       @db.VarChar(150)
+  last_name       String?       @db.VarChar(150)
+  farm_name       String?       @db.VarChar(200)
+  referral_source String?       @db.VarChar(200)
+  state           String?       @db.VarChar(100)
+  total_acres     Decimal?      @db.Decimal(10, 2)
+  answers         Json          @default("[]")
+  score           Int           @default(0)
+  auto_category   String        @db.VarChar(20)
+  final_category  String        @db.VarChar(20)
+  status          String        @default("submitted") @db.VarChar(30)
+  channel         String        @default("website") @db.VarChar(20)
+  status_token    String?       @db.VarChar(64)
+  reviewed_by     String?       @db.Uuid
+  reviewed_at     DateTime?     @db.Timestamptz(6)
+  enrollment_id   String?       @db.VarChar(30)
+  created_at      DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime      @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime?     @db.Timestamptz(6)
+  contracts       contracts[]
+  reviewer        users?        @relation("eligibility_reviewer", fields: [reviewed_by], references: [id])
+  website_user    website_users @relation(fields: [website_user_id], references: [id], onDelete: Cascade)
+}
+
+model contracts {
+  id                String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submission_id     String                  @db.Uuid
+  token             String                  @db.VarChar(64)
+  token_expires_at  DateTime                @db.Timestamptz(6)
+  template_version  String                  @default("v1") @db.VarChar(20)
+  signed_name       String?                 @db.VarChar(150)
+  signature_url     String?
+  signed_at         DateTime?               @db.Timestamptz(6)
+  signer_ip         String?                 @db.VarChar(64)
+  signer_user_agent String?
+  accepted_by       String?                 @db.Uuid
+  accepted_at       DateTime?               @db.Timestamptz(6)
+  created_at        DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime                @default(now()) @db.Timestamptz(6)
+  acceptor          users?                  @relation("contract_acceptor", fields: [accepted_by], references: [id])
+  submission        eligibility_submissions @relation(fields: [submission_id], references: [id], onDelete: Cascade)
+}
+
+model contact_enquiries {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String    @db.VarChar(150)
+  email      String    @db.VarChar(255)
+  phone      String?   @db.VarChar(20)
+  subject    String?   @db.VarChar(150)
+  message    String
+  is_read    Boolean   @default(false)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
 }

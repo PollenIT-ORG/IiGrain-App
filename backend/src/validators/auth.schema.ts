@@ -53,12 +53,14 @@ const refreshTokenField = z
   .trim()
   .min(1, "Refresh token is required.");
 
+// Self-registration always creates a farmer. `role` is deliberately NOT accepted
+// here: privileged roles may only be created through the authenticated admin
+// path, which enforces canCreateRole. Any role sent by a client is stripped.
 export const registerSchema = z.object({
   fullName: nameField,
   email: emailField,
   phone: phoneField,
   password: passwordField,
-  role: z.string().trim().min(1).optional(),
 });
 
 export const loginSchema = z.object({
@@ -95,6 +97,10 @@ export const resetPasswordSchema = z.object({
   newPassword: passwordField,
 });
 
+export const checkEmailQuerySchema = z.object({
+  email: emailField,
+});
+
 export type RegisterBody = z.infer<typeof registerSchema>;
 export type LoginBody = z.infer<typeof loginSchema>;
 export type RequestOtpBody = z.infer<typeof requestOtpSchema>;
@@ -103,3 +109,4 @@ export type RefreshTokenBody = z.infer<typeof refreshTokenSchema>;
 export type LogoutBody = z.infer<typeof logoutSchema>;
 export type ForgotPasswordBody = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordBody = z.infer<typeof resetPasswordSchema>;
+export type CheckEmailQuery = z.infer<typeof checkEmailQuerySchema>;

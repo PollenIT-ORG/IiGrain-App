@@ -40,7 +40,7 @@ const AccountInfoRow: React.FC<{ item: AccountInfoItem; showBorder: boolean }> =
         <AppText
           style={[styles.value, item.muted && styles.valueMuted]}
           numberOfLines={1}>
-          {item.value ?? '-'}
+          {item.value ?? '—'}
         </AppText>
       )}
     </View>

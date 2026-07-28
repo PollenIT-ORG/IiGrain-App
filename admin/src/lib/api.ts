@@ -27,6 +27,9 @@ function forceLogout(): void {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   if (window.location.pathname !== "/login") {
+    // Survives the hard redirect so the login page can explain why the user
+    // landed there instead of dropping them silently.
+    sessionStorage.setItem("session_expired", "1");
     window.location.href = "/login";
   }
 }
@@ -56,6 +59,10 @@ const AUTH_FLOW_PATHS = [
   "/auth/logout",
   "/auth/forgot-password",
   "/auth/reset-password",
+  // A 401 here means "current password is wrong", not an expired session, so it
+  // must not trigger a token refresh / retry (which double-fires the request and
+  // can log the user out over a simple typo).
+  "/profile/change-password",
 ];
 
 api.interceptors.response.use(

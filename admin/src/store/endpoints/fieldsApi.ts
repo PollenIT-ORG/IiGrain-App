@@ -1,7 +1,6 @@
 import { apiSlice } from "../api";
 import type {
   Field,
-  FieldStatus,
   FieldSoil,
   FieldDocument,
   FieldHistoryEvent,
@@ -14,7 +13,6 @@ interface ListFieldsParams {
   limit?: number;
   farmId?: string;
   ownerId?: string;
-  status?: FieldStatus;
   isActive?: boolean;
   search?: string;
 }
@@ -31,7 +29,6 @@ interface CreateFieldBody {
   longitude?: number | null;
   sowingDate?: string;
   expectedHarvest?: string;
-  status?: FieldStatus;
   isActive?: boolean;
 }
 
@@ -88,6 +85,18 @@ export const fieldsApi = apiSlice.injectEndpoints({
       invalidatesTags: ["Fields"],
     }),
 
+    resetField: build.mutation<Field, string>({
+      query: (id) => ({ url: `/fields/${id}/reset`, method: "POST" }),
+      transformResponse: (r: { data: { field: Field } }) => r.data.field,
+      invalidatesTags: (_r, _e, id) => [
+        "Fields",
+        { type: "Field", id },
+        { type: "FieldSoil", id },
+        { type: "FieldDocuments", id },
+        { type: "FieldHistory", id },
+      ],
+    }),
+
     getFieldHistory: build.query<FieldHistoryEvent[], string>({
       query: (id) => ({ url: `/fields/${id}/details`, params: { tab: "history" } }),
       transformResponse: (r: { data: { history: FieldHistoryEvent[] } }) =>
@@ -136,6 +145,7 @@ export const {
   useCreateFieldMutation,
   useUpdateFieldMutation,
   useDeleteFieldMutation,
+  useResetFieldMutation,
   useGetFieldHistoryQuery,
   useGetFieldSoilQuery,
   useSaveFieldSoilMutation,

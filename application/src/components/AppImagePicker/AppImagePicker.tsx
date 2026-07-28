@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import {
   imagePickerService,
@@ -92,19 +92,26 @@ const AppImagePicker: React.FC<AppImagePickerProps> = ({
     [multiple, value, effectiveMax, onChange, onError],
   );
 
+  // Guarded by a ref as well as state: two taps in the same tick both read a
+  // stale `loading === false` and would open two native pickers, which iOS
+  // refuses — leaving the app stuck behind an orphaned modal.
+  const busyRef = useRef(false);
+
   const runPick = useCallback(
     async (fn: () => Promise<ImagePickerResult>) => {
-      if (loading) {
+      if (busyRef.current) {
         return;
       }
+      busyRef.current = true;
       setLoading(true);
       try {
         handleResult(await fn());
       } finally {
+        busyRef.current = false;
         setLoading(false);
       }
     },
-    [loading, handleResult],
+    [handleResult],
   );
 
   const handleCamera = useCallback(

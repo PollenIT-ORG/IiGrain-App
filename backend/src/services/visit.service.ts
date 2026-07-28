@@ -1,6 +1,9 @@
 import ApiError from "../utils/ApiError.js";
 import prisma from "../db/prisma.js";
+import { assertAssessmentWritable } from "./assessmentMobile.service.js";
 import { notifyUser } from "./notification.service.js";
+import { broadcastToAdmins } from "./realtime.service.js";
+import { emitSync } from "../socket/liveSync.js";
 import { visitStartedEmail } from "./emailTemplates.js";
 import {
   assessorCanAccessField,
@@ -43,12 +46,24 @@ export async function startVisit(
   const field = await findFieldWithFarmer(input.fieldId);
   if (!field) throw ApiError.notFound("Field not found.");
 
-  const canAccess = await assessorCanAccessField(assessorId, input.fieldId);
+  // A visit is physical (field-level), so it is tied to the assessor's current
+  // live enrollment for this field rather than a specific program assessment.
+  const programId = await resolveProgramForField(input.fieldId);
+  if (!programId) {
+    throw ApiError.forbidden(
+      "You can't visit this field - it isn't assigned to you for assessment."
+    );
+  }
+
+  const canAccess = await assessorCanAccessField(assessorId, input.fieldId, programId);
   if (!canAccess) {
     throw ApiError.forbidden(
       "You can't visit this field - it isn't assigned to you for assessment."
     );
   }
+
+  // A closed/ended program, or an inactive farm/field, is not visitable.
+  await assertAssessmentWritable(input.fieldId, programId);
 
   const existing = await findActiveVisitForAssessor(assessorId);
   if (existing) {
@@ -58,7 +73,6 @@ export async function startVisit(
   }
 
   const dest = await fieldDestination(input.fieldId);
-  const programId = await resolveProgramForField(input.fieldId);
 
   const visit = await createVisit({
     assessorId,
@@ -84,6 +98,10 @@ export async function startVisit(
         fieldName: field.name,
       }),
   });
+
+  // Live-update the admin Live Visits screen and the farmer's device.
+  broadcastToAdmins("visits", { visitId: visit.id });
+  emitSync(field.farmer_id, { resource: "field", action: "updated", fieldId: field.id });
 
   return visit;
 }
@@ -136,6 +154,8 @@ export async function finishVisit(
   if (!updated) {
     throw ApiError.badRequest("This visit is no longer active.");
   }
+  // Live-update the admin Live Visits screen (the visit left the active list).
+  broadcastToAdmins("visits", { visitId });
   return updated;
 }
 

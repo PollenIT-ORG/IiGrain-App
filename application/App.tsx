@@ -10,32 +10,27 @@ import GlobalErrorModal from './src/components/GlobalErrorModal';
 import GlobalToast from './src/components/GlobalToast';
 import VisitTrackingFab from './src/components/visit/VisitTrackingFab';
 import { AppShimmerProvider } from './src/components/Shimmer';
+import SplashBackdrop from './src/components/splash/SplashBackdrop';
 import { COLORS } from './src/constants';
+import { SPLASH } from './src/config/splash';
 import { store, persistor } from './src/redux/store';
 
 const App = () => {
   return (
     <GestureHandlerRootView style={styles.root}>
       <Provider store={store}>
-        <PersistGate loading={null} persistor={persistor}>
+        {/* Rehydration paints the splash colour rather than `null`: an empty
+            render here is the blank frame between the native window and the
+            first JS paint. */}
+        <PersistGate loading={<SplashBackdrop />} persistor={persistor}>
           <KeyboardProvider>
             <SafeAreaProvider>
-              {/* App-wide status bar: primary-green background + LIGHT (white)
-                  icons on every screen.
-                  • Android <15: `backgroundColor` colours the (opaque) bar right
-                    away - no rebuild needed.
-                  • Android 15+ / iOS: `backgroundColor` is ignored under
-                    edge-to-edge, so StatusBarBackground (below) paints the strip. */}
               <StatusBar
                 backgroundColor={COLORS.primary}
                 barStyle="light-content"
               />
-              {/* App-wide shimmer clock - drives + syncs every AppShimmer skeleton
-                  from a single theme; costs nothing while none are on screen. */}
               <AppShimmerProvider>
                 <RootNavigator />
-                {/* Global live-visit beacon - floats over every screen while a
-                    visit is active (hides itself on question / map screens). */}
                 <VisitTrackingFab />
                 <GlobalErrorModal />
                 <GlobalToast />
@@ -51,5 +46,8 @@ const App = () => {
 export default App;
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
+  // Painted explicitly rather than left transparent: an uncoloured root shows
+  // the raw window background in any frame where nothing above it has drawn yet,
+  // which is seen as a white flash between the native splash and the app.
+  root: { flex: 1, backgroundColor: SPLASH.backgroundColor },
 });

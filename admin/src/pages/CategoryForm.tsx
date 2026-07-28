@@ -155,7 +155,7 @@ export default function CategoryForm() {
               Cancel
             </button>
             <button type="submit" className="btn-primary" disabled={isSaving}>
-              {isSaving ? "Saving…" : isEdit ? "Save changes" : "Create category"}
+              {isSaving ? "Saving..." : isEdit ? "Save changes" : "Create category"}
             </button>
           </div>
         </form>

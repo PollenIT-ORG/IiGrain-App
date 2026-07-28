@@ -17,6 +17,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing[2.5],
+
   },
   wordmark: {
     fontFamily: fonts.bold,

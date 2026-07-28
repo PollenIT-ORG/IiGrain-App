@@ -15,7 +15,7 @@ import Loader from "../components/Loader";
 import Select from "../components/ui/Select";
 import MapPicker, { type LatLng } from "../components/ui/MapPicker";
 import { ChevronLeftIcon } from "../components/icons";
-import type { FieldStatus } from "../types";
+import { applyServerFieldErrors } from "../lib/serverErrors";
 
 function errMsg(err: unknown): string {
   return (
@@ -23,12 +23,6 @@ function errMsg(err: unknown): string {
     "Something went wrong. Please try again."
   );
 }
-
-const STATUS_OPTIONS = [
-  { value: "healthy", label: "Healthy" },
-  { value: "monitor", label: "Monitor" },
-  { value: "critical", label: "Critical" },
-];
 
 const ACTIVE_OPTIONS = [
   { value: "active", label: "Active" },
@@ -60,11 +54,8 @@ export default function FieldForm() {
   const [coords, setCoords] = useState<LatLng | null>(null);
   const [sowingDate, setSowingDate] = useState("");
   const [expectedHarvest, setExpectedHarvest] = useState("");
-  const [status, setStatus] = useState<FieldStatus>("healthy");
   const [isActive, setIsActive] = useState(true);
-  const [errors, setErrors] = useState<{ farm?: string | null; name?: string | null }>(
-    {}
-  );
+  const [errors, setErrors] = useState<Record<string, string | null>>({});
 
   const [ph, setPh] = useState("");
   const [organicMatter, setOrganicMatter] = useState("");
@@ -127,7 +118,6 @@ export default function FieldForm() {
       );
       setSowingDate(field.sowing_date ?? "");
       setExpectedHarvest(field.expected_harvest ?? "");
-      setStatus(field.status);
       setIsActive(field.is_active);
     }
   }, [field]);
@@ -171,13 +161,15 @@ export default function FieldForm() {
   }
 
   function validateSoil(): string | null {
+    // Bounds match the backend: pH 0-14, organic matter and moisture are
+    // percentages (0-100), nutrients are ppm with a generous cap.
     const checks: Array<[string, string, number, number]> = [
       ["pH", ph, 0, 14],
-      ["Organic matter", organicMatter, 0, Infinity],
-      ["Nitrogen", nitrogen, 0, Infinity],
-      ["Phosphorus", phosphorus, 0, Infinity],
-      ["Potassium", potassium, 0, Infinity],
-      ["Moisture", moisture, 0, Infinity],
+      ["Organic matter", organicMatter, 0, 100],
+      ["Nitrogen", nitrogen, 0, 10000],
+      ["Phosphorus", phosphorus, 0, 10000],
+      ["Potassium", potassium, 0, 10000],
+      ["Moisture", moisture, 0, 100],
     ];
     for (const [label, val, min, max] of checks) {
       if (val.trim() === "") continue;
@@ -193,18 +185,18 @@ export default function FieldForm() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const fieldErrors = {
+    const areaNum = areaAcres.trim() === "" ? undefined : Number(areaAcres);
+    const fieldErrors: Record<string, string | null> = {
       farm: farmId ? null : "Please select a farm.",
       name: name.trim() ? null : "Field name is required.",
+      area:
+        areaNum !== undefined && (Number.isNaN(areaNum) || areaNum <= 0)
+          ? "Area must be a number greater than zero."
+          : null,
     };
     setErrors(fieldErrors);
-    if (fieldErrors.farm || fieldErrors.name) return;
+    if (fieldErrors.farm || fieldErrors.name || fieldErrors.area) return;
 
-    const areaNum = areaAcres.trim() === "" ? undefined : Number(areaAcres);
-    if (areaNum !== undefined && (Number.isNaN(areaNum) || areaNum <= 0)) {
-      showError("Area must be a number greater than zero.");
-      return;
-    }
     const soilErr = validateSoil();
     if (soilErr) {
       showError(soilErr);
@@ -227,7 +219,6 @@ export default function FieldForm() {
             longitude: coords?.lng ?? null,
             sowingDate: sowingDate || undefined,
             expectedHarvest: expectedHarvest || undefined,
-            status,
             isActive,
           },
         }).unwrap();
@@ -244,7 +235,6 @@ export default function FieldForm() {
           longitude: coords?.lng ?? null,
           sowingDate: sowingDate || undefined,
           expectedHarvest: expectedHarvest || undefined,
-          status,
           isActive,
         }).unwrap();
         fieldId = created.id;
@@ -258,7 +248,11 @@ export default function FieldForm() {
       showSuccess(isEdit ? "Field updated." : "Field created.");
       navigate("/fields");
     } catch (err) {
-      showError(errMsg(err));
+      const placed = applyServerFieldErrors(err, setErrors, [
+        { field: "area", test: /acre|area/i },
+        { field: "name", test: /field name/i },
+      ]);
+      if (!placed) showError(errMsg(err));
     }
   }
 
@@ -281,7 +275,7 @@ export default function FieldForm() {
         </h1>
         <p className="mt-1 text-sm text-gray-500">
           {isEdit
-            ? "Update this field's details and health status."
+            ? "Update this field's details."
             : "Add a new field to a farm."}
         </p>
       </div>
@@ -339,12 +333,14 @@ export default function FieldForm() {
                 type="number"
                 min="0"
                 step="0.01"
-                className="input-field"
+                className={`input-field ${errors.area ? "input-error" : ""}`}
                 placeholder="50.5"
                 value={areaAcres}
                 onChange={(e) => setAreaAcres(e.target.value)}
               />
-              {remainingAcres !== null ? (
+              {errors.area ? (
+                <p className="field-error">{errors.area}</p>
+              ) : remainingAcres !== null ? (
                 <p className="mt-1.5 text-xs text-gray-500">
                   Optional.{" "}
                   <span
@@ -454,17 +450,6 @@ export default function FieldForm() {
 
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
-              <label htmlFor="status" className="label">
-                Health status
-              </label>
-              <Select
-                id="status"
-                value={status}
-                onChange={(v) => setStatus(v as FieldStatus)}
-                options={STATUS_OPTIONS}
-              />
-            </div>
-            <div>
               <label htmlFor="active" className="label">
                 Status
               </label>
@@ -477,12 +462,26 @@ export default function FieldForm() {
             </div>
           </div>
 
+          {!isEdit ? (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+                Soil details
+              </h2>
+              <p className="mt-1 text-xs text-gray-500">
+                Soil readings can be added after the field is enrolled in an
+                active program. Create the field first, then open it to record
+                soil once it is enrolled.
+              </p>
+            </div>
+          ) : (
           <div className="border-t border-gray-300 pt-5">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
               Soil details
             </h2>
             <p className="mt-1 text-xs text-gray-500">
-              All optional. Leave blank to skip. One soil record per field.
+              All optional. Leave blank to skip. One soil record per field. Soil
+              nutrient values can only be saved while the field is enrolled in an
+              active program.
             </p>
 
             <div className="mt-4 grid gap-5 sm:grid-cols-3">
@@ -624,6 +623,7 @@ export default function FieldForm() {
               />
             </div>
           </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-2">
             <button

@@ -6,6 +6,7 @@ import {
 } from "../store/endpoints/assignmentsApi";
 import { useListUsersQuery } from "../store/endpoints/usersApi";
 import { showSuccess, showError } from "../lib/toast";
+import { useLiveData } from "../lib/useLiveData";
 import { useDialog } from "../components/ui/DialogProvider";
 import Select from "../components/ui/Select";
 import Loader from "../components/Loader";
@@ -32,10 +33,11 @@ export default function Assignments() {
   const [farmerId, setFarmerId] = useState("");
   const [note, setNote] = useState("");
 
-  const { data, isLoading, isError, error } = useListAssignmentsQuery({
+  const { data, isLoading, isError, error, refetch } = useListAssignmentsQuery({
     page,
     limit: PAGE_SIZE,
   });
+  useLiveData(["assignments"], refetch);
 
   const { data: assessorsData } = useListUsersQuery({
     role: "assessor",
@@ -164,7 +166,7 @@ export default function Assignments() {
             className="btn-primary flex items-center gap-2"
           >
             <PlusIcon width={18} height={18} />
-            {assigning ? "Assigning…" : "Assign"}
+            {assigning ? "Assigning..." : "Assign"}
           </button>
         </div>
       </div>

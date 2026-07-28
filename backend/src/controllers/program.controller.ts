@@ -14,6 +14,7 @@ import type {
   SelfEnrollBody,
   ListEnrollmentsQuery,
 } from "../validators/program.schema.js";
+import type { PaginationQuery } from "../validators/pagination.schema.js";
 
 function actorOf(req: Request): service.Actor {
   const id = req.user?.sub;
@@ -124,6 +125,13 @@ export const getEnrollmentAssessments = asyncHandler(
   }
 );
 
+export const getProgramProgress = asyncHandler(
+  async (req: Request, res: Response) => {
+    const result = await service.getProgramProgress(req.params.id);
+    return ApiResponse.send(res, 200, "Program progress fetched.", result);
+  }
+);
+
 export const unenroll = asyncHandler(async (req: Request, res: Response) => {
   await service.unenroll(req.params.id, req.params.enrollmentId);
   return ApiResponse.send(res, 200, "Farmer unenrolled.");
@@ -141,8 +149,14 @@ export const myAvailablePrograms = asyncHandler(async (req: Request, res: Respon
 });
 
 export const myEnrollableFields = asyncHandler(async (req: Request, res: Response) => {
-  const fields = await service.getEnrollableFieldsForFarmer(farmerId(req));
-  return ApiResponse.send(res, 200, "Enrollable fields fetched.", { fields });
+  const q = req.query as unknown as PaginationQuery;
+  const { fields, meta } = await service.getEnrollableFieldsForFarmer({
+    farmerId: farmerId(req),
+    page: q.page,
+    limit: q.limit,
+    search: q.search,
+  });
+  return ApiResponse.send(res, 200, "Enrollable fields fetched.", { fields }, meta);
 });
 
 export const selfEnroll = asyncHandler(async (req: Request, res: Response) => {
@@ -153,6 +167,17 @@ export const selfEnroll = asyncHandler(async (req: Request, res: Response) => {
   });
   return ApiResponse.send(res, 201, "Enrolled successfully.", { enrollment });
 });
+
+export const selfUnenrollField = asyncHandler(
+  async (req: Request, res: Response) => {
+    const result = await service.selfUnenrollField(
+      req.params.id,
+      req.params.fieldId,
+      farmerId(req)
+    );
+    return ApiResponse.send(res, 200, "Field unenrolled from the program.", result);
+  }
+);
 
 export const listSubmissions = asyncHandler(async (req: Request, res: Response) => {
   const q = req.query as unknown as ListSubmissionsQuery;

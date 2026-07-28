@@ -31,6 +31,11 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarImage: {
+    width: scale(56),
+    height: scale(56),
+    borderRadius: borderRadius.full,
+  },
   avatarText: { ...presets.headingMD, color: COLORS.primary },
   name: { ...presets.headingSM, color: COLORS.gray900 },
   email: { ...presets.bodySM, color: COLORS.gray600 },

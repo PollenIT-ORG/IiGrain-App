@@ -1,25 +1,25 @@
 {
   "compilerOptions": {
-    /* Language & module */
+    /* ── Language & module ── */
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
 
-    /* Emit */
+    /* ── Emit ── */
     "outDir": "./dist",
     "rootDir": "./src",
     "sourceMap": true,
     "declaration": false,
     "removeComments": false,
 
-    /* Interop */
+    /* ── Interop ── */
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true,
 
-    /* Type-safety (strict) */
+    /* ── Type-safety (strict) ── */
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,

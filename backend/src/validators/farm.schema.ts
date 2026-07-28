@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { pageField, limitField } from "./pagination.schema.js";
 
 const nameField = z
   .string({ error: "Farm name is required." })
@@ -34,6 +35,13 @@ const optionalLocation = z
   .optional()
   .or(z.literal(""));
 
+const optionalBusinessEntity = z
+  .string()
+  .trim()
+  .max(200, "Business entity must be at most 200 characters.")
+  .optional()
+  .or(z.literal(""));
+
 const latitudeField = z.coerce
   .number({ error: "Latitude must be a number." })
   .min(-90, "Latitude must be between -90 and 90.")
@@ -52,6 +60,7 @@ export const createFarmSchema = z.object({
   name: nameField,
   areaAcres: requiredAreaField,
   location: optionalLocation,
+  businessEntity: optionalBusinessEntity,
   latitude: latitudeField,
   longitude: longitudeField,
   ownerId: ownerField,
@@ -63,6 +72,7 @@ export const createMyFarmSchema = z.object({
   name: nameField,
   areaAcres: requiredAreaField,
   location: optionalLocation,
+  businessEntity: optionalBusinessEntity,
   latitude: latitudeField,
   longitude: longitudeField,
   isActive: z.boolean().optional(),
@@ -73,6 +83,7 @@ export const updateFarmSchema = z
     name: nameField.optional(),
     areaAcres: areaField,
     location: optionalLocation,
+    businessEntity: optionalBusinessEntity,
     latitude: latitudeField,
     longitude: longitudeField,
     ownerId: ownerField.optional(),
@@ -88,6 +99,7 @@ export const updateMyFarmSchema = z
     name: nameField.optional(),
     areaAcres: areaField,
     location: optionalLocation,
+    businessEntity: optionalBusinessEntity,
     latitude: latitudeField,
     longitude: longitudeField,
   })
@@ -96,11 +108,21 @@ export const updateMyFarmSchema = z
   });
 
 export const listFarmsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(10),
+  page: pageField(1),
+  limit: limitField(10, 100),
   status: z.enum(["active", "inactive"]).optional(),
   ownerId: z.string().uuid("Invalid owner id.").optional(),
   orgId: z.string().uuid("Invalid organization id.").optional(),
+  search: z.string().trim().max(100).optional(),
+  sortBy: z
+    .enum(["name", "created_at", "updated_at", "area_acres"])
+    .default("created_at"),
+  order: z.enum(["asc", "desc"]).default("desc"),
+});
+
+export const myFarmsQuerySchema = z.object({
+  page: pageField(1),
+  limit: limitField(20, 100),
   search: z.string().trim().max(100).optional(),
 });
 
@@ -109,3 +131,4 @@ export type CreateMyFarmBody = z.infer<typeof createMyFarmSchema>;
 export type UpdateFarmBody = z.infer<typeof updateFarmSchema>;
 export type UpdateMyFarmBody = z.infer<typeof updateMyFarmSchema>;
 export type ListFarmsQuery = z.infer<typeof listFarmsQuerySchema>;
+export type MyFarmsQuery = z.infer<typeof myFarmsQuerySchema>;

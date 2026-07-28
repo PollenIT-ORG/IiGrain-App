@@ -39,6 +39,11 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     ...shadows.sm,
   },
+  avatarImage: {
+    width: AVATAR,
+    height: AVATAR,
+    borderRadius: AVATAR / 2,
+  },
   avatarText: {
     ...presets.headingSM,
     color: COLORS.white,

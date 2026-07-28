@@ -1,4 +1,4 @@
-# Stage 1: Build
+# ─── Stage 1: Build ───────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
 WORKDIR /app
 
@@ -16,7 +16,7 @@ RUN npm ci --include=dev
 COPY . .
 RUN npm run build
 
-# Stage 2: Production
+# ─── Stage 2: Production ──────────────────────────────────────────────────────
 FROM node:22-alpine AS production
 WORKDIR /app
 
@@ -31,6 +31,9 @@ RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 # Compiled app + the generated Prisma client (and its query engine) from builder.
 COPY --from=builder /app/dist ./dist
+# The .sql migration files are not compiled by tsc, so copy them into dist so the
+# runtime migration runner (dist/db/sync.js -> dist/db/migrations) can find them.
+COPY --from=builder /app/src/db/migrations ./dist/db/migrations
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 

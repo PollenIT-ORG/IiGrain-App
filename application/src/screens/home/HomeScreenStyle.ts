@@ -66,17 +66,6 @@ export const styles = StyleSheet.create({
     justifyContent: 'space-between',
     width: '100%',
   },
-  farmRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[1],
-    marginTop: spacing[1],
-  },
-  farmName: {
-    ...presets.labelLG,
-    color: COLORS.primary,
-    flexShrink: 1,
-  },
   visitBanner: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -53,7 +53,7 @@ if (env.rateLimit.enabled) {
 }
 
 app.get("/", (_req: Request, res: Response) => {
-  return ApiResponse.send(res, 200, "Farmer App API is running", {
+  return ApiResponse.send(res, 200, "Farmer App API is running 🚜", {
     name: "farmer-app-backend",
     apiPrefix: env.apiPrefix,
     health: `${env.apiPrefix}/health`,

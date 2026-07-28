@@ -29,7 +29,7 @@ export const useAssessorVisitStream = (): void => {
     const onUpdate = (raw: unknown) => {
       if (alive && raw && typeof raw === 'object') {
         const v = mapVisit(raw as RawVisit);
-        console.log('[assessorStream] visit update · status =', v.status, '· pos =', v.assessorLat, v.assessorLng);
+        console.log('[assessorStream] ⬇️ visit update · status =', v.status, '· pos =', v.assessorLat, v.assessorLng);
         dispatch(applyVisitUpdate(v));
       }
     };
@@ -64,7 +64,7 @@ export const useAssessorVisitStream = (): void => {
       dispatch(setAssessorPosition({ lat, lng }));
       const s = getSocket();
       if (s?.connected) {
-        console.log(`[assessorStream] ${source} fix → emit visit:location`, lat.toFixed(6), lng.toFixed(6));
+        console.log(`[assessorStream] 📍 ${source} fix → emit visit:location`, lat.toFixed(6), lng.toFixed(6));
         s.emit(
           'visit:location',
           { visitId, lat, lng },
@@ -76,7 +76,7 @@ export const useAssessorVisitStream = (): void => {
           },
         );
       } else {
-        console.log(`[assessorStream] ${source} fix → socket down, REST fallback`, lat.toFixed(6), lng.toFixed(6));
+        console.log(`[assessorStream] 📍 ${source} fix → socket down, REST fallback`, lat.toFixed(6), lng.toFixed(6));
         pushVisitLocation(visitId, lat, lng).catch(() => {});
       }
     };
@@ -88,11 +88,11 @@ export const useAssessorVisitStream = (): void => {
         return;
       }
       if (!ok) {
-        console.log('[assessorStream] location permission denied');
+        console.log('[assessorStream] ❌ location permission denied');
         showToast('Location permission needed to share your live position.', { type: 'error' });
         return;
       }
-      console.log('[assessorStream] permission granted · getting first fix…');
+      console.log('[assessorStream] ✅ permission granted · getting first fix…');
       try {
         const c = await getCurrentLocation();
         if (!cancelled) {
@@ -104,10 +104,10 @@ export const useAssessorVisitStream = (): void => {
       if (cancelled) {
         return;
       }
-      console.log('[assessorStream] starting live watchPosition stream');
+      console.log('[assessorStream] ▶️ starting live watchPosition stream');
       watchId = Geolocation.watchPosition(
         pos => push(pos.coords.latitude, pos.coords.longitude, 'live'),
-        err => console.log('[assessorStream] gps error', err.code, err.message),
+        err => console.log('[assessorStream] ⚠️ gps error', err.code, err.message),
         { enableHighAccuracy: true, distanceFilter: 5, interval: 3000, fastestInterval: 2000 },
       );
     })();

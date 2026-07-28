@@ -1,10 +1,10 @@
-# Farmer App - Admin Panel
+# 🚜 Farmer App - Admin Panel
 
 React admin console for the Farmer App, built with **React + TypeScript + Vite + Tailwind CSS**.
 
 ---
 
-## Tech Stack
+## 📦 Tech Stack
 
 | Layer        | Technology                          |
 | ------------ | ----------------------------------- |
@@ -17,7 +17,7 @@ React admin console for the Farmer App, built with **React + TypeScript + Vite +
 
 ---
 
-## Theme Colors (shared with the mobile app)
+## 🎨 Theme Colors (shared with the mobile app)
 
 The palette lives in [`tailwind.config.js`](tailwind.config.js) and is the **single source
 of truth** - the mobile app uses the same hex values so branding stays consistent. Never hardcode
@@ -35,7 +35,7 @@ hex in components; use the Tailwind tokens (`bg-primary`, `text-danger`, etc.).
 
 ---
 
-## Structure
+## 📁 Structure
 
 ```
 admin/
@@ -72,14 +72,14 @@ admin/
 │   ├── App.tsx             # Routes (public + protected)
 │   ├── main.tsx
 │   └── index.css           # Tailwind layers + reusable classes
-├── tailwind.config.js      # Shared theme palette
+├── tailwind.config.js      # 🎨 Shared theme palette
 ├── vite.config.ts          # Dev server (port 3000) - no proxy
 └── .env / .env.example     # VITE_API_BASE_URL (full backend URL)
 ```
 
 ---
 
-## Getting Started
+## 🚀 Getting Started
 
 ### 1. Install
 ```bash
@@ -102,7 +102,7 @@ npm run build      # type-checks + bundles to dist/
 npm run preview    # preview the production build
 ```
 
-### API URL (no proxy, full URL from env)
+### 🌐 API URL (no proxy, full URL from env)
 
 The admin talks to the backend **directly** using the full URL in `VITE_API_BASE_URL`
 (`src/config/apiConfig.ts` is the single source). **There is no dev proxy** - dev and
@@ -120,7 +120,7 @@ backend URL and rebuild - no code change, just env.
 
 ---
 
-## Login & password reset
+## 🔐 Login & password reset
 
 - The login form calls **`POST /auth/login`** and stores the **access token + refresh token** in
   `localStorage`.
@@ -142,7 +142,7 @@ backend URL and rebuild - no code change, just env.
 
 ---
 
-## Dashboard (Module 6 - Dashboards & Analytics)
+## 📊 Dashboard (Module 6 - Dashboards & Analytics)
 
 Implements the Module 6 brief:
 - **KPI cards** - acreage enrolled, farms enrolled, assessment completion, avg RHI score.
@@ -158,7 +158,7 @@ analytics API is ready, replace that import with API calls - the UI won't need t
 
 ---
 
-## Responsiveness
+## 📱 Responsiveness
 
 Fully mobile-responsive:
 - Sidebar collapses into a slide-in **drawer** with overlay on `< lg`.
@@ -169,7 +169,7 @@ Fully mobile-responsive:
 
 ---
 
-## Toast notifications
+## 🔔 Toast notifications
 
 User feedback (login success/fail, password reset, logout) is shown via
 **`react-hot-toast`**, styled with the brand palette (`src/lib/toast.ts`):
@@ -183,7 +183,7 @@ inline error boxes for transient messages.
 
 ---
 
-## Loader
+## ⏳ Loader
 
 A reusable brand loader (`src/components/Loader.tsx`) - a spinning progress ring (brand green
 `#136F3F`) with the FarmerApp **leaf logo** pulsing in the center.
@@ -204,7 +204,7 @@ A reusable brand loader (`src/components/Loader.tsx`) - a spinning progress ring
 
 ---
 
-## Changelog
+## 📝 Changelog
 
 | Date       | Change                                                              |
 | ---------- | ------------------------------------------------------------------- |

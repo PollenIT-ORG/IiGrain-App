@@ -85,16 +85,16 @@ const mapField = (raw: RawField, fallbackFarmId: string): Field => {
     farmId: raw.farmId ?? raw.farm_id ?? fallbackFarmId,
     name: raw.name ?? '',
     areaAcres: toArea(raw.areaAcres ?? raw.area_acres),
-    crop: raw.crop ?? '-',
-    season: raw.season ?? '-',
+    crop: raw.crop ?? '—',
+    season: raw.season ?? '—',
     status,
-    coordinates: raw.coordinates ?? raw.location ?? '-',
+    coordinates: raw.coordinates ?? raw.location ?? '—',
     latitude: toNumberOrNull(raw.latitude),
     longitude: toNumberOrNull(raw.longitude),
     sowingDateISO: raw.sowingDate ?? raw.sowing_date ?? '',
     expectedHarvestISO: raw.expectedHarvest ?? raw.expected_harvest ?? '',
-    irrigation: raw.irrigation ?? '-',
-    weather: raw.weather ?? '-',
+    irrigation: raw.irrigation ?? '—',
+    weather: raw.weather ?? '—',
     healthLabel: FIELD_HEALTH_META[status].label,
   };
 };
@@ -166,9 +166,6 @@ const toCreateFieldBody = (
   }
   setText('sowingDate', input.sowingDate);
   setText('expectedHarvest', input.expectedHarvest);
-  if (input.status) {
-    body.status = input.status;
-  }
   return body;
 };
 
@@ -221,9 +218,6 @@ const toUpdateFieldBody = (
   if (input.expectedHarvest !== undefined) {
     body.expectedHarvest = input.expectedHarvest;
   }
-  if (input.status !== undefined) {
-    body.status = input.status;
-  }
   return body;
 };
 
@@ -241,4 +235,25 @@ export const updateFarmField = async (
     throw new Error('Field update did not return the updated field.');
   }
   return mapField(raw, farmId);
+};
+
+/** Clears the field's editable data but keeps its identity. No guards. */
+export const resetFarmField = async (
+  farmId: string,
+  fieldId: string,
+): Promise<Field | null> => {
+  const res = await http.post<Envelope<unknown>>(
+    Endpoints.farms.resetField(farmId, fieldId),
+  );
+  const raw = extractField(res.data.data);
+  return raw ? mapField(raw, farmId) : null;
+};
+
+/** Soft-delete. Rejects with 409 when the field has a submitted assessment or is
+ *  still enrolled in a program; the message explains which. */
+export const deleteFarmField = async (
+  farmId: string,
+  fieldId: string,
+): Promise<void> => {
+  await http.delete(Endpoints.farms.field(farmId, fieldId));
 };

@@ -27,7 +27,7 @@ async function connectWithRetry(attempts = 5, delayMs = 3000): Promise<void> {
 async function start(): Promise<void> {
   try {
     await connectWithRetry();
-    logger.info("Database connection established");
+    logger.info("✅ Database connection established");
 
     if (env.dbSync) {
       await runMigrations();
@@ -38,7 +38,7 @@ async function start(): Promise<void> {
 
     const server = app.listen(env.port, () => {
       logger.info(
-        `Farmer App backend running in ${env.nodeEnv} mode on port ${env.port}`
+        `🚜 Farmer App backend running in ${env.nodeEnv} mode on port ${env.port}`
       );
       logger.info(
         `   Health check: http://localhost:${env.port}${env.apiPrefix}/health`
@@ -52,7 +52,7 @@ async function start(): Promise<void> {
 
     setupGracefulShutdown(server);
   } catch (err) {
-    logger.error("Failed to start server", err);
+    logger.error("❌ Failed to start server", err);
     process.exit(1);
   }
 }

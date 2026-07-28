@@ -32,7 +32,7 @@ const AssessmentCategoryScreen: React.FC<AppScreenProps<'AssessmentCategory'>> =
   route,
   navigation,
 }) => {
-  const { fieldId, categoryId, categoryName } = route.params;
+  const { programId, fieldId, categoryId, categoryName } = route.params;
   const dispatch = useAppDispatch();
 
   const list = useAppSelector(selectCategoryQuestionList);
@@ -45,8 +45,8 @@ const AssessmentCategoryScreen: React.FC<AppScreenProps<'AssessmentCategory'>> =
   const ready = !!list && list.category.id === categoryId;
 
   const load = useCallback(() => {
-    dispatch(fetchCategoryQuestionsThunk({ fieldId, categoryId }));
-  }, [dispatch, fieldId, categoryId]);
+    dispatch(fetchCategoryQuestionsThunk({ programId, fieldId, categoryId }));
+  }, [dispatch, programId, fieldId, categoryId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -58,9 +58,9 @@ const AssessmentCategoryScreen: React.FC<AppScreenProps<'AssessmentCategory'>> =
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await dispatch(fetchCategoryQuestionsThunk({ fieldId, categoryId }));
+    await dispatch(fetchCategoryQuestionsThunk({ programId, fieldId, categoryId }));
     setRefreshing(false);
-  }, [dispatch, fieldId, categoryId]);
+  }, [dispatch, programId, fieldId, categoryId]);
 
   const header = useMemo(
     () => (ready && list ? toCategoryHeaderModel(list) : null),
@@ -74,12 +74,13 @@ const AssessmentCategoryScreen: React.FC<AppScreenProps<'AssessmentCategory'>> =
   const openQuestion = useCallback(
     (question: AssessmentQuestion) => {
       navigation.navigate('AssessmentQuestionDetail', {
+        programId,
         fieldId,
         categoryId,
         questionId: question.id,
       });
     },
-    [navigation, fieldId, categoryId],
+    [navigation, programId, fieldId, categoryId],
   );
 
   const renderLoading = () => (
@@ -127,6 +128,7 @@ const AssessmentCategoryScreen: React.FC<AppScreenProps<'AssessmentCategory'>> =
   );
 
   const renderBody = () => {
+
     if (loading && !ready) {
       return renderLoading();
     }

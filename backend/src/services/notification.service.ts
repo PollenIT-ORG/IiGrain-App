@@ -1,4 +1,5 @@
 import logger from "../utils/logger.js";
+import ApiError from "../utils/ApiError.js";
 import prisma from "../db/prisma.js";
 import { getIO } from "../socket/index.js";
 import { sendMail } from "./mailer.service.js";
@@ -10,6 +11,10 @@ import {
   countUnread,
   markRead,
   markAllRead,
+  deleteNotification,
+  deleteNotifications,
+  deleteAllNotifications,
+  notificationRedirect,
   type NotificationType,
   type PublicNotification,
 } from "../models/notification.model.js";
@@ -82,6 +87,35 @@ export async function notifyUser(p: NotifyParams): Promise<void> {
   if (p.emailFor) await mailRecipients([p.userId], p.emailFor);
 }
 
+// The roles that manage the eligibility flow in the admin panel. Kept in step
+// with the eligibility admin route guard.
+const ORG_MANAGER_ROLE_NAMES = ["super_admin", "admin", "program_administrator"];
+
+/**
+ * Notifies every active org manager - used for admin-facing events like a new
+ * survey submission or a producer signing their contract.
+ */
+export async function notifyOrgManagers(
+  n: Omit<NotifyParams, "userId">
+): Promise<void> {
+  try {
+    const managers = await prisma.users.findMany({
+      where: {
+        deleted_at: null,
+        is_active: true,
+        roles: { name: { in: ORG_MANAGER_ROLE_NAMES } },
+      },
+      select: { id: true },
+    });
+    await notifyUsers(
+      managers.map((m) => m.id),
+      n
+    );
+  } catch (err) {
+    logger.error("Failed to notify org managers", err);
+  }
+}
+
 export async function notifyUsers(
   userIds: string[],
   n: Omit<NotifyParams, "userId">
@@ -94,6 +128,7 @@ export async function notifyUsers(
       title: n.title,
       body: n.body ?? null,
       data: n.data ?? {},
+      redirect: notificationRedirect(n.type, n.data ?? {}),
     };
     for (const uid of userIds) {
       pushToUser(uid, "notification:new", payload);
@@ -143,14 +178,40 @@ export async function getUnreadCount(userId: string): Promise<number> {
 export async function readOne(
   notificationId: string,
   userId: string
-): Promise<boolean> {
-  const changed = await markRead(notificationId, userId);
-  if (changed) await pushUnreadCount(userId);
-  return changed;
+): Promise<void> {
+  const result = await markRead(notificationId, userId);
+  if (result === "not_found") {
+    throw ApiError.notFound("Notification not found.");
+  }
+  await pushUnreadCount(userId);
 }
 
 export async function readAll(userId: string): Promise<number> {
   const n = await markAllRead(userId);
   if (n > 0) await pushUnreadCount(userId);
+  return n;
+}
+
+export async function removeOne(
+  notificationId: string,
+  userId: string
+): Promise<void> {
+  const ok = await deleteNotification(notificationId, userId);
+  if (!ok) throw ApiError.notFound("Notification not found.");
+  await pushUnreadCount(userId);
+}
+
+export async function removeMany(
+  ids: string[],
+  userId: string
+): Promise<number> {
+  const n = await deleteNotifications(ids, userId);
+  await pushUnreadCount(userId);
+  return n;
+}
+
+export async function removeAll(userId: string): Promise<number> {
+  const n = await deleteAllNotifications(userId);
+  await pushUnreadCount(userId);
   return n;
 }

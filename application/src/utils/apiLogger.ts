@@ -138,7 +138,6 @@ const startTimer = (label: string): void => {
   try {
     consoleTimer.time?.(label);
   } catch {
-    /* no console.time here; duration still comes from `start` */
   }
 };
 
@@ -146,7 +145,6 @@ const stopTimer = (label: string): void => {
   try {
     consoleTimer.timeEnd?.(label);
   } catch {
-    /* timer was never started or runtime lacks console.timeEnd */
   }
 };
 
@@ -173,7 +171,7 @@ export const logApiInit = (baseURL: string): void => {
   if (!ENABLE_API_LOGGER) {
     return;
   }
-  console.log(`[apiLogger] enabled - baseURL = ${baseURL}`);
+  console.log(`🌐 [apiLogger] enabled — baseURL = ${baseURL}`);
 };
 
 export const logApiRequest = (config: InternalAxiosRequestConfig): void => {
@@ -183,11 +181,11 @@ export const logApiRequest = (config: InternalAxiosRequestConfig): void => {
 
   const method = (config.method ?? 'GET').toUpperCase();
   const url = config.url ?? '';
-  const timerLabel = `API #${nextId()} ${method} ${url}`;
+  const timerLabel = `⏱ API #${nextId()} ${method} ${url}`;
   metaStore.set(config, { start: Date.now(), timerLabel });
   startTimer(timerLabel);
 
-  groupStart(`API REQUEST ${method} ${url}`);
+  groupStart(`📤 API REQUEST  ▸  ${method} ${url}`);
   line('METHOD', method);
   line('BASE URL', config.baseURL ?? '');
   line('URL', url);
@@ -227,7 +225,7 @@ export const logApiResponse = (response: AxiosResponse): void => {
   const success = response.status >= 200 && response.status < 300;
 
   groupStart(
-    `${success ? 'OK' : 'WARN'} API RESPONSE ${response.status} ${url}` +
+    `${success ? '✅' : '⚠️'} API RESPONSE  ▸  ${response.status} ${url}` +
       (duration !== null ? `  (${duration} ms)` : ''),
   );
   line('STATUS', response.status);
@@ -267,7 +265,7 @@ export const logApiError = (error: AxiosError): void => {
   const validation = isRecord(body) ? body.errors : undefined;
 
   groupStart(
-    `API ERROR ${status} ${url}` + (duration !== null ? `  (${duration} ms)` : ''),
+    `❌ API ERROR  ▸  ${status} ${url}` + (duration !== null ? `  (${duration} ms)` : ''),
   );
   line('STATUS', status);
   line('URL', url);

@@ -13,6 +13,8 @@ import {
   createMyFarmField,
   editMyFarmField,
   removeMyFarmField,
+  resetFieldById,
+  resetMyFarmField,
 } from "../services/field.service.js";
 
 export const createField = asyncHandler(async (req: Request, res: Response) => {
@@ -22,14 +24,13 @@ export const createField = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const listFields = asyncHandler(async (req: Request, res: Response) => {
-  const { page, limit, farmId, ownerId, status, isActive, search } =
+  const { page, limit, farmId, ownerId, isActive, search } =
     req.query as Record<string, string | undefined>;
   const result = await getFields({
     page: page ? Number(page) : 1,
     limit: limit ? Number(limit) : 20,
     farmId: farmId || undefined,
     ownerId: ownerId || undefined,
-    status: status as "healthy" | "monitor" | "critical" | undefined,
     isActive:
       isActive === "true" ? true : isActive === "false" ? false : undefined,
     search: search || undefined,
@@ -50,6 +51,11 @@ export const updateField = asyncHandler(async (req: Request, res: Response) => {
 export const deleteField = asyncHandler(async (req: Request, res: Response) => {
   await removeField(req.params.id);
   ApiResponse.send(res, 200, "Field deleted successfully.");
+});
+
+export const resetField = asyncHandler(async (req: Request, res: Response) => {
+  const field = await resetFieldById(req.params.id);
+  ApiResponse.send(res, 200, "Field reset successfully.", { field });
 });
 
 export const myFarmFields = asyncHandler(async (req: Request, res: Response) => {
@@ -90,4 +96,10 @@ export const deleteMyField = asyncHandler(async (req: Request, res: Response) =>
   const userId = req.user!.sub;
   await removeMyFarmField(req.params.farmId, req.params.id, userId);
   ApiResponse.send(res, 200, "Field deleted successfully.");
+});
+
+export const resetMyField = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!.sub;
+  const field = await resetMyFarmField(req.params.farmId, req.params.id, userId);
+  ApiResponse.send(res, 200, "Field reset successfully.", { field });
 });

@@ -121,3 +121,21 @@ Farmer App - Complete API
 > The older per-module files (`auth.json`, `assessments.json`, `sprint-1-*`,
 > `day-3-*`, etc.) are kept for reference but are superseded by
 > `full-collection.json`, which covers everything.
+
+## Notes for the app developer
+
+Each folder holds a short guide for one change. Read the folder, not the code.
+
+| Folder | What it covers | Status |
+|--------|----------------|--------|
+| `sockets/` | Socket.IO setup and every event the server emits | live |
+| `live-sync/` | The `sync` event for multi-device and cross-actor updates | live |
+| `mobile-api-changes/` | API changes already shipped that the app must pick up | live |
+| `notification-redirect/` | Where each notification type should navigate to | live |
+| `answer-save-contract/` | The save-answer request and response shape | live |
+| `program-scoped-assessments/` | Assessments filtered by the enrolled program | live |
+| `field-farm-soil-updates/` | Soil fields unlocking after enrolment | live |
+| `farm-dashboard-year/` | Year filter on the farm dashboard | live |
+| `pagination-and-changes/` | Pagination envelope used across list endpoints | live |
+| `profile-picture/` | Avatar upload | live |
+| `enrollment-id-registration/` | Enrollment ID on first-time registration | **planned, do not build yet** |

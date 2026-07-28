@@ -1,6 +1,20 @@
 import { z } from "zod";
+import { dateOnlyField, uuidField } from "./common.schema.js";
 
-const FIELD_STATUSES = ["healthy", "monitor", "critical"] as const;
+// Both dates are optional, so this only rejects a pair that is present and
+// backwards. A one-sided edit is checked in the service against the stored row.
+function harvestNotBeforeSowing(d: {
+  sowingDate?: string | null;
+  expectedHarvest?: string | null;
+}): boolean {
+  if (!d.sowingDate || !d.expectedHarvest) return true;
+  return d.expectedHarvest >= d.sowingDate;
+}
+
+const HARVEST_ORDER_ERROR = {
+  message: "Expected harvest cannot be before the sowing date.",
+  path: ["expectedHarvest"],
+};
 
 const latitudeField = z.coerce
   .number({ error: "Latitude must be a number." })
@@ -17,7 +31,7 @@ const longitudeField = z.coerce
   .nullable();
 
 export const createFieldSchema = z.object({
-  farmId: z.string().uuid({ message: "Farm ID must be a valid UUID." }).optional(),
+  farmId: uuidField("farm id").optional(),
   name: z
     .string({ error: "Field name is required." })
     .min(1, "Field name is required.")
@@ -32,17 +46,10 @@ export const createFieldSchema = z.object({
   location: z.string().optional(),
   latitude: latitudeField,
   longitude: longitudeField,
-  sowingDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Sowing date must be YYYY-MM-DD.")
-    .optional(),
-  expectedHarvest: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected harvest must be YYYY-MM-DD.")
-    .optional(),
-  status: z.enum(FIELD_STATUSES).optional(),
+  sowingDate: dateOnlyField("Sowing date").optional(),
+  expectedHarvest: dateOnlyField("Expected harvest").optional(),
   isActive: z.boolean().optional(),
-});
+}).refine(harvestNotBeforeSowing, HARVEST_ORDER_ERROR);
 
 export const updateFieldSchema = z
   .object({
@@ -54,17 +61,8 @@ export const updateFieldSchema = z
     location: z.string().optional().nullable(),
     latitude: latitudeField,
     longitude: longitudeField,
-    sowingDate: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "Sowing date must be YYYY-MM-DD.")
-      .optional()
-      .nullable(),
-    expectedHarvest: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected harvest must be YYYY-MM-DD.")
-      .optional()
-      .nullable(),
-    status: z.enum(FIELD_STATUSES).optional(),
+    sowingDate: dateOnlyField("Sowing date").optional().nullable(),
+    expectedHarvest: dateOnlyField("Expected harvest").optional().nullable(),
     isActive: z.boolean().optional(),
   })
   .refine(
@@ -73,17 +71,28 @@ export const updateFieldSchema = z
         (v) => v !== undefined
       ),
     { message: "At least one field must be provided to update." }
-  );
+  )
+  .refine(harvestNotBeforeSowing, HARVEST_ORDER_ERROR);
 
 export const listFieldsQuerySchema = z.object({
-  page: z.coerce.number().int().positive().optional().default(1),
-  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
-  farmId: z.string().uuid().optional(),
-  ownerId: z.string().uuid().optional(),
-  status: z.enum(FIELD_STATUSES).optional(),
+  page: z.coerce
+    .number({ error: "Page must be a number." })
+    .int("Page must be a whole number.")
+    .min(1, "Page must be 1 or higher.")
+    .optional()
+    .default(1),
+  limit: z.coerce
+    .number({ error: "Limit must be a number." })
+    .int("Limit must be a whole number.")
+    .min(1, "Limit must be 1 or higher.")
+    .max(100, "You can request at most 100 items per page.")
+    .optional()
+    .default(20),
+  farmId: uuidField("farm id").optional(),
+  ownerId: uuidField("owner id").optional(),
   isActive: z
-    .string()
-    .transform((v) => (v === "true" ? true : v === "false" ? false : undefined))
+    .enum(["true", "false"], { error: "isActive must be true or false." })
+    .transform((v) => v === "true")
     .optional(),
   search: z.string().optional(),
 });

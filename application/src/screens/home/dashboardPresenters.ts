@@ -1,3 +1,4 @@
+
 import { COLORS } from '../../constants';
 import { formatDate } from '../../utils';
 import type { ActivityItem, SummaryRow } from '../../components/home';
@@ -30,6 +31,7 @@ export interface TrendDelta {
   label?: string;
   positive: boolean;
 }
+
 
 export const METRIC_COLORS: string[] = [
   COLORS.black,
@@ -77,9 +79,9 @@ export const toSummaryRows = (summary: DashboardSummary): SummaryRow[] => [
   { label: 'Assessments completed', value: String(summary.assessmentsCompleted) },
   {
     label: 'Average score',
-    value: summary.averageScore === null ? '-' : `${summary.averageScore} / 100`,
+    value: summary.averageScore === null ? '—' : `${summary.averageScore} / 100`,
   },
-  { label: 'Top category', value: summary.topCategory ?? '-' },
+  { label: 'Top category', value: summary.topCategory ?? '—' },
 ];
 
 export const toUpcomingAssessment = (
@@ -95,6 +97,7 @@ export const toUpcomingAssessment = (
     next.totalQuestions > 0 ? ` · ${next.answered}/${next.totalQuestions}` : '';
   return { title, dueLabel: `${due}${progress}` };
 };
+
 
 export const toUpcomingPrograms = (
   upcoming: DashboardUpcoming,

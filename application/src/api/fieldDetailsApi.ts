@@ -57,6 +57,7 @@ interface RawSoil {
 }
 interface SoilPayload {
   soil: RawSoil | null;
+  soilLocked?: boolean;
 }
 
 interface RawDocument {
@@ -88,7 +89,7 @@ const toNumber = (raw: string | null | undefined): number => {
 
 const sizeLabel = (bytes: number): string => {
   if (!Number.isFinite(bytes) || bytes <= 0) {
-    return '-';
+    return '—';
   }
   if (bytes >= 1_000_000) {
     return `${(bytes / 1_000_000).toFixed(1)} MB`;
@@ -186,6 +187,7 @@ const mapSoil = (raw: RawSoil): FieldSoil => {
     texture: raw.texture ?? '',
     notes: raw.notes ?? '',
     testedOnISO: raw.tested_on ?? null,
+    locked: false,
   };
 };
 
@@ -223,10 +225,11 @@ export const getFieldSoil = async (fieldId: string): Promise<FieldSoil> => {
     Endpoints.fields.details(fieldId),
     { params: { tab: 'soil' } },
   );
-  const raw = res.data.data.soil;
+  const { soil: raw, soilLocked } = res.data.data;
+  const locked = soilLocked ?? false;
   return raw
-    ? mapSoil(raw)
-    : { metrics: [], texture: '', notes: '', testedOnISO: null };
+    ? { ...mapSoil(raw), locked }
+    : { metrics: [], texture: '', notes: '', testedOnISO: null, locked };
 };
 
 export const getFieldDocuments = async (fieldId: string): Promise<FieldDocument[]> => {

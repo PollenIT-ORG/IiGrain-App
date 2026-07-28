@@ -684,7 +684,7 @@
           "v": "17",
           "name": "GET Assessor summary",
           "method": "GET",
-          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/summary",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/summary",
           "headers": [],
           "params": [],
           "body": {
@@ -707,7 +707,7 @@
                 "v": "6",
                 "name": "GET Assessor summary",
                 "method": "GET",
-                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/summary",
+                "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/summary",
                 "headers": [],
                 "params": [],
                 "body": {
@@ -740,7 +740,7 @@
           "v": "17",
           "name": "GET Category question list",
           "method": "GET",
-          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/categories/<<categoryId>>/questions/list",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions/list",
           "headers": [],
           "params": [],
           "body": {
@@ -763,7 +763,7 @@
                 "v": "6",
                 "name": "GET Category question list",
                 "method": "GET",
-                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/categories/<<categoryId>>/questions/list",
+                "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions/list",
                 "headers": [],
                 "params": [],
                 "body": {
@@ -796,7 +796,7 @@
           "v": "17",
           "name": "GET Single question detail",
           "method": "GET",
-          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/categories/<<categoryId>>/questions/<<questionId>>",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions/<<questionId>>",
           "headers": [],
           "params": [],
           "body": {
@@ -819,7 +819,7 @@
                 "v": "6",
                 "name": "GET Single question detail",
                 "method": "GET",
-                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/categories/<<categoryId>>/questions/<<questionId>>",
+                "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions/<<questionId>>",
                 "headers": [],
                 "params": [],
                 "body": {
@@ -852,7 +852,7 @@
           "v": "17",
           "name": "GET Category questions (full)",
           "method": "GET",
-          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/categories/<<categoryId>>/questions",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions",
           "headers": [],
           "params": [],
           "body": {
@@ -875,7 +875,7 @@
                 "v": "6",
                 "name": "GET Category questions (full)",
                 "method": "GET",
-                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/categories/<<categoryId>>/questions",
+                "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions",
                 "headers": [],
                 "params": [],
                 "body": {
@@ -908,7 +908,7 @@
           "v": "17",
           "name": "PUT Save assessor answer",
           "method": "PUT",
-          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/questions/<<questionId>>/answer",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/questions/<<questionId>>/answer",
           "headers": [
             {
               "key": "Content-Type",
@@ -938,7 +938,7 @@
                 "v": "6",
                 "name": "PUT Save assessor answer",
                 "method": "PUT",
-                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/questions/<<questionId>>/answer",
+                "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/questions/<<questionId>>/answer",
                 "headers": [
                   {
                     "key": "Content-Type",
@@ -978,7 +978,7 @@
           "v": "17",
           "name": "GET Review & Submit",
           "method": "GET",
-          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/review",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/review",
           "headers": [],
           "params": [],
           "body": {
@@ -1001,7 +1001,7 @@
                 "v": "6",
                 "name": "GET Review & Submit",
                 "method": "GET",
-                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/review",
+                "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/review",
                 "headers": [],
                 "params": [],
                 "body": {
@@ -1034,7 +1034,7 @@
           "v": "17",
           "name": "POST Submit assessor assessment",
           "method": "POST",
-          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/submit",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/submit",
           "headers": [],
           "params": [],
           "body": {
@@ -1057,7 +1057,7 @@
                 "v": "6",
                 "name": "POST Submit assessor assessment",
                 "method": "POST",
-                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/submit",
+                "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/submit",
                 "headers": [],
                 "params": [],
                 "body": {
@@ -1090,7 +1090,7 @@
           "v": "17",
           "name": "GET View farmer's assessment (read)",
           "method": "GET",
-          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/farmer-assessment",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/farmer-assessment",
           "headers": [],
           "params": [],
           "body": {
@@ -1113,7 +1113,7 @@
                 "v": "6",
                 "name": "GET View farmer's assessment (read)",
                 "method": "GET",
-                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/farmer-assessment",
+                "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/farmer-assessment",
                 "headers": [],
                 "params": [],
                 "body": {
@@ -1146,7 +1146,7 @@
           "v": "17",
           "name": "GET Comparison (farmer vs assessor)",
           "method": "GET",
-          "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/comparison",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/comparison",
           "headers": [],
           "params": [],
           "body": {
@@ -1169,7 +1169,7 @@
                 "v": "6",
                 "name": "GET Comparison (farmer vs assessor)",
                 "method": "GET",
-                "endpoint": "<<baseUrl>>/assessor/fields/<<fieldId>>/comparison",
+                "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/comparison",
                 "headers": [],
                 "params": [],
                 "body": {

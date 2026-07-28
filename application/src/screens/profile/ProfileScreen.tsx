@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Modal,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -17,15 +19,27 @@ import {
   AppShimmerRow,
   AppShimmerText,
 } from '../../components/Shimmer';
+import AppImageViewer from '../../components/AppImageViewer/AppImageViewer';
+import ImagePickerBottomSheet, {
+  type SheetAction,
+} from '../../components/AppImagePicker/ImagePickerBottomSheet';
+import { imagePickerService } from '../../services/imagePickerService';
+import { openAppSettings } from '../../permissions/mediaPermissions';
+import { showToast } from '../../services/toastService';
+import type { ImagePickerResult, MediaFile } from '../../types/media';
 import { COLORS, spacing } from '../../constants';
+import { GENERIC_ERROR_MESSAGE } from '../../config/errorMessages';
 import { capitalize, getInitials, moderateScale, scale } from '../../utils';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
   fetchProfileThunk,
-  selectProfile,
+  removeAvatarThunk,
+  selectAvatarUpdating,
   selectProfileError,
   selectProfileLoading,
+  uploadAvatarThunk,
 } from '../../redux/slices/userSlice';
+import { selectCurrentProfile } from '../../redux/selectors/profileSelectors';
 import { logoutThunk } from '../../redux/slices/authSlice';
 import { getMyOrganization } from '../../api/OrganizationApi';
 import type { UserProfile } from '../../api/profileApi';
@@ -46,7 +60,7 @@ const humanizeRole = (role?: string): string =>
         .filter(Boolean)
         .map(capitalize)
         .join(' ')
-    : '-';
+    : '—';
 
 const formatDate = (iso?: string): string | null => {
   if (!iso) {
@@ -192,13 +206,19 @@ const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<AppStackParamList>>();
   const dispatch = useAppDispatch();
 
-  const profile = useAppSelector(selectProfile);
+  // selectCurrentProfile, not the raw selectProfile: it drops a persisted
+  // profile that belongs to a different account, matching every other consumer.
+  const profile = useAppSelector(selectCurrentProfile);
   const loading = useAppSelector(selectProfileLoading);
+  const avatarUpdating = useAppSelector(selectAvatarUpdating);
   const error = useAppSelector(selectProfileError);
 
   const [refreshing, setRefreshing] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [photoSheetVisible, setPhotoSheetVisible] = useState(false);
+  const [photoViewerVisible, setPhotoViewerVisible] = useState(false);
+  const [pickerLoading, setPickerLoading] = useState(false);
 
   const [org, setOrg] = useState<Organization | null>(null);
   const [orgLoading, setOrgLoading] = useState(false);
@@ -215,15 +235,18 @@ const ProfileScreen: React.FC = () => {
     }
   }, []);
 
+  // The profile itself is hydrated centrally (useProfileHydration); only the
+  // organization is screen-local.
   useEffect(() => {
-    dispatch(fetchProfileThunk());
     loadOrganization();
-  }, [dispatch, loadOrganization]);
+  }, [loadOrganization]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([
-      dispatch(fetchProfileThunk()),
+      // force: an explicit pull-to-refresh must bypass the freshness cache,
+      // otherwise it silently does nothing within the TTL.
+      dispatch(fetchProfileThunk({ force: true })),
       loadOrganization(),
     ]);
     setRefreshing(false);
@@ -249,17 +272,150 @@ const ProfileScreen: React.FC = () => {
     await dispatch(logoutThunk());
   }, [dispatch]);
 
+  const uploadPhoto = useCallback(async (file: MediaFile) => {
+    const action = await dispatch(uploadAvatarThunk(file));
+    if (uploadAvatarThunk.fulfilled.match(action)) {
+      showToast('Profile photo updated.', { type: 'success' });
+      return;
+    }
+    showToast(action.payload?.message ?? 'Failed to update profile photo.', {
+      type: 'error',
+    });
+  }, [dispatch]);
+
+  const handlePickResult = useCallback((result: ImagePickerResult) => {
+    if (result.status === 'cancelled') {
+      return;
+    }
+    if (result.status === 'error') {
+      if (result.error.code === 'PERMISSION_BLOCKED') {
+        openAppSettings();
+      }
+      showToast(result.error.message, { type: 'error' });
+      return;
+    }
+    uploadPhoto(result.files[0]);
+  }, [uploadPhoto]);
+
+  const runPick = useCallback(
+    async (fn: () => Promise<ImagePickerResult>) => {
+      if (pickerLoading) {
+        return;
+      }
+      setPickerLoading(true);
+      try {
+        handlePickResult(await fn());
+      } finally {
+        setPickerLoading(false);
+      }
+    },
+    [pickerLoading, handlePickResult],
+  );
+
+  const handleCamera = useCallback(
+    () =>
+      runPick(() =>
+        imagePickerService.openCamera({
+          aspectRatio: { width: 1, height: 1 },
+          crop: true,
+          maxSizeMB: 5,
+        }),
+      ),
+    [runPick],
+  );
+
+  const handleGallery = useCallback(
+    () =>
+      runPick(() =>
+        imagePickerService.pickImage({
+          aspectRatio: { width: 1, height: 1 },
+          crop: true,
+          maxSizeMB: 5,
+        }),
+      ),
+    [runPick],
+  );
+
+  const handleViewPhoto = useCallback(() => setPhotoViewerVisible(true), []);
+  const handleRemovePhoto = useCallback(async () => {
+    const action = await dispatch(removeAvatarThunk());
+    if (removeAvatarThunk.fulfilled.match(action)) {
+      setPhotoViewerVisible(false);
+      showToast('Profile photo removed.', { type: 'success' });
+      return;
+    }
+    showToast(action.payload?.message ?? 'Failed to remove profile photo.', {
+      type: 'error',
+    });
+  }, [dispatch]);
+
+  const photoSheetActions = useMemo<SheetAction[]>(() => {
+    const actions: SheetAction[] = [];
+    const hasAvatar = !!profile?.avatarUrl;
+    if (hasAvatar) {
+      actions.push({
+        key: 'view',
+        icon: 'eye-outline',
+        label: 'View Photo',
+        onPress: handleViewPhoto,
+      });
+    }
+    actions.push(
+      { key: 'camera', icon: 'camera-plus-outline', label: 'Take Photo', onPress: handleCamera },
+      {
+        key: 'gallery',
+        icon: 'image-multiple-outline',
+        label: 'Choose from Gallery',
+        onPress: handleGallery,
+      },
+    );
+    if (hasAvatar) {
+      actions.push({
+        key: 'remove',
+        icon: 'trash-can-outline',
+        label: 'Remove Photo',
+        onPress: handleRemovePhoto,
+        danger: true,
+      });
+    }
+    return actions;
+  }, [profile?.avatarUrl, handleViewPhoto, handleCamera, handleGallery, handleRemovePhoto]);
+
   const renderContent = (data: UserProfile) => {
     const created = formatDate(data.createdAt);
+    const avatarUrl = data.avatarUrl ?? null;
     return (
       <>
         <View style={styles.identity}>
-          <View style={styles.avatar}>
-            <AppText style={styles.avatarText}>
-              {getInitials(data.fullName || data.email)}
-            </AppText>
+          <View style={localStyles.avatarWrap}>
+            <View style={styles.avatar}>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+              ) : (
+                <AppText style={styles.avatarText}>
+                  {getInitials(data.fullName) || getInitials(data.email) || '?'}
+                </AppText>
+              )}
+              {avatarUpdating ? (
+                <View style={localStyles.avatarLoading}>
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                </View>
+              ) : null}
+            </View>
+            <Pressable
+              onPress={() => setPhotoSheetVisible(true)}
+              disabled={avatarUpdating || pickerLoading}
+              style={localStyles.avatarEditBadge}
+              accessibilityRole="button"
+              accessibilityLabel="Change profile photo">
+              {avatarUpdating || pickerLoading ? (
+                <ActivityIndicator size="small" color={COLORS.white} />
+              ) : (
+                <AppIcon name="camera" size={moderateScale(14)} color={COLORS.white} />
+              )}
+            </Pressable>
           </View>
-          <AppText style={styles.name}>{data.fullName || '-'}</AppText>
+          <AppText style={styles.name}>{data.fullName || '—'}</AppText>
           <AppText style={styles.email}>{data.email}</AppText>
           <AppText style={styles.roleBadge}>{humanizeRole(data.role)}</AppText>
         </View>
@@ -318,7 +474,7 @@ const ProfileScreen: React.FC = () => {
         <AppIcon name={ICONS.ACCOUNT_ALERT} size={moderateScale(48)} color={COLORS.gray500} />
         <AppText style={styles.stateTitle}>Couldn't load your profile</AppText>
         <AppText style={styles.stateMessage}>
-          {error ?? 'Something went wrong. Please try again.'}
+          {error ?? GENERIC_ERROR_MESSAGE}
         </AppText>
         <Button
           title="Retry"
@@ -336,7 +492,7 @@ const ProfileScreen: React.FC = () => {
         variant="back"
         title="Profile"
         rightActions={profile ? ['edit'] : []}
-
+        
         onActionPress={onHeaderAction}
         onBack={() => navigation.goBack()}
       />
@@ -383,6 +539,22 @@ const ProfileScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      <ImagePickerBottomSheet
+        visible={photoSheetVisible}
+        onClose={() => setPhotoSheetVisible(false)}
+        actions={photoSheetActions}
+        title="Profile Photo"
+      />
+
+      {profile?.avatarUrl ? (
+        <AppImageViewer
+          images={[{ uri: profile.avatarUrl }]}
+          imageIndex={0}
+          visible={photoViewerVisible}
+          onRequestClose={() => setPhotoViewerVisible(false)}
+        />
+      ) : null}
     </View>
   );
 };
@@ -391,4 +563,28 @@ export default ProfileScreen;
 
 const skStyles = StyleSheet.create({
   avatarSpacing: { marginBottom: spacing[4] },
+});
+
+const localStyles = StyleSheet.create({
+  avatarWrap: { position: 'relative' },
+  avatarEditBadge: {
+    position: 'absolute',
+    right: -scale(2),
+    bottom: scale(2),
+    width: scale(28),
+    height: scale(28),
+    borderRadius: scale(14),
+    backgroundColor: COLORS.primary,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarLoading: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: scale(48),
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   DndContext,
@@ -141,7 +141,11 @@ export default function AssessmentCategories() {
   const navigate = useNavigate();
   const { confirm } = useDialog();
 
-  const { data: categories = [], isLoading } = useListCategoriesQuery();
+  const { data, isLoading } = useListCategoriesQuery();
+  // A bare `data = []` default creates a new array every render, which makes the
+  // effect below fire forever. Memoise so the reference is stable until data
+  // actually changes.
+  const categories = useMemo(() => data ?? [], [data]);
   const [deleteCategory] = useDeleteCategoryMutation();
   const [updateCategory] = useUpdateCategoryMutation();
   const [reorderCategories] = useReorderCategoriesMutation();
@@ -186,6 +190,7 @@ export default function AssessmentCategories() {
       await reorderCategories(
         reordered.map((c, i) => ({ id: c.id, sortOrder: i }))
       ).unwrap();
+      showSuccess("Order saved.");
     } catch (err) {
       showError(errMsg(err));
       setOrdered(prev);
@@ -240,7 +245,7 @@ export default function AssessmentCategories() {
             className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
           >
             <UploadIcon width={16} height={16} />
-            {importing ? "Importing…" : "Import Excel"}
+            {importing ? "Importing..." : "Import Excel"}
           </button>
           <button
             onClick={() => navigate("/assessments/categories/new")}

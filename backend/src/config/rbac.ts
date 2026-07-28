@@ -42,6 +42,27 @@ export function canCreateRole(
   return allowed ? allowed.includes(targetRole as RoleName) : false;
 }
 
+// Seniority used to decide who may edit, deactivate or delete whom. A manager
+// can only act on accounts strictly below their own rank, so an admin cannot
+// touch a super_admin or another admin, and a program_administrator cannot
+// touch an admin or another program_administrator.
+const ROLE_RANK: Record<RoleName, number> = {
+  super_admin: 100,
+  admin: 80,
+  program_administrator: 60,
+  program_partner: 40,
+  assessor: 20,
+  farmer: 10,
+};
+
+export function roleRank(role: string): number {
+  return ROLE_RANK[role as RoleName] ?? 0;
+}
+
+export function canManageUser(actorRole: string, targetRole: string): boolean {
+  return roleRank(actorRole) > roleRank(targetRole);
+}
+
 export function isOrgManager(role: string): boolean {
   return ORG_MANAGER_ROLES.includes(role as RoleName);
 }

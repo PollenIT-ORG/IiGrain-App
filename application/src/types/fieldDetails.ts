@@ -23,6 +23,8 @@ export interface FieldSoil {
   texture: string;
   notes: string;
   testedOnISO: string | null;
+  /** True until the field is enrolled in a started program. */
+  locked: boolean;
 }
 
 export interface SoilRecord {

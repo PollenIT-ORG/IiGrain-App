@@ -10,6 +10,7 @@ import {
   uploadFieldDocumentThunk,
   deleteFieldDocumentThunk,
 } from '../thunks/fieldDetailsThunks';
+import { enrollSelfThunk } from '../thunks/enrollmentThunks';
 
 export type FieldTabKey = 'overview' | 'activity' | 'soil' | 'documents';
 
@@ -65,9 +66,22 @@ const fieldDetailsSlice = createSlice({
       }
     },
     clearFieldDetails: () => initialState,
+    /** Enrolling a field unlocks its soil nutrients server-side. Dropping the
+     *  cached soil makes the soil tab refetch, so `locked` reflects reality
+     *  without the user having to leave and come back. */
+    invalidateFieldSoil(state) {
+      state.soil = null;
+      state.error.soil = null;
+    },
   },
   extraReducers: builder => {
     builder
+      // Enrolling unlocks the soil nutrients for the enrolled fields, so the
+      // cached soil tab (and its `locked` flag) is dropped and refetched.
+      .addCase(enrollSelfThunk.fulfilled, state => {
+        state.soil = null;
+        state.error.soil = null;
+      })
       .addCase(fetchFieldOverviewThunk.pending, state => {
         state.loading.overview = true;
         state.error.overview = null;
@@ -158,7 +172,7 @@ const fieldDetailsSlice = createSlice({
   },
 });
 
-export const { setActiveField, clearFieldDetails } = fieldDetailsSlice.actions;
+export const { setActiveField, clearFieldDetails, invalidateFieldSoil } = fieldDetailsSlice.actions;
 export default fieldDetailsSlice.reducer;
 
 export {

@@ -22,9 +22,8 @@ export const drawerConfig: Record<DrawerModuleKey, DrawerModule> = {
       { key: 'home', label: 'Dashboard', icon: 'view-dashboard-outline', tab: 'Home' },
       { key: 'farms', label: 'My Farms', icon: 'barn', tab: 'Farms' },
       { key: 'assessments', label: 'Assessments', icon: 'clipboard-text-outline', tab: 'Assessment' },
-      { key: 'enroll', label: 'Enroll Now', icon: 'clipboard-plus-outline', route: 'EnrollNow' },
+      { key: 'enroll', label: 'Enroll Now', icon: 'clipboard-plus-outline', tab: 'EnrollNow' },
       { key: 'account', label: 'Account', icon: 'account-outline', route: 'Account' },
-      { key: 'settings', label: 'Settings', icon: 'cog-outline', tab: 'More' },
     ],
   },
   assessment: {
@@ -34,7 +33,6 @@ export const drawerConfig: Record<DrawerModuleKey, DrawerModule> = {
       { key: 'home', label: 'Dashboard', icon: 'view-dashboard-outline', tab: 'Home' },
       { key: 'farms', label: 'My Farms', icon: 'barn', tab: 'Farms' },
       { key: 'account', label: 'Account', icon: 'account-outline', route: 'Account' },
-      { key: 'settings', label: 'Settings', icon: 'cog-outline', tab: 'More' },
     ],
   },
   farm: {
@@ -44,7 +42,6 @@ export const drawerConfig: Record<DrawerModuleKey, DrawerModule> = {
       { key: 'add', label: 'Add Farm', icon: 'plus-circle-outline', route: 'AddFarm' },
       { key: 'home', label: 'Dashboard', icon: 'view-dashboard-outline', tab: 'Home' },
       { key: 'assessments', label: 'Assessments', icon: 'clipboard-text-outline', tab: 'Assessment' },
-      { key: 'settings', label: 'Settings', icon: 'cog-outline', tab: 'More' },
     ],
   },
 };
@@ -52,6 +49,7 @@ export const drawerConfig: Record<DrawerModuleKey, DrawerModule> = {
 export const tabToModule: Record<keyof AppTabParamList, DrawerModuleKey> = {
   Home: 'dashboard',
   Assessment: 'assessment',
+  EnrollNow: 'dashboard',
   Farms: 'farm',
   More: 'dashboard',
 };

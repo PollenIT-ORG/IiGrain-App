@@ -3,15 +3,14 @@ import { Pressable, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { AppIcon, ICONS } from '../../components/AppIcon';
 import { AppHeader, AppText, Button, Input } from '../../components';
-import LocationPickerModal from '../../components/location/LocationPickerModal';
-import type { PickedLocation } from '../../components/location/LocationPicker';
-import { COLORS } from '../../constants';
+import { LocationPickerModal, type PickedLocation } from '../../maps';
+import { API_LIMITS, COLORS } from '../../constants';
 import { moderateScale } from '../../utils';
 import { useFormValidation } from '../../hooks';
 import type { ValidatorMap } from '../../hooks';
 import {
-  optionalPositiveNumberValidator,
   requiredNameValidator,
+  requiredPositiveNumberValidator,
 } from '../../utils/fieldValidators';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
@@ -45,6 +44,7 @@ const AddFarmScreen: React.FC<AppScreenProps<'AddFarm'>> = ({ route, navigation 
   const saving = isEdit ? updating : creating;
 
   const [name, setName] = useState('');
+  const [businessEntity, setBusinessEntity] = useState('');
   const [areaAcres, setAreaAcres] = useState('');
   const [location, setLocation] = useState('');
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -66,6 +66,7 @@ const AddFarmScreen: React.FC<AppScreenProps<'AddFarm'>> = ({ route, navigation 
     }
     seededId.current = farmId;
     setName(selectedFarm.name);
+    setBusinessEntity(selectedFarm.businessEntity ?? '');
     setAreaAcres(areaToText(selectedFarm.areaAcres));
     setLocation(selectedFarm.location ?? '');
     if (selectedFarm.latitude != null && selectedFarm.longitude != null) {
@@ -83,7 +84,8 @@ const AddFarmScreen: React.FC<AppScreenProps<'AddFarm'>> = ({ route, navigation 
   const validators = useMemo<ValidatorMap<FarmFormValues>>(
     () => ({
       name: requiredNameValidator<FarmFormValues>('Farm name', 2),
-      areaAcres: optionalPositiveNumberValidator<FarmFormValues>(
+      areaAcres: requiredPositiveNumberValidator<FarmFormValues>(
+        'Area',
         'Enter a valid area in acres',
       ),
     }),
@@ -105,6 +107,7 @@ const AddFarmScreen: React.FC<AppScreenProps<'AddFarm'>> = ({ route, navigation 
     const trimmedArea = areaAcres.trim();
     const area = trimmedArea ? Number(trimmedArea) : undefined;
     const loc = location.trim();
+    const entity = businessEntity.trim();
 
     if (isEdit) {
       const action = await dispatch(
@@ -112,6 +115,8 @@ const AddFarmScreen: React.FC<AppScreenProps<'AddFarm'>> = ({ route, navigation 
           farmId,
           input: {
             name: name.trim(),
+            // Sent even when empty so clearing the field clears it server-side.
+            businessEntity: entity,
             areaAcres: area,
             location: loc,
             latitude: coords?.latitude,
@@ -129,6 +134,7 @@ const AddFarmScreen: React.FC<AppScreenProps<'AddFarm'>> = ({ route, navigation 
     const action = await dispatch(
       createFarmThunk({
         name: name.trim(),
+        businessEntity: entity || undefined,
         areaAcres: area,
         location: loc || undefined,
         latitude: coords?.latitude,
@@ -139,7 +145,19 @@ const AddFarmScreen: React.FC<AppScreenProps<'AddFarm'>> = ({ route, navigation 
       showSuccess('Farm created');
       navigation.goBack();
     }
-  }, [saving, validateForm, areaAcres, location, coords, isEdit, dispatch, farmId, name, navigation]);
+  }, [
+    saving,
+    validateForm,
+    areaAcres,
+    location,
+    businessEntity,
+    coords,
+    isEdit,
+    dispatch,
+    farmId,
+    name,
+    navigation,
+  ]);
 
   return (
     <View style={styles.safe}>
@@ -161,6 +179,7 @@ const AddFarmScreen: React.FC<AppScreenProps<'AddFarm'>> = ({ route, navigation 
 
         <Input
           label="Farm Name"
+          required
           placeholder="e.g. North Field"
           value={name}
           onChangeText={setName}
@@ -168,11 +187,23 @@ const AddFarmScreen: React.FC<AppScreenProps<'AddFarm'>> = ({ route, navigation 
           error={errors.name}
           autoCapitalize="words"
           returnKeyType="next"
+          maxLength={API_LIMITS.farm.name}
+        />
+
+        <Input
+          label="Business Entity"
+          placeholder="e.g. Green Valley Farms LLC  (optional)"
+          value={businessEntity}
+          onChangeText={setBusinessEntity}
+          autoCapitalize="words"
+          returnKeyType="next"
+          maxLength={API_LIMITS.farm.businessEntity}
         />
 
         <Input
           label="Area (acres)"
-          placeholder="e.g. 12.5  (optional)"
+          required
+          placeholder="e.g. 12.5"
           value={areaAcres}
           onChangeText={setAreaAcres}
           onValidate={v => validateField('areaAcres', { areaAcres: v })}
@@ -187,8 +218,13 @@ const AddFarmScreen: React.FC<AppScreenProps<'AddFarm'>> = ({ route, navigation 
           value={location}
           onChangeText={setLocation}
           autoCapitalize="words"
+          multiline
+          // A map-picked address can be long — wrap it inside the field instead
+          // of overflowing the box (iOS doesn't clip overflow like Android).
+          blurOnSubmit
           returnKeyType="done"
           onSubmitEditing={handleSave}
+          maxLength={API_LIMITS.farm.location}
         />
 
         <Pressable

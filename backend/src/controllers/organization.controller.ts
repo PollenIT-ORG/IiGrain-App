@@ -1,5 +1,6 @@
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiResponse from "../utils/ApiResponse.js";
+import ApiError from "../utils/ApiError.js";
 import * as orgService from "../services/organization.service.js";
 import type {
   CreateOrgBody,
@@ -57,6 +58,32 @@ export const updateOrganization = asyncHandler(async (req, res) => {
 export const deleteOrganization = asyncHandler(async (req, res) => {
   await orgService.removeOrganization(req.params.id);
   return ApiResponse.send(res, 200, "Organization deleted successfully.");
+});
+
+function fileFrom(req: unknown): { buffer: Buffer; size?: number } {
+  const file = (req as { file?: { buffer: Buffer; size?: number } }).file;
+  if (!file) throw ApiError.badRequest("No image file was uploaded.");
+  return file;
+}
+
+export const uploadOrgLogo = asyncHandler(async (req, res) => {
+  const organization = await orgService.setLogo(req.params.id, fileFrom(req));
+  return ApiResponse.send(res, 200, "Logo updated.", { organization });
+});
+
+export const removeOrgLogo = asyncHandler(async (req, res) => {
+  const organization = await orgService.removeLogo(req.params.id);
+  return ApiResponse.send(res, 200, "Logo removed.", { organization });
+});
+
+export const uploadOrgFavicon = asyncHandler(async (req, res) => {
+  const organization = await orgService.setFavicon(req.params.id, fileFrom(req));
+  return ApiResponse.send(res, 200, "Favicon updated.", { organization });
+});
+
+export const removeOrgFavicon = asyncHandler(async (req, res) => {
+  const organization = await orgService.removeFavicon(req.params.id);
+  return ApiResponse.send(res, 200, "Favicon removed.", { organization });
 });
 
 export const assignUser = asyncHandler(async (req, res) => {

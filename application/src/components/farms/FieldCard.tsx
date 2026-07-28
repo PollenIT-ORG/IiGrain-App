@@ -1,5 +1,5 @@
-import React, { useCallback } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import React, { useCallback, useRef } from 'react';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { AppIcon, ICONS } from '../AppIcon';
 import {
   COLORS,
@@ -21,18 +21,47 @@ export interface FieldCardProps {
 
 const RIPPLE = { color: addAlpha(COLORS.primary, 0.08) };
 const CHIP_ICON = moderateScale(13);
+const PRESS_SCALE = 0.975;
+const PRESS_IN_MS = 90;
+const PRESS_OUT_MS = 140;
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const FieldCard: React.FC<FieldCardProps> = ({ field, onPress }) => {
   const handlePress = useCallback(() => onPress(field.id), [onPress, field.id]);
-  const healthMeta = FIELD_HEALTH_META[field.status];
+
+  // Scale lives in a ref-held Animated.Value so pressing never re-renders.
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const animateTo = useCallback(
+    (toValue: number, duration: number) => {
+      Animated.timing(scaleAnim, {
+        toValue,
+        duration,
+        useNativeDriver: true,
+      }).start();
+    },
+    [scaleAnim],
+  );
+  const handlePressIn = useCallback(
+    () => animateTo(PRESS_SCALE, PRESS_IN_MS),
+    [animateTo],
+  );
+  const handlePressOut = useCallback(() => animateTo(1, PRESS_OUT_MS), [animateTo]);
+
+  // const healthMeta = FIELD_HEALTH_META[field.status];
 
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={handlePress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       android_ripple={RIPPLE}
       accessibilityRole="button"
-      accessibilityLabel={`${field.name}, ${field.crop}, ${healthMeta.label}`}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+      accessibilityLabel={`${field.name}, ${field.crop}, ${formatNumber(
+        field.areaAcres,
+      )} acres `}
+      accessibilityHint="Opens field details"
+      style={[styles.card, { transform: [{ scale: scaleAnim }] }]}>
       <View style={styles.iconTile}>
         <AppIcon name={ICONS.FIELD} size={moderateScale(22)} color={COLORS.primary} />
       </View>
@@ -42,7 +71,7 @@ const FieldCard: React.FC<FieldCardProps> = ({ field, onPress }) => {
           <AppText style={styles.name} numberOfLines={1}>
             {field.name}
           </AppText>
-          <StatusBadge label={healthMeta.label} tone={healthMeta.tone} />
+          {/* <StatusBadge label={healthMeta.label} tone={healthMeta.tone} /> */}
         </View>
 
         <View style={styles.chipRow}>
@@ -60,7 +89,7 @@ const FieldCard: React.FC<FieldCardProps> = ({ field, onPress }) => {
       </View>
 
       <AppIcon name={ICONS.CHEVRON_RIGHT} size={moderateScale(20)} color={COLORS.gray500} />
-    </Pressable>
+    </AnimatedPressable>
   );
 };
 
@@ -70,31 +99,27 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing[3],
+    gap: spacing[3.5],
     backgroundColor: COLORS.white,
-    borderRadius: borderRadius.xl,
+    borderRadius: borderRadius['2xl'],
     borderWidth: borderWidth.thin,
     borderColor: COLORS.gray200,
-    padding: spacing[3.5],
+    padding: spacing[4],
     marginBottom: spacing[3],
     overflow: 'hidden',
     ...shadows.sm,
   },
-  pressed: {
-    opacity: 0.96,
-    transform: [{ scale: 0.992 }],
-  },
   iconTile: {
-    width: scale(44),
-    height: scale(44),
-    borderRadius: borderRadius.lg,
+    width: scale(46),
+    height: scale(46),
+    borderRadius: borderRadius.xl,
     backgroundColor: COLORS.lightPrimary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   body: {
     flex: 1,
-    gap: spacing[2],
+    gap: spacing[2.5],
   },
   topRow: {
     flexDirection: 'row',

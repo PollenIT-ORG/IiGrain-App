@@ -1,7 +1,7 @@
 import React from 'react';
 import { Image, Platform, StatusBar, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, DrawerActions } from '@react-navigation/native';
+import { useNavigation, DrawerActions, type NavigationProp } from '@react-navigation/native';
 import { IMAGES } from '../../assets/images';
 import { COLORS } from '../../constants';
 import { moderateScale } from '../../utils';
@@ -9,8 +9,12 @@ import { AppIcon, ICONS } from '../AppIcon';
 import AppText from '../AppText/AppText';
 import AppGradient from '../AppGradient/AppGradient';
 import AppStatusBar from '../AppStatusBar/AppStatusBar';
+import { useAppSelector } from '../../redux/hooks';
+import { selectUnreadCount } from '../../redux/slices/notificationSlice';
 import { styles } from './AppHeaderStyle';
 import type { AppHeaderProps, HeaderAction } from './types';
+
+type NotificationCapableParamList = { Notifications: undefined };
 
 const ACTION_ICON: Record<HeaderAction, string> = {
   notification: 'bell-outline',
@@ -33,6 +37,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   onBack,
   centerComponent,
   leftComponent,
+  rightComponent,
   bgColor,
 }) => {
   const insets = useSafeAreaInsets();
@@ -41,9 +46,19 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0,
   );
   const navigation = useNavigation();
+  const unreadCount = useAppSelector(selectUnreadCount);
 
   const openDrawer = () => navigation.dispatch(DrawerActions.openDrawer());
   const goBack = () => (onBack ? onBack() : navigation.goBack());
+  const handleActionPress = (action: HeaderAction) => {
+    if (action === 'notification' && !onActionPress) {
+      (navigation as unknown as NavigationProp<NotificationCapableParamList>).navigate(
+        'Notifications',
+      );
+      return;
+    }
+    onActionPress?.(action);
+  };
 
   const isWhite = Boolean(bgColor);
   const iconColor = isWhite ? COLORS.primary : COLORS.white;
@@ -100,16 +115,26 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 
   const renderRight = () => (
     <View style={styles.rightGroup}>
-      {rightActions.map(action => (
+      {(rightActions ?? []).map(action => (
         <TouchableOpacity
           key={action}
-          onPress={() => onActionPress?.(action)}
+          onPress={() => handleActionPress(action)}
           hitSlop={HIT_SLOP}
           accessibilityRole="button"
           accessibilityLabel={action}>
-          <AppIcon name={ACTION_ICON[action]} size={ICON_SIZE} color={iconColor} />
+          <View>
+            <AppIcon name={ACTION_ICON[action]} size={ICON_SIZE} color={iconColor} />
+            {action === 'notification' && unreadCount > 0 ? (
+              <View style={styles.badge}>
+                <AppText style={styles.badgeText} numberOfLines={1}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </AppText>
+              </View>
+            ) : null}
+          </View>
         </TouchableOpacity>
       ))}
+      {rightComponent}
     </View>
   );
 
@@ -117,17 +142,29 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     <View style={styles.bar}>
       <View style={styles.side}>{renderLeft()}</View>
       {renderCenter()}
+      {/* The right side is always rendered, even with no actions, so it reserves
+          the same width as the left side and the centered title stays optically
+          centred. Dropping it when rightActions is null let the title drift
+          right by the width of the left group. */}
       <View style={[styles.side, styles.sideRight]}>{renderRight()}</View>
     </View>
   );
 
   if (!isWhite) {
     return (
-      <AppGradient
-        variant="header"
-        style={[styles.wrapper, { paddingTop: topInset }]}>
-        {barContent}
-      </AppGradient>
+      <>
+        {/* The gradient paints its own strip behind the status bar, so no
+            coloured overlay here — but the config element still has to be
+            declared. Without it this path inherits whatever the last mounted
+            <StatusBar> set, so a modal that flipped the window flags stayed in
+            effect until the user reached a screen that declares its own. */}
+        <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+        <AppGradient
+          variant="header"
+          style={[styles.wrapper, { paddingTop: topInset }]}>
+          {barContent}
+        </AppGradient>
+      </>
     );
   }
 

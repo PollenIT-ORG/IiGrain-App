@@ -5626,7 +5626,7 @@
               "v": "17",
               "name": "GET Field assessment summary",
               "method": "GET",
-              "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/summary",
+              "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/summary",
               "headers": [],
               "params": [],
               "body": {
@@ -5648,7 +5648,7 @@
                     "v": "6",
                     "name": "GET Field assessment summary",
                     "method": "GET",
-                    "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/summary",
+                    "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/summary",
                     "headers": [],
                     "params": [],
                     "body": {
@@ -5682,7 +5682,7 @@
               "v": "17",
               "name": "GET Category question list (lightweight)",
               "method": "GET",
-              "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/categories/<<categoryId>>/questions/list",
+              "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions/list",
               "headers": [],
               "params": [],
               "body": {
@@ -5704,7 +5704,7 @@
                     "v": "6",
                     "name": "GET Category question list (lightweight)",
                     "method": "GET",
-                    "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/categories/<<categoryId>>/questions/list",
+                    "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions/list",
                     "headers": [],
                     "params": [],
                     "body": {
@@ -5738,7 +5738,7 @@
               "v": "17",
               "name": "GET Single question detail",
               "method": "GET",
-              "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/categories/<<categoryId>>/questions/<<questionId>>",
+              "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions/<<questionId>>",
               "headers": [],
               "params": [],
               "body": {
@@ -5760,7 +5760,7 @@
                     "v": "6",
                     "name": "GET Single question detail",
                     "method": "GET",
-                    "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/categories/<<categoryId>>/questions/<<questionId>>",
+                    "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions/<<questionId>>",
                     "headers": [],
                     "params": [],
                     "body": {
@@ -5794,7 +5794,7 @@
               "v": "17",
               "name": "GET Category questions (full)",
               "method": "GET",
-              "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/categories/<<categoryId>>/questions",
+              "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions",
               "headers": [],
               "params": [],
               "body": {
@@ -5816,7 +5816,7 @@
                     "v": "6",
                     "name": "GET Category questions (full)",
                     "method": "GET",
-                    "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/categories/<<categoryId>>/questions",
+                    "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions",
                     "headers": [],
                     "params": [],
                     "body": {
@@ -5850,7 +5850,7 @@
               "v": "17",
               "name": "PUT Save my field answer",
               "method": "PUT",
-              "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/questions/<<questionId>>/answer",
+              "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/questions/<<questionId>>/answer",
               "headers": [
                 {
                   "key": "Content-Type",
@@ -5879,7 +5879,7 @@
                     "v": "6",
                     "name": "PUT Save my field answer",
                     "method": "PUT",
-                    "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/questions/<<questionId>>/answer",
+                    "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/questions/<<questionId>>/answer",
                     "headers": [
                       {
                         "key": "Content-Type",
@@ -5920,7 +5920,7 @@
               "v": "17",
               "name": "GET Review & Submit (review)",
               "method": "GET",
-              "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/review",
+              "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/review",
               "headers": [],
               "params": [],
               "body": {
@@ -5942,7 +5942,7 @@
                     "v": "6",
                     "name": "GET Review & Submit (review)",
                     "method": "GET",
-                    "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/review",
+                    "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/review",
                     "headers": [],
                     "params": [],
                     "body": {
@@ -5976,7 +5976,7 @@
               "v": "17",
               "name": "GET Assessment history (locked · view-only)",
               "method": "GET",
-              "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/history",
+              "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/history",
               "headers": [],
               "params": [],
               "body": {
@@ -5999,7 +5999,7 @@
                     "v": "6",
                     "name": "GET Assessment history (locked · view-only)",
                     "method": "GET",
-                    "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/history",
+                    "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/history",
                     "headers": [],
                     "params": [],
                     "body": {
@@ -6032,7 +6032,7 @@
               "v": "17",
               "name": "POST Submit assessment",
               "method": "POST",
-              "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/submit",
+              "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/submit",
               "headers": [],
               "params": [],
               "body": {
@@ -6054,7 +6054,7 @@
                     "v": "6",
                     "name": "POST Submit assessment",
                     "method": "POST",
-                    "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/submit",
+                    "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/submit",
                     "headers": [],
                     "params": [],
                     "body": {

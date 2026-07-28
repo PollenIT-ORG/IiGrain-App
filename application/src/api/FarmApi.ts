@@ -1,15 +1,27 @@
 import http from '../services/http';
 import { Endpoints } from '../config/endpoints';
 import type { Farm } from '../types/farm';
+import {
+  normalizePageMeta,
+  toPageParams,
+  type PageMeta,
+  type PageQuery,
+  type RawPageMeta,
+} from '../types/pagination';
 
 interface Envelope<T> {
   data: T;
+  meta?: RawPageMeta;
 }
 
 interface RawFarm {
   id: string;
   name: string;
+  business_entity?: string | null;
   area_acres: string;
+  used_area?: string | number | null;
+  available_area?: string | number | null;
+  field_count?: number;
   location: string;
   latitude?: number | string | null;
   longitude?: number | string | null;
@@ -33,6 +45,7 @@ interface FarmDetailPayload {
 
 export interface CreateFarmInput {
   name: string;
+  businessEntity?: string;
   areaAcres?: number;
   location?: string;
   latitude?: number | null;
@@ -41,6 +54,7 @@ export interface CreateFarmInput {
 
 export interface UpdateFarmInput {
   name?: string;
+  businessEntity?: string;
   areaAcres?: number;
   location?: string;
   latitude?: number | null;
@@ -58,10 +72,13 @@ const toNumberOrNull = (raw: number | string | null | undefined): number | null 
 const mapFarm = (raw: RawFarm): Farm => ({
   id: raw.id,
   name: raw.name,
+  businessEntity: raw.business_entity ?? undefined,
   ownerName: raw.owner_name,
   location: raw.location,
   areaAcres: parseFloat(raw.area_acres) || 0,
-  fieldsCount: 0,
+  usedAcres: toNumberOrNull(raw.used_area) ?? undefined,
+  availableAcres: toNumberOrNull(raw.available_area) ?? undefined,
+  fieldsCount: raw.field_count ?? 0,
   status: raw.is_active ? 'active' : 'inactive',
   lastUpdatedISO: raw.updated_at,
   soilType: '',
@@ -74,9 +91,17 @@ const mapFarm = (raw: RawFarm): Farm => ({
   createdAt: raw.created_at,
 });
 
-export const getMyFarms = async (): Promise<Farm[]> => {
-  const res = await http.get<Envelope<MyFarmsPayload>>(Endpoints.farms.myFarms);
-  return (res.data.data.farms ?? []).map(mapFarm);
+export interface PagedFarms {
+  farms: Farm[];
+  meta: PageMeta;
+}
+
+export const getMyFarms = async (query?: PageQuery): Promise<PagedFarms> => {
+  const res = await http.get<Envelope<MyFarmsPayload>>(Endpoints.farms.myFarms, {
+    params: toPageParams(query),
+  });
+  const farms = (res.data.data.farms ?? []).map(mapFarm);
+  return { farms, meta: normalizePageMeta(res.data.meta, farms.length, query) };
 };
 
 export const getFarmDetails = async (farmId: string): Promise<Farm> => {
@@ -88,6 +113,9 @@ export const getFarmDetails = async (farmId: string): Promise<Farm> => {
 
 export const createMyFarm = async (input: CreateFarmInput): Promise<Farm> => {
   const body: Record<string, string | number | null> = { name: input.name };
+  if (input.businessEntity !== undefined) {
+    body.businessEntity = input.businessEntity;
+  }
   if (input.areaAcres !== undefined) {
     body.areaAcres = input.areaAcres;
   }
@@ -115,6 +143,9 @@ export const updateMyFarm = async (
   if (input.name !== undefined) {
     body.name = input.name;
   }
+  if (input.businessEntity !== undefined) {
+    body.businessEntity = input.businessEntity;
+  }
   if (input.areaAcres !== undefined) {
     body.areaAcres = input.areaAcres;
   }
@@ -132,4 +163,18 @@ export const updateMyFarm = async (
     body,
   );
   return mapFarm(res.data.data.farm);
+};
+
+/** Clears the farm's editable data but keeps its identity. No guards. */
+export const resetMyFarm = async (farmId: string): Promise<Farm> => {
+  const res = await http.post<Envelope<FarmDetailPayload>>(
+    Endpoints.farms.resetMyFarm(farmId),
+  );
+  return mapFarm(res.data.data.farm);
+};
+
+/** Soft-delete. Rejects with 409 when any field has a submitted assessment or is
+ *  still enrolled in a program; the message explains which. */
+export const deleteMyFarm = async (farmId: string): Promise<void> => {
+  await http.delete(Endpoints.farms.myFarm(farmId));
 };

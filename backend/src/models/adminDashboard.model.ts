@@ -14,11 +14,14 @@ export interface AdminKpiRow {
 
 export async function getAdminKpis(): Promise<AdminKpiRow> {
   const rows = await prisma.$queryRaw<AdminKpiRow[]>(Prisma.sql`
-    WITH enrolled_fields AS (
-      SELECT DISTINCT pef.field_id
+    WITH ef_pairs AS (
+      SELECT DISTINCT pef.field_id, pe.program_id
         FROM program_enrollment_fields pef
         JOIN program_enrollments pe ON pe.id = pef.enrollment_id AND pe.deleted_at IS NULL
        WHERE pef.deleted_at IS NULL
+    ),
+    enrolled_fields AS (
+      SELECT DISTINCT field_id FROM ef_pairs
     ),
     ef AS (
       SELECT f.id AS field_id, f.farm_id, f.area_acres, fm.owner_id
@@ -26,10 +29,16 @@ export async function getAdminKpis(): Promise<AdminKpiRow> {
         JOIN fields f ON f.id = e.field_id AND f.deleted_at IS NULL
         JOIN farms fm ON fm.id = f.farm_id AND fm.deleted_at IS NULL
     ),
+    -- Assessable (field, program) slots: one possible farmer assessment each.
+    slots AS (
+      SELECT p.field_id, p.program_id
+        FROM ef_pairs p
+        JOIN ef ON ef.field_id = p.field_id
+    ),
     submitted AS (
-      SELECT fa.field_id, fa.percentage
+      SELECT fa.field_id, fa.program_id, fa.percentage
         FROM field_assessments fa
-        JOIN ef ON ef.field_id = fa.field_id
+        JOIN slots s ON s.field_id = fa.field_id AND s.program_id = fa.program_id
        WHERE fa.author_role = 'farmer' AND fa.status = 'submitted'
     )
     SELECT
@@ -38,9 +47,9 @@ export async function getAdminKpis(): Promise<AdminKpiRow> {
       COUNT(DISTINCT ef.owner_id)::int                                AS farmers_enrolled,
       COUNT(DISTINCT ef.field_id)::int                                AS fields_enrolled,
       (SELECT COUNT(*)::int FROM submitted)                           AS assessments_submitted,
-      CASE WHEN COUNT(DISTINCT ef.field_id) > 0
+      CASE WHEN (SELECT COUNT(*) FROM slots) > 0
            THEN ROUND(((SELECT COUNT(*) FROM submitted)::numeric
-                        / COUNT(DISTINCT ef.field_id)) * 100, 1)
+                        / (SELECT COUNT(*) FROM slots)) * 100, 1)
            ELSE NULL END                                              AS completion_pct,
       (SELECT ROUND(AVG(percentage), 1) FROM submitted)              AS avg_rhi,
       (SELECT COUNT(*)::int FROM programs
@@ -194,6 +203,7 @@ export async function getRhiByProgram(limit: number): Promise<RhiByProgramRow[]>
       JOIN program_enrollment_fields pef ON pef.enrollment_id = pe.id AND pef.deleted_at IS NULL
       JOIN field_assessments fa
              ON fa.field_id = pef.field_id
+            AND fa.program_id = p.id
             AND fa.author_role = 'farmer'
             AND fa.status = 'submitted'
      WHERE p.deleted_at IS NULL

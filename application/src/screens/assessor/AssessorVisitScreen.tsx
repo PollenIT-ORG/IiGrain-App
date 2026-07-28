@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '../../components/AppIcon';
 import { AppHeader, AppText, Button } from '../../components';
-import VisitMap from '../../components/location/VisitMap';
+import { VisitMap } from '../../maps';
 import {
   COLORS,
   borderRadius,

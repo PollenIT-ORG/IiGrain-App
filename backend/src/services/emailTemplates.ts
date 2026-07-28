@@ -23,6 +23,10 @@ export interface EmailContent {
 
 const appName = (): string => env.smtp.fromName || "Farmer App";
 
+// Logo shown in the header of every email.
+const EMAIL_LOGO_URL =
+  "https://res.cloudinary.com/dmcdeuw12/image/upload/v1785131103/farmer_branding/email_logo.png";
+
 function esc(v: string): string {
   return v
     .replace(/&/g, "&amp;")
@@ -46,8 +50,8 @@ function layout(bodyHtml: string, preheader = ""): string {
         <td align="center">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%;">
             <tr>
-              <td style="background:${COLORS.primary};border-radius:12px 12px 0 0;padding:20px 28px;">
-                <span style="color:${COLORS.white};font-size:18px;font-weight:700;letter-spacing:0.2px;">${name}</span>
+              <td style="background:${COLORS.white};border:1px solid ${COLORS.gray300};border-bottom:none;border-radius:12px 12px 0 0;padding:20px 28px;">
+                <img src="${EMAIL_LOGO_URL}" alt="${name}" height="36" style="height:36px;width:auto;display:block;border:0;" />
               </td>
             </tr>
             <tr>
@@ -417,6 +421,173 @@ export function assessmentSubmittedNoticeEmail(params: {
   return {
     subject: `${params.farmerName} submitted an assessment for ${params.fieldName}`,
     html: layout(body, `${params.fieldName} is ready for review`),
+    text,
+  };
+}
+
+/* ------------------------------------------------------------------------- */
+/* Eligibility survey and enrollment (public website flow)                     */
+/* ------------------------------------------------------------------------- */
+
+const BAND_LABEL: Record<string, string> = {
+  gold: "Gold",
+  silver: "Silver",
+  bronze: "Bronze",
+  not_qualified: "Not Qualified",
+};
+
+// The status link is only sent for the standalone survey (magic-link tracking).
+// For the website flow it stays undefined and no button is shown.
+function statusButton(link?: string): string {
+  return link ? button("Check your status", esc(link)) : "";
+}
+function statusLine(link?: string): string {
+  return link ? `\nCheck your status any time: ${link}\n` : "";
+}
+
+/* Invite a lead to take the eligibility survey. */
+export function surveyInviteEmail(params: { link: string }): EmailContent {
+  const app = appName();
+  const body = `
+    ${h1("Check if your farm qualifies")}
+    ${p(`${esc(app)} runs a regenerative agriculture program for grain producers. Take a short eligibility survey to see whether your farm qualifies - it only takes a few minutes and your result is instant.`)}
+    ${button("Start the survey", esc(params.link))}
+    ${p("You can save your progress and come back any time using the same email.")}
+  `;
+  const text =
+    `Check if your farm qualifies\n\n` +
+    `${app} runs a regenerative agriculture program for grain producers. Take a short eligibility survey to see whether your farm qualifies:\n${params.link}\n\n` +
+    `You can save your progress and come back any time using the same email.\n`;
+  return {
+    subject: `You're invited to check your eligibility for the ${app} program`,
+    html: layout(body, "Take the eligibility survey to see if your farm qualifies"),
+    text,
+  };
+}
+
+/* Receipt sent the moment the survey is submitted. */
+export function surveyReceivedEmail(params: {
+  fullName: string | null;
+  link?: string;
+}): EmailContent {
+  const body = `
+    ${h1("We have your survey")}
+    ${p(`${greet(params.fullName)} thank you for completing the eligibility survey. Our team is reviewing your answers and will be in touch about the next steps.`)}
+    ${statusButton(params.link)}
+  `;
+  const text =
+    `We have your survey\n\n` +
+    `Thank you for completing the eligibility survey. Our team is reviewing your answers and will be in touch about the next steps.\n` +
+    statusLine(params.link);
+  return {
+    subject: "We have received your eligibility survey",
+    html: layout(body, "Your eligibility survey has been received"),
+    text,
+  };
+}
+
+/* The producer qualified. Wording follows the program document. */
+export function surveyQualifiedEmail(params: {
+  fullName: string | null;
+  category: string;
+  link?: string;
+}): EmailContent {
+  const band = BAND_LABEL[params.category] ?? params.category;
+  const body = `
+    ${h1("You qualify to enroll")}
+    ${p(`${greet(params.fullName)} congratulations, you qualify to enroll in the program. A Greenfield representative will reach out for further enrollment steps.`)}
+    ${details([{ label: "Your band", value: band }])}
+    ${p("You are recorded as a Prospective Producer. You are not enrolled yet: enrollment happens once you sign the program contract and receive your Enrollment ID.")}
+    ${statusButton(params.link)}
+  `;
+  const text =
+    `You qualify to enroll\n\n` +
+    `Congratulations, you qualify to enroll in the program. A Greenfield representative will reach out for further enrollment steps.\n\n` +
+    `Your band: ${band}\n\n` +
+    `You are recorded as a Prospective Producer. Enrollment happens once you sign the program contract and receive your Enrollment ID.\n` +
+    statusLine(params.link);
+  return {
+    subject: "You qualify for the program",
+    html: layout(body, "You qualify to enroll in the program"),
+    text,
+  };
+}
+
+/* The producer did not qualify. The workflow stops here. */
+export function surveyNotQualifiedEmail(params: {
+  fullName: string | null;
+  link?: string;
+}): EmailContent {
+  const body = `
+    ${h1("Your survey result")}
+    ${p(`${greet(params.fullName)} sorry, based on your responses, you are not qualified to enroll in this program.`)}
+    ${p("Farms change over time, so you are welcome to apply again if your situation changes.")}
+    ${statusButton(params.link)}
+  `;
+  const text =
+    `Your survey result\n\n` +
+    `Sorry, based on your responses, you are not qualified to enroll in this program.\n\n` +
+    `Farms change over time, so you are welcome to apply again if your situation changes.\n` +
+    statusLine(params.link);
+  return {
+    subject: "Your eligibility survey result",
+    html: layout(body, "Your eligibility survey result"),
+    text,
+  };
+}
+
+/* Secure link to read and sign the program contract. */
+export function contractToSignEmail(params: {
+  fullName: string | null;
+  link: string;
+  expiresAt: Date;
+}): EmailContent {
+  const expiry = params.expiresAt.toDateString();
+  const body = `
+    ${h1("Your contract is ready to sign")}
+    ${p(`${greet(params.fullName)} the next step is the program contract. Open the link below to read it and sign it online. Nothing needs to be printed or posted.`)}
+    ${button("Read and sign the contract", esc(params.link))}
+    ${details([{ label: "Link valid until", value: expiry }])}
+    ${warning("Do not share this link. It is unique to you.")}
+  `;
+  const text =
+    `Your contract is ready to sign\n\n` +
+    `The next step is the program contract. Open this link to read and sign it:\n${params.link}\n\n` +
+    `Link valid until: ${expiry}\n\nDo not share this link, it is unique to you.\n`;
+  return {
+    subject: "Your program contract is ready to sign",
+    html: layout(body, "Read and sign your program contract"),
+    text,
+  };
+}
+
+/* Contract accepted: the Enrollment ID and how to use it. */
+export function enrollmentWelcomeEmail(params: {
+  fullName: string | null;
+  enrollmentId: string;
+  appLink?: string;
+}): EmailContent {
+  const rows = [
+    { label: "Enrollment ID", value: params.enrollmentId, mono: true },
+  ];
+  const body = `
+    ${h1("Welcome to the program")}
+    ${p(`${greet(params.fullName)} your contract has been accepted and you are now enrolled as a Farmer/Producer.`)}
+    ${details(rows)}
+    ${p("Install the mobile app and enter this Enrollment ID the first time you register. After that you log in normally with your email and password.")}
+    ${params.appLink ? button("Get the app", esc(params.appLink)) : ""}
+    ${warning("Your Enrollment ID is personal to you. Please do not share it.")}
+  `;
+  const text =
+    `Welcome to the program\n\n` +
+    `Your contract has been accepted and you are now enrolled as a Farmer/Producer.\n\n` +
+    `Enrollment ID: ${params.enrollmentId}\n\n` +
+    `Install the mobile app and enter this Enrollment ID the first time you register. After that you log in with your email and password.\n` +
+    (params.appLink ? `\nGet the app: ${params.appLink}\n` : "") +
+    `\nYour Enrollment ID is personal to you. Please do not share it.\n`;
+  return {
+    subject: `You are enrolled - your Enrollment ID is ${params.enrollmentId}`,
+    html: layout(body, "You are enrolled. Here is your Enrollment ID."),
     text,
   };
 }

@@ -3,7 +3,6 @@ import {
   COLORS,
   borderRadius,
   borderWidth,
-  fonts,
   presets,
   shadows,
   spacing,
@@ -28,25 +27,6 @@ export const styles = StyleSheet.create({
     borderBottomWidth: borderWidth.thin,
     borderBottomColor: COLORS.gray200,
   },
-  mapHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[2],
-    marginBottom: spacing[3],
-  },
-  mapTitle: {
-    ...presets.labelLG,
-    color: COLORS.gray900,
-    flex: 1,
-  },
-  mapSub: {
-    ...presets.bodyXS,
-    color: COLORS.gray500,
-    backgroundColor: COLORS.white,
-    paddingHorizontal: spacing[2],
-    paddingVertical: scale(2),
-    borderRadius: borderRadius.sm,
-  },
   mapBox: {
     height: scale(240),
     borderRadius: borderRadius.lg,
@@ -56,117 +36,21 @@ export const styles = StyleSheet.create({
     overflow: 'hidden',
     ...shadows.sm,
   },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: COLORS.primaryDark,
-  },
-  blobA: {
-    position: 'absolute',
-    top: -scale(30),
-    right: -scale(20),
-    width: scale(160),
-    height: scale(160),
-    borderRadius: borderRadius.full,
-    backgroundColor: addAlpha(COLORS.secondary, 0.35),
-  },
-  blobB: {
-    position: 'absolute',
-    bottom: -scale(40),
-    left: -scale(30),
-    width: scale(180),
-    height: scale(180),
-    borderRadius: borderRadius.full,
-    backgroundColor: addAlpha(COLORS.primary, 0.45),
-  },
-  roadA: {
-    position: 'absolute',
-    top: '48%',
-    left: 0,
-    right: 0,
-    height: scale(3),
-    backgroundColor: addAlpha(COLORS.white, 0.25),
-  },
-  roadB: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: '51%',
-    width: scale(3),
-    backgroundColor: addAlpha(COLORS.white, 0.22),
-  },
-  parcel: {
-    position: 'absolute',
-    borderRadius: borderRadius.md,
-    borderWidth: borderWidth.medium,
+  mapEmpty: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: spacing[2],
   },
-  parcelSelected: {
-    borderWidth: scale(3),
-    ...shadows.md,
-  },
-  parcelPressed: {
-    opacity: 0.75,
-  },
-  marker: {
-    width: scale(24),
-    height: scale(24),
-    borderRadius: scale(12),
-    backgroundColor: COLORS.white,
-    borderWidth: borderWidth.medium,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadows.sm,
-  },
-  markerText: {
-    ...presets.labelSM,
-    fontFamily: fonts.semibold,
+  mapEmptyText: {
+    ...presets.bodySM,
+    color: COLORS.gray300,
   },
 
   chipScroll: {
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[4],
     gap: spacing[2.5],
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[2],
-    backgroundColor: COLORS.white,
-    borderWidth: borderWidth.thin,
-    borderColor: COLORS.gray300,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing[2],
-    paddingHorizontal: spacing[3],
-    ...shadows.sm,
-  },
-  chipActive: {
-    borderWidth: scale(2),
-    backgroundColor: COLORS.white,
-  },
-  chipDot: {
-    width: scale(22),
-    height: scale(22),
-    borderRadius: scale(11),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipNumText: {
-    ...presets.caption,
-    color: COLORS.white,
-    fontFamily: fonts.semibold,
-  },
-  chipName: {
-    ...presets.labelMD,
-    color: COLORS.gray700,
-  },
-  chipNameActive: {
-    color: COLORS.gray900,
-    fontFamily: fonts.semibold,
-  },
-  chipAcres: {
-    ...presets.bodyXS,
-    color: COLORS.gray500,
   },
 
   filterBar: {
@@ -236,6 +120,8 @@ export const styles = StyleSheet.create({
   heroCoordsText: {
     ...presets.bodyXS,
     color: COLORS.gray500,
+    width: '96%',
+
   },
 
   statsGrid: {
@@ -376,6 +262,36 @@ export const styles = StyleSheet.create({
     marginTop: spacing[1],
     gap: spacing[1.5],
   },
+  soilLockCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing[3],
+    padding: spacing[4],
+    borderRadius: borderRadius.lg,
+    borderWidth: borderWidth.thin,
+    borderColor: addAlpha(COLORS.warning, 0.3),
+    backgroundColor: addAlpha(COLORS.warning, 0.08),
+  },
+  soilLockIcon: {
+    width: scale(34),
+    height: scale(34),
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.white,
+  },
+  soilLockTexts: {
+    flex: 1,
+    gap: spacing[1],
+  },
+  soilLockTitle: {
+    ...presets.labelLG,
+    color: COLORS.gray900,
+  },
+  soilLockText: {
+    ...presets.bodyXS,
+    color: COLORS.gray700,
+  },
   soilNoteRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -394,4 +310,30 @@ export const styles = StyleSheet.create({
   docActionBtn: {
     padding: spacing[2],
   },
+
+  // ── Farm Boundary entry row (Overview) ──────────────────────────────────
+  boundaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    marginTop: spacing[3],
+    marginHorizontal: spacing[4],
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+    borderRadius: borderRadius.lg,
+    backgroundColor: COLORS.white,
+    borderWidth: borderWidth.thin,
+    borderColor: COLORS.gray200,
+    ...shadows.sm,
+  },
+  boundaryIcon: {
+    width: scale(38),
+    height: scale(38),
+    borderRadius: borderRadius.md,
+    backgroundColor: addAlpha(COLORS.primary, 0.12),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  boundaryTitle: { ...presets.labelMD, color: COLORS.gray900 },
+  boundarySub: { ...presets.caption, color: COLORS.gray600 },
 });

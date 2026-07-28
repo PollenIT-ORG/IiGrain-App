@@ -25,6 +25,7 @@ import { COLORS,
   spacing, fonts } from '../../constants';
 import { capitalize, moderateScale } from '../../utils';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
+import { useAssessorOverviewSync } from '../../hooks/useAssessorOverviewSync';
 import {
   fetchAssessorFieldsThunk,
   selectAssessorError,
@@ -47,7 +48,7 @@ const HEALTH: Record<string, { label: string; tone: BadgeTone }> = {
   critical: { label: 'Critical', tone: 'danger' },
 };
 const healthOf = (status: string): { label: string; tone: BadgeTone } =>
-  HEALTH[status] ?? { label: status ? capitalize(status) : '-', tone: 'neutral' };
+  HEALTH[status] ?? { label: status ? capitalize(status) : '—', tone: 'neutral' };
 
 const statusLine = (a: AssessorFieldEntry['assessment']): { icon: string; color: string; text: string } => {
   if (a.completed) {
@@ -56,7 +57,7 @@ const statusLine = (a: AssessorFieldEntry['assessment']): { icon: string; color:
   if (a.percentage > 0 || a.answered > 0) {
     return { icon: 'progress-clock', color: COLORS.accent, text: `In progress · ${a.percentage}%` };
   }
-  return { icon: 'clipboard-text-outline', color: COLORS.gray500, text: 'Not assessed - tap to assess' };
+  return { icon: 'clipboard-text-outline', color: COLORS.gray500, text: 'Not assessed — tap to assess' };
 };
 
 const AssessorFarmDetailScreen: React.FC<AssessorScreenProps<'AssessorFarmDetail'>> = ({
@@ -76,11 +77,9 @@ const AssessorFarmDetailScreen: React.FC<AssessorScreenProps<'AssessorFarmDetail
     [overview, farmId],
   );
 
-  useEffect(() => {
-    if (!overview) {
-      dispatch(fetchAssessorFieldsThunk());
-    }
-  }, [dispatch, overview]);
+  // Shared overview cache: fetch once, then refresh only when the socket says
+  // an assignment/assessment changed (or the TTL lapses). See the hook.
+  useAssessorOverviewSync(!!overview);
 
   useEffect(() => {
     dispatch(fetchMyAssessorVisitThunk());
@@ -91,6 +90,7 @@ const AssessorFarmDetailScreen: React.FC<AssessorScreenProps<'AssessorFarmDetail
   const openField = useCallback(
     (entry: AssessorFieldEntry) =>
       navigation.navigate('AssessorAssessmentSummary', {
+        programId: entry.program.id,
         fieldId: entry.field.id,
         fieldName: entry.field.name,
       }),
@@ -139,7 +139,7 @@ const AssessorFarmDetailScreen: React.FC<AssessorScreenProps<'AssessorFarmDetail
           <View style={styles.metaRow}>
             <View style={styles.cropRow}>
               <AppIcon name={ICONS.CROP} size={moderateScale(15)} color={COLORS.gray600} />
-              <AppText style={styles.muted} numberOfLines={1}>{entry.field.crop || '-'}</AppText>
+              <AppText style={styles.muted} numberOfLines={1}>{entry.field.crop || '—'}</AppText>
             </View>
             <AppStatusBadge tone={health.tone} label={health.label} size="sm" />
           </View>

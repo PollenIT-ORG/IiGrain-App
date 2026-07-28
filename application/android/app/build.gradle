@@ -72,6 +72,60 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+/**
+ * ---------------------------------------------------------------------------
+ * Google Maps - build-time API key resolution.
+ * ---------------------------------------------------------------------------
+ * The Google Maps Android SDK does NOT read the key from JavaScript. It reads it
+ * from the merged AndroidManifest at process start:
+ *
+ *     <meta-data android:name="com.google.android.geo.API_KEY" .../>
+ *
+ * `react-native-dotenv` (babel) only rewrites `@env` imports inside the JS
+ * bundle, so it can never reach the manifest. This function closes that gap by
+ * reading the SAME `.env` file at Gradle configuration time and feeding the
+ * value into a manifest placeholder.
+ *
+ * Resolution order (first non-blank wins):
+ *   1. `MAPS_API_KEY` process environment variable - how CI / Play Console
+ *      builds inject the key without ever writing a `.env` to disk.
+ *   2. `application/.env` - the local developer file (gitignored).
+ *   3. "" - build proceeds, but the map renders as an empty grey grid. We log a
+ *      loud warning rather than failing so that non-map work (unit tests, CI
+ *      lint builds) is never blocked by a missing secret.
+ *
+ * `.env` is parsed with java.util.Properties: `KEY=value` lines, `#` comments -
+ * exactly the subset of dotenv syntax this project uses.
+ */
+def resolveMapsApiKey() {
+    def fromProcessEnv = System.getenv("MAPS_API_KEY")
+    if (fromProcessEnv != null && !fromProcessEnv.trim().isEmpty()) {
+        return fromProcessEnv.trim()
+    }
+
+    // rootProject is `android/`, so `../.env` resolves to `application/.env`.
+    def envFile = rootProject.file("../.env")
+    if (envFile.exists()) {
+        def props = new Properties()
+        envFile.withInputStream { stream -> props.load(stream) }
+        def fromFile = props.getProperty("MAPS_API_KEY")
+        if (fromFile != null && !fromFile.trim().isEmpty()) {
+            return fromFile.trim()
+        }
+    }
+
+    return ""
+}
+
+def mapsApiKey = resolveMapsApiKey()
+if (mapsApiKey.isEmpty()) {
+    logger.warn(
+        "\n[WARN] MAPS_API_KEY is not set (checked \$MAPS_API_KEY and application/.env).\n" +
+        "       The app will build, but every Google map renders as a blank grey grid.\n" +
+        "       See docs/maps/SETUP.md -> 'Android configuration'.\n"
+    )
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -84,6 +138,12 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+
+        // Consumed by AndroidManifest.xml -> com.google.android.geo.API_KEY.
+        // `[...] =` (single key) instead of `manifestPlaceholders = [...]` so we
+        // ADD to the map rather than replace it: the React Native Gradle plugin
+        // puts `usesCleartextTraffic` in there too (see the <application> tag).
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
     signingConfigs {
         debug {
@@ -111,6 +171,13 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
+    // Native splash screen. Backports the Android 12 SplashScreen API to every
+    // supported version so the leaf logo shows on white BEFORE React Native
+    // starts - matching the iOS LaunchScreen. The logo drawable
+    // (@drawable/splash_icon) is generated from a single master by
+    // scripts/gen_splash_assets.py.
+    implementation("androidx.core:core-splashscreen:1.0.1")
+
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
@@ -121,5 +188,8 @@ dependencies {
 // bundle vector icon fonts
 project.ext.vectoricons = [
     iconFontNames: ['MaterialCommunityIcons.ttf']
-]
+    ]
 apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
+
+// new add
+// apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"

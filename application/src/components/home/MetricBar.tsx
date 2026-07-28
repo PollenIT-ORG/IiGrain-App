@@ -9,6 +9,10 @@ interface MetricBarProps {
   max?: number;
   color: string;
   delay?: number;
+  /** Overrides the numeric readout, e.g. "—" for a category with no answers yet. */
+  valueLabel?: string;
+  /** Softens the row for metrics that have no score yet. */
+  dimmed?: boolean;
 }
 
 const MetricBar: React.FC<MetricBarProps> = ({
@@ -17,6 +21,8 @@ const MetricBar: React.FC<MetricBarProps> = ({
   max = 100,
   color,
   delay = 0,
+  valueLabel,
+  dimmed = false,
 }) => {
   const pct = Math.max(0, Math.min(1, max > 0 ? value / max : 0));
   const anim = useRef(new Animated.Value(0)).current;
@@ -41,10 +47,12 @@ const MetricBar: React.FC<MetricBarProps> = ({
   return (
     <View style={styles.wrap}>
       <View style={styles.row}>
-        <AppText style={styles.label} numberOfLines={1}>
+        <AppText
+          style={[styles.label, dimmed && styles.labelDimmed]}
+          numberOfLines={1}>
           {label}
         </AppText>
-        <AppText style={[styles.value, { color }]}>{value}</AppText>
+        <AppText style={[styles.value, { color }]}>{valueLabel ?? value}</AppText>
       </View>
       <View style={styles.track}>
         <Animated.View style={[styles.fill, { width, backgroundColor: color }]} />
@@ -57,6 +65,7 @@ const styles = StyleSheet.create({
   wrap: { gap: spacing[1] },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   label: { ...presets.bodyXS, color: COLORS.gray700, flex: 1, marginRight: spacing[2] },
+  labelDimmed: { color: COLORS.gray500 },
   value: { ...presets.labelSM, fontFamily: fonts.semibold },
   track: {
     height: 6,

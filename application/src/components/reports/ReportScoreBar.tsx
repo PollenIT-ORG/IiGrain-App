@@ -12,7 +12,9 @@ import AppText from '../AppText/AppText';
 
 export interface ReportScoreBarProps {
   label: string;
-  value: number;
+  /** `null` means the category has not been assessed yet — rendered as an em
+   *  dash with an empty track, so it reads as "not started" rather than zero. */
+  value: number | null;
   color: string;
   max?: number;
   delay?: number;
@@ -25,7 +27,8 @@ const ReportScoreBar: React.FC<ReportScoreBarProps> = ({
   max = 100,
   delay = 0,
 }) => {
-  const pct = clamp(max > 0 ? (value / max) * 100 : 0, 0, 100);
+  const hasScore = value !== null;
+  const pct = hasScore && max > 0 ? clamp((value / max) * 100, 0, 100) : 0;
   const progress = useSharedValue(0);
 
   useEffect(() => {
@@ -44,7 +47,9 @@ const ReportScoreBar: React.FC<ReportScoreBarProps> = ({
       <View style={styles.track}>
         <Animated.View style={[styles.fill, { backgroundColor: color }, fillStyle]} />
       </View>
-      <AppText style={[styles.value, { color }]}>{value}</AppText>
+      <AppText style={[styles.value, hasScore ? { color } : styles.valueEmpty]}>
+        {hasScore ? value : '—'}
+      </AppText>
     </View>
   );
 };
@@ -73,6 +78,9 @@ const styles = StyleSheet.create({
   fill: {
     height: '100%',
     borderRadius: borderRadius.full,
+  },
+  valueEmpty: {
+    color: COLORS.gray500,
   },
   value: {
     ...presets.headingXS,

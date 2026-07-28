@@ -4,12 +4,18 @@ import {
   listFields,
   findFieldById,
   updateField,
-  softDeleteField,
+  softDeleteFieldCascade,
   listFieldsByFarm,
+  fieldHasSubmittedAssessment,
+  fieldIsEnrolled,
+  fieldNameExistsInFarm,
+  resetFieldData,
   type PublicField,
   type ListFieldsFilters,
 } from "../models/field.model.js";
 import { findFarmById } from "../models/farm.model.js";
+import { emitSync } from "../socket/liveSync.js";
+import { broadcastToAdmins } from "./realtime.service.js";
 
 function nn(v: string | undefined | null): string | null {
   return v && v.trim() !== "" ? v.trim() : null;
@@ -47,9 +53,11 @@ async function assertFieldAreaWithinFarm(
   if (total > farmArea) {
     const remaining = round2(farmArea - othersTotal);
     throw ApiError.badRequest(
-      `Total field area (${total} acres) would exceed the farm area ` +
-        `(${farmArea} acres). Only ${remaining < 0 ? 0 : remaining} acre(s) remain.`
-    );
+    //   `Total field area (${total} acres) would exceed the farm area ` +
+    //     `(${farmArea} acres). Only ${remaining < 0 ? 0 : remaining} acre(s) remain.`
+    // );
+     `Field area is too large. Only ${remaining < 0 ? 0 : remaining} acre(s) can be added.`
+  );
   }
 }
 
@@ -73,16 +81,45 @@ interface CreateInput {
   longitude?: number | null;
   sowingDate?: string;
   expectedHarvest?: string;
-  status?: "healthy" | "monitor" | "critical";
   isActive?: boolean;
+}
+
+async function assertFieldNameFree(
+  farmId: string,
+  name: string,
+  excludeFieldId?: string
+): Promise<void> {
+  if (await fieldNameExistsInFarm(farmId, name, excludeFieldId)) {
+    throw ApiError.conflict(
+      `This farm already has a field named "${name}". Please use a different name.`
+    );
+  }
+}
+
+// Live sync to the field's owner (the farmer), whether the change came from the
+// farmer's own app or from an admin. This is what keeps every device of the
+// owner up to date no matter who made the change.
+async function syncFieldOwner(
+  farmId: string,
+  action: "created" | "updated" | "deleted" | "reset",
+  fieldId: string
+): Promise<void> {
+  const farm = await findFarmById(farmId);
+  if (farm?.owner_id) {
+    emitSync(farm.owner_id, { resource: "field", action, farmId, fieldId });
+  }
+  // Keep the admin field/dashboard lists live too.
+  broadcastToAdmins("fields", { fieldId, farmId });
 }
 
 export async function createFieldFor(input: CreateInput): Promise<PublicField> {
   await assertFarmExists(input.farmId);
+  const name = input.name.trim();
+  await assertFieldNameFree(input.farmId, name);
   await assertFieldAreaWithinFarm(input.farmId, input.areaAcres);
-  return createField({
+  const field = await createField({
     farmId: input.farmId,
-    name: input.name.trim(),
+    name,
     areaAcres: input.areaAcres ?? null,
     crop: nn(input.crop),
     season: nn(input.season),
@@ -92,9 +129,10 @@ export async function createFieldFor(input: CreateInput): Promise<PublicField> {
     longitude: input.longitude ?? null,
     sowingDate: nn(input.sowingDate),
     expectedHarvest: nn(input.expectedHarvest),
-    status: input.status ?? "healthy",
     isActive: input.isActive ?? true,
   });
+  await syncFieldOwner(input.farmId, "created", field.id);
+  return field;
 }
 
 interface ListInput {
@@ -102,7 +140,6 @@ interface ListInput {
   limit: number;
   farmId?: string;
   ownerId?: string;
-  status?: "healthy" | "monitor" | "critical";
   isActive?: boolean;
   search?: string;
 }
@@ -114,7 +151,6 @@ export async function getFields(input: ListInput): Promise<{
   const filters: ListFieldsFilters = {
     farmId: input.farmId,
     ownerId: input.ownerId,
-    status: input.status,
     isActive: input.isActive,
     search: input.search,
     limit: input.limit,
@@ -149,13 +185,16 @@ interface UpdateInput {
   longitude?: number | null;
   sowingDate?: string | null;
   expectedHarvest?: string | null;
-  status?: "healthy" | "monitor" | "critical";
   isActive?: boolean;
 }
 
 export async function editField(id: string, input: UpdateInput): Promise<PublicField> {
   const existing = await findFieldById(id);
   if (!existing) throw ApiError.notFound("Field not found.");
+
+  if (input.name !== undefined && input.name.trim()) {
+    await assertFieldNameFree(existing.farm_id, input.name.trim(), id);
+  }
 
   if (input.areaAcres !== undefined) {
     await assertFieldAreaWithinFarm(existing.farm_id, input.areaAcres, id);
@@ -172,16 +211,40 @@ export async function editField(id: string, input: UpdateInput): Promise<PublicF
     longitude: input.longitude !== undefined ? (input.longitude ?? null) : undefined,
     sowingDate: input.sowingDate !== undefined ? nn(input.sowingDate) : undefined,
     expectedHarvest: input.expectedHarvest !== undefined ? nn(input.expectedHarvest) : undefined,
-    status: input.status,
     isActive: input.isActive,
   });
   if (!updated) throw ApiError.notFound("Field not found.");
+  await syncFieldOwner(existing.farm_id, "updated", id);
   return updated;
 }
 
+async function assertFieldDeletable(id: string): Promise<void> {
+  if (await fieldHasSubmittedAssessment(id)) {
+    throw ApiError.conflict(
+      "This field has a submitted assessment and cannot be deleted."
+    );
+  }
+  if (await fieldIsEnrolled(id)) {
+    throw ApiError.conflict(
+      "This field is enrolled in a program. Remove it from the program before deleting."
+    );
+  }
+}
+
 export async function removeField(id: string): Promise<void> {
-  const ok = await softDeleteField(id);
+  const existing = await findFieldById(id);
+  if (!existing) throw ApiError.notFound("Field not found.");
+  await assertFieldDeletable(id);
+  const ok = await softDeleteFieldCascade(id);
   if (!ok) throw ApiError.notFound("Field not found.");
+  await syncFieldOwner(existing.farm_id, "deleted", id);
+}
+
+export async function resetFieldById(id: string): Promise<PublicField> {
+  const reset = await resetFieldData(id);
+  if (!reset) throw ApiError.notFound("Field not found.");
+  await syncFieldOwner(reset.farm_id, "reset", id);
+  return reset;
 }
 
 export async function getMyFarmFields(
@@ -209,6 +272,7 @@ export async function createMyFarmField(
   input: Omit<CreateInput, "farmId">
 ): Promise<PublicField> {
   await assertFarmOwner(farmId, userId);
+  // The core createFieldFor emits the sync to the owner.
   return createFieldFor({ ...input, farmId });
 }
 
@@ -233,4 +297,15 @@ export async function removeMyFarmField(
   const field = await findFieldById(fieldId);
   if (!field || field.farm_id !== farmId) throw ApiError.notFound("Field not found.");
   await removeField(fieldId);
+}
+
+export async function resetMyFarmField(
+  farmId: string,
+  fieldId: string,
+  userId: string
+): Promise<PublicField> {
+  await assertFarmOwner(farmId, userId);
+  const field = await findFieldById(fieldId);
+  if (!field || field.farm_id !== farmId) throw ApiError.notFound("Field not found.");
+  return resetFieldById(fieldId);
 }

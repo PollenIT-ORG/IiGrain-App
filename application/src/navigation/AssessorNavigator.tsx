@@ -10,6 +10,7 @@ import AssessorReviewScreen from '../screens/assessor/AssessorReviewScreen';
 import AssessorFarmerAssessmentScreen from '../screens/assessor/AssessorFarmerAssessmentScreen';
 import AssessorComparisonScreen from '../screens/assessor/AssessorComparisonScreen';
 import AssessorVisitScreen from '../screens/assessor/AssessorVisitScreen';
+import NotificationsScreen from '../screens/notifications/NotificationsScreen';
 import AccountScreen from '../screens/account/AccountScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
@@ -33,6 +34,7 @@ const AssessorNavigator: React.FC = () => {
       <Stack.Screen name="AssessorFarmerAssessment" component={AssessorFarmerAssessmentScreen} />
       <Stack.Screen name="AssessorComparison" component={AssessorComparisonScreen} />
       <Stack.Screen name="AssessorVisit" component={AssessorVisitScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="Account" component={AccountScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import {
   Animated,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -75,8 +76,36 @@ const ImagePickerBottomSheet: React.FC<ImagePickerBottomSheetProps> = ({
     }
   }, [visible, translateY, backdrop]);
 
+  /**
+   * The action the user tapped, held until this sheet's native modal is really
+   * gone. On iOS a <Modal> is a presented UIViewController: launching the
+   * camera/gallery while it is still dismissing makes UIKit refuse the
+   * presentation, which leaves an orphaned modal window swallowing every touch
+   * — the app looks frozen. So we never run the action inline.
+   */
+  const pendingAction = useRef<(() => void) | null>(null);
+  const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearFallback = useCallback(() => {
+    if (fallbackTimer.current) {
+      clearTimeout(fallbackTimer.current);
+      fallbackTimer.current = null;
+    }
+  }, []);
+
+  /** Runs the pending action at most once, whichever signal arrives first. */
+  const flushPending = useCallback(() => {
+    clearFallback();
+    const action = pendingAction.current;
+    pendingAction.current = null;
+    action?.();
+  }, [clearFallback]);
+
+  useEffect(() => clearFallback, [clearFallback]);
+
   const animateClose = useCallback(
     (after?: () => void) => {
+      pendingAction.current = after ?? null;
       Animated.parallel([
         Animated.timing(backdrop, { toValue: 0, duration: 160, useNativeDriver: true }),
         Animated.timing(translateY, {
@@ -86,10 +115,22 @@ const ImagePickerBottomSheet: React.FC<ImagePickerBottomSheetProps> = ({
         }),
       ]).start(() => {
         onClose();
-        after?.();
+        if (!after) {
+          return;
+        }
+        if (Platform.OS === 'ios') {
+          // Modal.onDismiss is the real "view controller is gone" signal. The
+          // timer only covers the case where it never arrives, so a tap can
+          // never silently do nothing.
+          clearFallback();
+          fallbackTimer.current = setTimeout(flushPending, 600);
+        } else {
+          // Android has no onDismiss; the next frame is enough there.
+          requestAnimationFrame(flushPending);
+        }
       });
     },
-    [backdrop, translateY, onClose],
+    [backdrop, translateY, onClose, clearFallback, flushPending],
   );
 
   const handleAction = useCallback(
@@ -115,7 +156,12 @@ const ImagePickerBottomSheet: React.FC<ImagePickerBottomSheetProps> = ({
   }));
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={() => animateClose()}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      onDismiss={flushPending}
+      onRequestClose={() => animateClose()}>
       <Animated.View style={[styles.backdrop, { opacity: backdrop }]}>
         <Pressable
           style={StyleSheet.absoluteFill}

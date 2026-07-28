@@ -1,3 +1,5 @@
+import { GENERIC_ERROR_MESSAGE } from '../config/errorMessages';
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
@@ -50,7 +52,10 @@ const fromResponseBody = (body: unknown): string | undefined => {
   return undefined;
 };
 
-export const getApiMessage = (error: unknown, fallback = 'Something went wrong'): string => {
+export const getApiMessage = (
+  error: unknown,
+  fallback: string = GENERIC_ERROR_MESSAGE,
+): string => {
   if (!isRecord(error)) {
     return typeof error === 'string' && error.trim() ? error.trim() : fallback;
   }

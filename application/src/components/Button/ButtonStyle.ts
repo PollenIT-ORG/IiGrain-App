@@ -42,6 +42,13 @@ export const styles = StyleSheet.create({
     borderWidth: borderWidth.medium,
     borderColor: COLORS.primary,
   },
+  // Solid red for irreversible actions. Deliberately not a `primary` override:
+  // primary paints a gradient over its whole surface, so a custom background
+  // passed via `style` would never be visible.
+  danger: {
+    backgroundColor: COLORS.danger,
+    ...shadows.sm,
+  },
 
   textLG: { ...presets.buttonLG },
   textSM: { ...presets.buttonSM },
@@ -49,6 +56,7 @@ export const styles = StyleSheet.create({
   primaryText:   { color: COLORS.white },
   secondaryText: { color: COLORS.white },
   outlineText:   { color: COLORS.primary },
+  dangerText:    { color: COLORS.white },
 
   disabled: {
     opacity: 0.5,

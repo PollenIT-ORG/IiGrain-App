@@ -1,6 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, TouchableOpacity, View } from 'react-native';
-import { useNavigation, type CompositeNavigationProp } from '@react-navigation/native';
+import {
+  useFocusEffect,
+  useNavigation,
+  type CompositeNavigationProp,
+} from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppIcon, ICONS } from '../../components/AppIcon';
@@ -9,6 +13,7 @@ import {
   FadeSlideIn,
   FarmerEmptyState,
   FarmerLoader,
+  FarmSelectorCard,
   FarmSelectorSheet,
   NextAssessmentCard,
   PerformanceSummaryCard,
@@ -24,12 +29,18 @@ import {
   fetchFarmDashboardThunk,
   selectDashboardError,
   selectDashboardFarms,
+  selectDashboardDefaultFarmId,
   selectDashboardFarmsError,
+  selectDashboardFarmsHasMore,
   selectDashboardFarmsLoading,
+  selectDashboardFarmsLoadingMore,
+  selectDashboardFarmsPage,
+  selectDashboardFarmsTotal,
   selectDashboardLoading,
   selectFarmDashboard,
   selectSelectedDashboardFarm,
   selectSelectedFarmId,
+  selectSelectedFarmIsStale,
   setSelectedFarmId,
 } from '../../redux/slices/dashboardSlice';
 import { selectIncomingVisit } from '../../redux/slices/visitSlice';
@@ -63,10 +74,16 @@ const HomeScreen: React.FC = () => {
   const selectedFarmId = useAppSelector(selectSelectedFarmId);
   const selectedFarm = useAppSelector(selectSelectedDashboardFarm);
   const farmsLoading = useAppSelector(selectDashboardFarmsLoading);
+  const farmsLoadingMore = useAppSelector(selectDashboardFarmsLoadingMore);
+  const farmsHasMore = useAppSelector(selectDashboardFarmsHasMore);
+  const farmsPage = useAppSelector(selectDashboardFarmsPage);
+  const farmsTotal = useAppSelector(selectDashboardFarmsTotal);
   const farmsError = useAppSelector(selectDashboardFarmsError);
+  const dashboardDefaultFarmId = useAppSelector(selectDashboardDefaultFarmId);
   const dashboard = useAppSelector(selectFarmDashboard);
   const dashboardLoading = useAppSelector(selectDashboardLoading);
   const dashboardError = useAppSelector(selectDashboardError);
+  const selectedFarmIsStale = useAppSelector(selectSelectedFarmIsStale);
 
   useFarmerVisitWatch();
   const incomingVisit = useAppSelector(selectIncomingVisit);
@@ -79,9 +96,27 @@ const HomeScreen: React.FC = () => {
 
   useEffect(() => {
     if (selectedFarmId) {
-      dispatch(fetchFarmDashboardThunk(selectedFarmId));
+      dispatch(fetchFarmDashboardThunk({ farmId: selectedFarmId }));
     }
   }, [dispatch, selectedFarmId]);
+
+  // An assessment answered elsewhere in the app flags its farm as stale. Coming
+  // back to Home with that farm selected refetches the regen health index so the
+  // card reflects the answer. First focus is skipped — the effect above covers
+  // mount — and a farm switch is covered by the same effect, so this only fires
+  // for a genuine "left, answered, came back" round trip.
+  const isFirstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstFocus.current) {
+        isFirstFocus.current = false;
+        return;
+      }
+      if (selectedFarmId && selectedFarmIsStale) {
+        dispatch(fetchFarmDashboardThunk({ farmId: selectedFarmId }));
+      }
+    }, [dispatch, selectedFarmId, selectedFarmIsStale]),
+  );
 
   useEffect(() => {
     (async () => {
@@ -89,8 +124,8 @@ const HomeScreen: React.FC = () => {
         tokenStorage.get(),
         tokenStorage.getRefresh(),
       ]);
-      console.log('ACCESS TOKEN =>', accessToken);
-      console.log('REFRESH TOKEN =>', refreshToken);
+      console.log('🔑 ACCESS TOKEN =>', accessToken);
+      console.log('🔁 REFRESH TOKEN =>', refreshToken);
     })();
   }, []);
 
@@ -98,7 +133,6 @@ const HomeScreen: React.FC = () => {
   const goEnroll = useCallback(() => navigation.navigate('EnrollNow'), [navigation]);
   const goFarms = useCallback(() => navigation.navigate('Farms'), [navigation]);
   const goRecommendations = useCallback(() => {
-    // TODO: point this at the Recommendations screen once it exists.
   }, []);
   const goReports = useCallback(
     () => navigation.navigate('Reports', { farmId: selectedFarmId ?? undefined }),
@@ -116,9 +150,16 @@ const HomeScreen: React.FC = () => {
   const onRefresh = useCallback(() => {
     dispatch(fetchDashboardFarmsThunk());
     if (selectedFarmId) {
-      dispatch(fetchFarmDashboardThunk(selectedFarmId));
+      dispatch(fetchFarmDashboardThunk({ farmId: selectedFarmId }));
     }
   }, [dispatch, selectedFarmId]);
+
+  const loadMoreFarms = useCallback(() => {
+    if (farmsLoading || farmsLoadingMore || !farmsHasMore) {
+      return;
+    }
+    dispatch(fetchDashboardFarmsThunk({ page: farmsPage + 1 }));
+  }, [dispatch, farmsLoading, farmsLoadingMore, farmsHasMore, farmsPage]);
 
   const openSheet = useCallback(() => setSheetVisible(true), []);
   const closeSheet = useCallback(() => setSheetVisible(false), []);
@@ -149,7 +190,7 @@ const HomeScreen: React.FC = () => {
   const summaryRows = dashboard ? toSummaryRows(dashboard.summary) : [];
 
   console.log("metrics - trend  - next  -  activityItems  - summaryRows" , "metrics  --------  " ,  metrics ,  "trend   -----   ---- - ",  trend  , "next ------- -- -- - ---",
-
+     
       "activityItems-- -- -- - ---- --- -- -", activityItems  , "summaryRows   ----------------   ", summaryRows,
     "token - - - - " , tokenStorage.peek(),
     )
@@ -226,16 +267,13 @@ const HomeScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={styles.farmRow}
-            activeOpacity={0.7}
+          <FarmSelectorCard
+            farmName={farmLabel}
+            fieldCount={selectedFarm?.fieldCount}
+            farmCount={farmsTotal}
+            loading={farmsLoading && farms.length === 0}
             onPress={openSheet}
-            disabled={farms.length === 0}>
-            <AppText style={styles.farmName} numberOfLines={1}>
-              {farmLabel}
-            </AppText>
-            <AppIcon name={ICONS.CHEVRON_DOWN} size={moderateScale(18)} color={COLORS.primary} />
-          </TouchableOpacity>
+          />
         </FadeSlideIn>
 
         {showFirstLoading ? (
@@ -286,7 +324,7 @@ const HomeScreen: React.FC = () => {
                       key={p.key}
                       title={p.title}
                       dueLabel={p.dueLabel}
-                      actionLabel={p.enrolled ? 'View' : 'Enrol'}
+                      actionLabel={p.enrolled ? 'View' : 'Enroll'}
                       onContinue={goEnroll}
                     />
                   ))}
@@ -313,7 +351,12 @@ const HomeScreen: React.FC = () => {
         visible={sheetVisible}
         farms={farms}
         selectedFarmId={selectedFarmId}
+        defaultFarmId={dashboardDefaultFarmId}
         loading={farmsLoading}
+        loadingMore={farmsLoadingMore}
+        hasMore={farmsHasMore}
+        total={farmsTotal}
+        onLoadMore={loadMoreFarms}
         onSelect={handleSelectFarm}
         onClose={closeSheet}
       />

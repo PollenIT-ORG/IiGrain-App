@@ -59,6 +59,18 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   farmer: "Farmer",
 };
 
+// Roles allowed to sign in to this management panel. Must stay in step with the
+// backend, where these three are the org-manager roles guarding the admin routes.
+export const ADMIN_PANEL_ROLES: UserRole[] = [
+  "super_admin",
+  "admin",
+  "program_administrator",
+];
+
+export function canUseAdminPanel(role: string): boolean {
+  return (ADMIN_PANEL_ROLES as string[]).includes(role);
+}
+
 export interface AssignedAssessor {
   assignmentId: string;
   assessorId: string;
@@ -71,6 +83,7 @@ export interface User {
   full_name: string | null;
   email: string;
   phone: string | null;
+  avatar_url: string | null;
   role: string;
   is_active: boolean;
   is_email_verified: boolean;
@@ -93,7 +106,10 @@ export interface Organization {
   description: string | null;
   contact_email: string | null;
   contact_phone: string | null;
+  contact_hours: string | null;
   address: string | null;
+  logo_url: string | null;
+  favicon_url: string | null;
   is_active: boolean;
   member_count: number;
   created_at: string;
@@ -105,6 +121,7 @@ export interface Farm {
   name: string;
   area_acres: string | null;
   location: string | null;
+  business_entity: string | null;
   latitude: number | null;
   longitude: number | null;
   owner_id: string;
@@ -119,8 +136,6 @@ export interface Farm {
   available_area?: string | null;
   field_count?: number;
 }
-
-export type FieldStatus = "healthy" | "monitor" | "critical";
 
 export interface ComparisonSide {
   submitted: boolean;
@@ -263,7 +278,6 @@ export interface Field {
   longitude: number | null;
   sowing_date: string | null;
   expected_harvest: string | null;
-  status: FieldStatus;
   is_active: boolean;
   created_at: string;
   updated_at: string;

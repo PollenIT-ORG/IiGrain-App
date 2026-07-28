@@ -48,7 +48,7 @@ export async function sendMail({
 }: SendMailParams): Promise<boolean> {
   if (!env.smtp.enabled) {
     logger.info(
-      `[SMTP disabled] Email not sent. Would have sent to <${to}>:\n` +
+      `📭 [SMTP disabled] Email not sent. Would have sent to <${to}>:\n` +
         `   Subject: ${subject}\n` +
         `   Body: ${text}`
     );
@@ -58,7 +58,7 @@ export async function sendMail({
   try {
     const from = `"${env.smtp.fromName}" <${env.smtp.fromEmail}>`;
     await getTransporter().sendMail({ from, to, subject, text, html });
-    logger.info(`Email sent to <${to}> - "${subject}"`);
+    logger.info(`📧 Email sent to <${to}> - "${subject}"`);
     return true;
   } catch (err) {
     logger.error(`Failed to send email to <${to}>`, err);
@@ -75,7 +75,7 @@ function logCode(title: string, to: string, code: string): void {
   logger.info(
     "\n" +
       "┌────────────────────────────────────────────┐\n" +
-      `│  ${title.padEnd(42)}│\n` +
+      `│  🔐  ${title.padEnd(38)}│\n` +
       "├────────────────────────────────────────────┤\n" +
       `│  Email : ${to.padEnd(34)}│\n` +
       `│  Code  : ${code.padEnd(34)}│\n` +
@@ -119,7 +119,7 @@ export async function sendWelcomeEmail(params: {
 }): Promise<boolean> {
   if (!env.smtp.enabled) {
     logger.info(
-      `[SMTP disabled] Welcome email for <${params.to}> - temporary password: ${params.password}`
+      `📭 [SMTP disabled] Welcome email for <${params.to}> - temporary password: ${params.password}`
     );
     return true;
   }

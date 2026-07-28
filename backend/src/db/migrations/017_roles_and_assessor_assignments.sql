@@ -2,7 +2,7 @@
 -- assessor↔farmer assignment table that lets a program administrator assign an
 -- assessor to visit a farmer.
 
--- New roles
+-- ── New roles ──
 -- super_admin            : platform owner (god mode), creates admins.
 -- program_administrator  : acts on the admin's behalf within an org - creates
 --                          assessors/farmers/farms and assigns assessors. Cannot
@@ -12,7 +12,7 @@ INSERT INTO roles (name, description) VALUES
   ('program_administrator', 'Manages assessors, farmers and farms within an organization on the admin''s behalf.')
 ON CONFLICT (name) DO NOTHING;
 
--- Assessor assignments
+-- ── Assessor assignments ──
 -- One row links an assessor to a farmer (for visits), recorded with who assigned
 -- it and under which organization. A farmer can have multiple assessors over
 -- time; the partial unique index prevents duplicate LIVE assignments of the same

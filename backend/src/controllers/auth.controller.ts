@@ -1,7 +1,10 @@
 import type { Request } from "express";
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiResponse from "../utils/ApiResponse.js";
+import ApiError from "../utils/ApiError.js";
+import env from "../config/env.js";
 import * as authService from "../services/auth.service.js";
+import * as userService from "../services/user.service.js";
 import type {
   RegisterBody,
   LoginBody,
@@ -11,6 +14,7 @@ import type {
   LogoutBody,
   ForgotPasswordBody,
   ResetPasswordBody,
+  CheckEmailQuery,
 } from "../validators/auth.schema.js";
 
 function reqContext(req: Request): { ip: string | null; userAgent: string | null } {
@@ -20,22 +24,41 @@ function reqContext(req: Request): { ip: string | null; userAgent: string | null
   };
 }
 
-export const register = asyncHandler(async (req, res) => {
-  const { fullName, email, phone, password, role } = req.body as RegisterBody;
+// The OTP is echoed in the API response only while SMTP is off (local/dev), so
+// devs can test without email. Once real emails are being sent, the code never
+// travels over the API - it goes only to the user's inbox.
+function otpEcho(code: string | undefined): { code?: string } {
+  return env.smtp.enabled || !code ? {} : { code };
+}
 
-  const result = await authService.register({
+export const checkEmail = asyncHandler(async (req, res) => {
+  const { email } = req.query as unknown as CheckEmailQuery;
+  const result = await authService.checkEmailAvailability(email);
+  return ApiResponse.send(
+    res,
+    200,
+    result.available
+      ? "This email is available."
+      : "An account with this email already exists.",
+    result
+  );
+});
+
+export const register = asyncHandler(async (req, res) => {
+  const { fullName, email, phone, password } = req.body as RegisterBody;
+
+  const { code, ...result } = await authService.register({
     email,
     password,
     fullName,
     phone,
-    role,
   });
 
   return ApiResponse.send(
     res,
     201,
     "Account created. We've sent a verification code - verify it to activate your account.",
-    result
+    { ...result, ...otpEcho(code) }
   );
 });
 
@@ -56,9 +79,12 @@ export const requestOtp = asyncHandler(async (req, res) => {
 
   const code = await authService.requestOtp(email);
 
-  return ApiResponse.send(res, 200, "A verification code has been sent.", {
-    code,
-  });
+  return ApiResponse.send(
+    res,
+    200,
+    "A verification code has been sent.",
+    otpEcho(code)
+  );
 });
 
 export const verifyOtp = asyncHandler(async (req, res) => {
@@ -90,9 +116,12 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 
   const code = await authService.forgotPassword(email);
 
-  return ApiResponse.send(res, 200, "A password reset code has been sent.", {
-    code,
-  });
+  return ApiResponse.send(
+    res,
+    200,
+    "A password reset code has been sent.",
+    otpEcho(code)
+  );
 });
 
 export const resetPassword = asyncHandler(async (req, res) => {
@@ -108,5 +137,10 @@ export const resetPassword = asyncHandler(async (req, res) => {
 });
 
 export const me = asyncHandler(async (req, res) => {
-  return ApiResponse.send(res, 200, "Current user.", { user: req.user });
+  // req.user is the decoded JWT ({ sub, email, role }), not a user row. Returning
+  // it directly gave clients a user with no id, no name and no avatar. Load the
+  // real record so this matches the shape of every other user-returning endpoint.
+  if (!req.user) throw ApiError.unauthorized("Authentication required.");
+  const user = await userService.getUserById(req.user.sub);
+  return ApiResponse.send(res, 200, "Current user.", { user });
 });

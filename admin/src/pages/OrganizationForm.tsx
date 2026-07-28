@@ -6,6 +6,7 @@ import {
   useUpdateOrganizationMutation,
 } from "../store/endpoints/organizationsApi";
 import { showSuccess, showError } from "../lib/toast";
+import { applyServerFieldErrors } from "../lib/serverErrors";
 import {
   required,
   optionalEmail,
@@ -126,7 +127,12 @@ export default function OrganizationForm() {
       }
       navigate("/organizations");
     } catch (err) {
-      showError(errMsg(err));
+      const placed = applyServerFieldErrors(err, setErrors, [
+        { field: "code", test: /code/i },
+        { field: "contactEmail", test: /email/i },
+        { field: "name", test: /name/i },
+      ]);
+      if (!placed) showError(errMsg(err));
     }
   }
 

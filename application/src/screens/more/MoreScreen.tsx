@@ -3,30 +3,32 @@ import { ScrollView, TouchableOpacity, View } from 'react-native';
 import { useNavigation, type NavigationProp } from '@react-navigation/native';
 import { AppIcon, ICONS } from '../../components/AppIcon';
 import { AppHeader, AppText } from '../../components';
+import { ProfileAvatar } from '../../components/account';
 import { COLORS } from '../../constants';
-import { capitalize, moderateScale } from '../../utils';
-import { useAppDispatch, useAppSelector } from '../../redux/hooks';
-import { logoutThunk, selectAuthUser } from '../../redux/slices/authSlice';
+import { moderateScale, scale } from '../../utils';
+import { useAppSelector } from '../../redux/hooks';
+import { selectProfileIdentity } from '../../redux/selectors/profileSelectors';
 import type { AppStackParamList } from '../../navigation/navigationTypes';
 import { styles } from './MoreScreenStyle';
 
 interface MenuItem {
   icon: string;
   label: string;
-  target?: 'Account' | 'Profile';
+  target?: 'Account' | 'Profile' | 'Help';
 }
 
 const MENU: MenuItem[] = [
   { icon: 'account-circle-outline', label: 'Profile', target: 'Profile' },
   { icon: 'account-outline', label: 'Account', target: 'Account' },
-  { icon: 'cog-outline', label: 'Settings' },
-  { icon: 'help-circle-outline', label: 'Help' },
+  // Help was previously target-less, so tapping it did nothing. It now opens
+  // HelpScreen, which hosts the self-service tools (Field Map, and whatever
+  // follows it).
+  { icon: 'help-circle-outline', label: 'Help', target: 'Help' },
 ];
 
 const MoreScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<AppStackParamList>>();
-  const dispatch = useAppDispatch();
-  const user = useAppSelector(selectAuthUser);
+  const identity = useAppSelector(selectProfileIdentity);
 
   const handlePress = useCallback(
     (item: MenuItem) => {
@@ -37,13 +39,6 @@ const MoreScreen: React.FC = () => {
     [navigation],
   );
 
-  const handleLogout = useCallback(() => {
-    dispatch(logoutThunk());
-  }, [dispatch]);
-
-  const initials = (user?.fullName ?? 'F').trim().charAt(0).toUpperCase();
-  const roleLabel = capitalize(user?.role ?? '') || 'Farmer';
-
   return (
     <View style={styles.safe}>
       <AppHeader variant="title" title="More" showDrawer />
@@ -52,14 +47,27 @@ const MoreScreen: React.FC = () => {
         contentContainerStyle={styles.body}
         showsVerticalScrollIndicator={false}>
         <View style={styles.identity}>
-          <View style={styles.avatar}>
-            <AppText style={styles.avatarText}>{initials}</AppText>
-          </View>
+          <ProfileAvatar
+            size={scale(56)}
+            style={styles.avatar}
+            imageStyle={styles.avatarImage}
+            textStyle={styles.avatarText}
+          />
           <View style={styles.flex}>
-            <AppText style={styles.name} numberOfLines={1}>{user?.fullName ?? 'Farmer'}</AppText>
-            <AppText style={styles.email} numberOfLines={1}>{user?.email ?? ''}</AppText>
+            <AppText style={styles.name} numberOfLines={1}>
+              {identity.displayName}
+            </AppText>
+            {identity.email ? (
+              <AppText style={styles.email} numberOfLines={1}>
+                {identity.email}
+              </AppText>
+            ) : (
+              <AppText style={styles.email} numberOfLines={1}>
+                -
+              </AppText>
+            )}
             <View style={styles.roleBadge}>
-              <AppText style={styles.roleText}>{roleLabel}</AppText>
+              <AppText style={styles.roleText}>{identity.roleLabel}</AppText>
             </View>
           </View>
         </View>

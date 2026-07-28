@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -26,6 +26,7 @@ import {
 } from '../../constants';
 import { moderateScale } from '../../utils';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
+import { useAssessorOverviewSync } from '../../hooks/useAssessorOverviewSync';
 import {
   fetchAssessorFieldsThunk,
   selectAssessorError,
@@ -51,11 +52,9 @@ const AssessorFarmerDetailScreen: React.FC<AssessorScreenProps<'AssessorFarmerDe
     [overview, farmerId],
   );
 
-  useEffect(() => {
-    if (!overview) {
-      dispatch(fetchAssessorFieldsThunk());
-    }
-  }, [dispatch, overview]);
+  // Shared overview cache: fetch once, then refresh only when the socket says
+  // an assignment/assessment changed (or the TTL lapses). See the hook.
+  useAssessorOverviewSync(!!overview);
 
   const onRefresh = useCallback(() => dispatch(fetchAssessorFieldsThunk()), [dispatch]);
 

@@ -7,7 +7,7 @@
 --
 -- Hierarchy: organization → program → enrollment (farmer) → enrolled fields.
 
--- Programs: a scheme within an organization.
+-- ── Programs: a scheme within an organization. ──
 CREATE TABLE IF NOT EXISTS programs (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id      UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS programs (
 CREATE INDEX IF NOT EXISTS idx_programs_org
   ON programs (org_id) WHERE deleted_at IS NULL;
 
--- Program enrollments: a farmer enrolled into a program.
+-- ── Program enrollments: a farmer enrolled into a program. ──
 -- One live enrollment per (program, farmer). A farmer may be enrolled in many
 -- programs; a program may enroll many farmers (bounded by user_limit).
 CREATE TABLE IF NOT EXISTS program_enrollments (
@@ -57,7 +57,7 @@ CREATE INDEX IF NOT EXISTS idx_program_enrollments_program
 CREATE INDEX IF NOT EXISTS idx_program_enrollments_farmer
   ON program_enrollments (farmer_id) WHERE deleted_at IS NULL;
 
--- Enrolled fields: the SPECIFIC fields of the farmer that are in the program.
+-- ── Enrolled fields: the SPECIFIC fields of the farmer that are in the program.
 -- A farmer may put only some fields into a program (e.g. 2 wheat fields, not the
 -- rice field). A field can belong to different programs across enrollments.
 CREATE TABLE IF NOT EXISTS program_enrollment_fields (

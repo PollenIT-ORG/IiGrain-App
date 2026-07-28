@@ -28,6 +28,7 @@ import Input from '../Input/Input';
 import Button from '../Button/Button';
 import AppDatePicker from '../AppDatePicker';
 import {
+  API_LIMITS,
   COLORS,
   borderRadius,
   borderWidth,
@@ -63,15 +64,27 @@ export interface SoilDetailsModalProps {
   values: SoilValues;
   onChange: (field: keyof SoilValues, value: string) => void;
   disabled?: boolean;
+  /** Nutrient inputs (pH, OM, N, P, K, moisture) are only editable once the
+   *  field is enrolled in a started program. */
+  showNutrients?: boolean;
+  /** When given, the footer becomes a save action instead of a plain dismiss. */
+  onSubmit?: () => void;
+  submitLabel?: string;
+  submitting?: boolean;
+  subtitle?: string;
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const SheetFooter: React.FC<{ label: string; onPress: () => void }> = ({ label, onPress }) => {
+const SheetFooter: React.FC<{
+  label: string;
+  onPress: () => void;
+  loading?: boolean;
+}> = ({ label, onPress, loading }) => {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.footer, { paddingBottom: insets.bottom + spacing[4] }]}>
-      <Button title={label} onPress={onPress} />
+      <Button title={label} onPress={onPress} loading={loading} />
     </View>
   );
 };
@@ -82,6 +95,11 @@ const SoilDetailsModal: React.FC<SoilDetailsModalProps> = ({
   values,
   onChange,
   disabled = false,
+  showNutrients = true,
+  onSubmit,
+  submitLabel,
+  submitting = false,
+  subtitle,
 }) => {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -166,7 +184,9 @@ const SoilDetailsModal: React.FC<SoilDetailsModalProps> = ({
                     </View>
                     <View style={styles.headerTexts}>
                       <AppText style={styles.title}>Soil Information</AppText>
-                      <AppText style={styles.subtitle}>Optional - saved to the field's soil record</AppText>
+                      <AppText style={styles.subtitle}>
+                        {subtitle ?? "Optional — saved to the field's soil record"}
+                      </AppText>
                     </View>
                   </View>
                   <Pressable
@@ -198,82 +218,87 @@ const SoilDetailsModal: React.FC<SoilDetailsModalProps> = ({
                   editable={!disabled}
                   autoCapitalize="words"
                   returnKeyType="next"
+                  maxLength={API_LIMITS.soil.texture}
                 />
 
-                <View style={styles.row}>
-                  <View style={styles.col}>
-                    <Input
-                      label="pH"
-                      placeholder="e.g. 6.5"
-                      value={values.ph}
-                      onChangeText={set('ph')}
-                      editable={!disabled}
-                      keyboardType="decimal-pad"
-                      returnKeyType="next"
-                    />
+                {showNutrients ? (
+                  <>
+                  <View style={styles.row}>
+                    <View style={styles.col}>
+                      <Input
+                        label="pH"
+                        placeholder="e.g. 6.5"
+                        value={values.ph}
+                        onChangeText={set('ph')}
+                        editable={!disabled}
+                        keyboardType="decimal-pad"
+                        returnKeyType="next"
+                      />
+                    </View>
+                    <View style={styles.col}>
+                      <Input
+                        label="Organic Matter (%)"
+                        placeholder="e.g. 3.2"
+                        value={values.organicMatter}
+                        onChangeText={set('organicMatter')}
+                        editable={!disabled}
+                        keyboardType="decimal-pad"
+                        returnKeyType="next"
+                      />
+                    </View>
                   </View>
-                  <View style={styles.col}>
-                    <Input
-                      label="Organic Matter (%)"
-                      placeholder="e.g. 3.2"
-                      value={values.organicMatter}
-                      onChangeText={set('organicMatter')}
-                      editable={!disabled}
-                      keyboardType="decimal-pad"
-                      returnKeyType="next"
-                    />
-                  </View>
-                </View>
 
-                <View style={styles.row}>
-                  <View style={styles.col}>
-                    <Input
-                      label="Nitrogen (N)"
-                      placeholder="e.g. 40"
-                      value={values.nitrogen}
-                      onChangeText={set('nitrogen')}
-                      editable={!disabled}
-                      keyboardType="decimal-pad"
-                      returnKeyType="next"
-                    />
+                  <View style={styles.row}>
+                    <View style={styles.col}>
+                      <Input
+                        label="Nitrogen (N)"
+                        placeholder="e.g. 40"
+                        value={values.nitrogen}
+                        onChangeText={set('nitrogen')}
+                        editable={!disabled}
+                        keyboardType="decimal-pad"
+                        returnKeyType="next"
+                      />
+                    </View>
+                    <View style={styles.col}>
+                      <Input
+                        label="Phosphorus (P)"
+                        placeholder="e.g. 20"
+                        value={values.phosphorus}
+                        onChangeText={set('phosphorus')}
+                        editable={!disabled}
+                        keyboardType="decimal-pad"
+                        returnKeyType="next"
+                      />
+                    </View>
                   </View>
-                  <View style={styles.col}>
-                    <Input
-                      label="Phosphorus (P)"
-                      placeholder="e.g. 20"
-                      value={values.phosphorus}
-                      onChangeText={set('phosphorus')}
-                      editable={!disabled}
-                      keyboardType="decimal-pad"
-                      returnKeyType="next"
-                    />
-                  </View>
-                </View>
 
-                <View style={styles.row}>
-                  <View style={styles.col}>
-                    <Input
-                      label="Potassium (K)"
-                      placeholder="e.g. 30"
-                      value={values.potassium}
-                      onChangeText={set('potassium')}
-                      editable={!disabled}
-                      keyboardType="decimal-pad"
-                      returnKeyType="next"
-                    />
+                  <View style={styles.row}>
+                    <View style={styles.col}>
+                      <Input
+                        label="Potassium (K)"
+                        placeholder="e.g. 30"
+                        value={values.potassium}
+                        onChangeText={set('potassium')}
+                        editable={!disabled}
+                        keyboardType="decimal-pad"
+                        returnKeyType="next"
+                      />
+                    </View>
+                    <View style={styles.col}>
+                      <Input
+                        label="Moisture (%)"
+                        placeholder="e.g. 18"
+                        value={values.moisture}
+                        onChangeText={set('moisture')}
+                        editable={!disabled}
+                        keyboardType="decimal-pad"
+                        returnKeyType="next"
+                      />
+                    </View>
                   </View>
-                  <View style={styles.col}>
-                    <Input
-                      label="Moisture (%)"
-                      placeholder="e.g. 18"
-                      value={values.moisture}
-                      onChangeText={set('moisture')}
-                      editable={!disabled}
-                      keyboardType="decimal-pad"
-                      returnKeyType="next"
-                    />
-                  </View>
-                </View>
+                  </>
+                ) : null}
 
                 <AppDatePicker
                   label="Soil Tested On"
@@ -291,11 +316,16 @@ const SoilDetailsModal: React.FC<SoilDetailsModalProps> = ({
                   editable={!disabled}
                   autoCapitalize="sentences"
                   returnKeyType="done"
+                  maxLength={API_LIMITS.soil.notes}
                 />
               </ScrollView>
             </KeyboardAvoidingView>
 
-            <SheetFooter label={disabled ? 'Close' : 'Done'} onPress={onClose} />
+            <SheetFooter
+              label={submitLabel ?? (disabled ? 'Close' : 'Done')}
+              onPress={onSubmit ?? onClose}
+              loading={submitting}
+            />
           </Animated.View>
         </View>
         </GestureHandlerRootView>

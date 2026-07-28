@@ -102,7 +102,7 @@ const RoleScreen: React.FC<AuthScreenProps<'Role'>> = ({ route, navigation }) =>
           </View>
         ) : null}
 
-        <View style={[styles.iconCircle,
+        <View style={[styles.iconCircle, 
           isActive ?
           styles.iconCircleActive:
           styles.iconCircleInActive

@@ -75,7 +75,12 @@ export async function removeCategory(id: string) {
 export async function orderCategories(
   items: { id: string; sortOrder: number }[]
 ) {
-  await reorderCategories(items);
+  const updated = await reorderCategories(items);
+  if (updated < items.length) {
+    throw ApiError.notFound(
+      "One or more categories could not be found. Refresh and try again."
+    );
+  }
 }
 
 export async function getQuestions(filters: ListQuestionsFilters) {
@@ -152,7 +157,12 @@ export async function removeQuestion(id: string) {
 export async function orderQuestions(
   items: { id: string; sortOrder: number }[]
 ) {
-  await reorderQuestions(items);
+  const updated = await reorderQuestions(items);
+  if (updated < items.length) {
+    throw ApiError.notFound(
+      "One or more questions could not be found. Refresh and try again."
+    );
+  }
 }
 
 interface ExcelRow {

@@ -24,14 +24,14 @@ export const getFieldDetails = asyncHandler(
 );
 
 export const getSoil = asyncHandler(async (req: Request, res: Response) => {
-  const soil = await service.getSoil(req.params.id, actorOf(req));
-  return ApiResponse.send(res, 200, "Soil record fetched.", { soil });
+  const { soil, locked } = await service.getSoil(req.params.id, actorOf(req));
+  return ApiResponse.send(res, 200, "Soil record fetched.", { soil, locked });
 });
 
 export const saveSoil = asyncHandler(async (req: Request, res: Response) => {
   const body = req.body as UpsertSoilBody;
-  const soil = await service.saveSoil(req.params.id, body, actorOf(req));
-  return ApiResponse.send(res, 200, "Soil record saved.", { soil });
+  const { soil, locked } = await service.saveSoil(req.params.id, body, actorOf(req));
+  return ApiResponse.send(res, 200, "Soil record saved.", { soil, locked });
 });
 
 export const listDocuments = asyncHandler(
@@ -85,7 +85,8 @@ export const getAssessmentComparison = asyncHandler(
   async (req: Request, res: Response) => {
     const result = await service.getAssessmentComparison(
       req.params.id,
-      actorOf(req)
+      actorOf(req),
+      (req.query.programId as string | undefined) ?? null
     );
     return ApiResponse.send(res, 200, "Assessment comparison fetched.", result);
   }

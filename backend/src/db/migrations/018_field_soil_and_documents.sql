@@ -2,7 +2,7 @@
 -- Per-field Soil record (one row per field, upserted) and Documents (many per
 -- field). Drives the Soil and Docs tabs on the Field Details screen.
 
--- Soil: one record per field (the latest soil profile). Upserted.
+-- ── Soil: one record per field (the latest soil profile). Upserted. ──
 CREATE TABLE IF NOT EXISTS field_soil (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   field_id       UUID NOT NULL REFERENCES fields(id) ON DELETE CASCADE,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS field_soil (
 CREATE UNIQUE INDEX IF NOT EXISTS uq_field_soil_field_alive
   ON field_soil (field_id) WHERE deleted_at IS NULL;
 
--- Documents: many per field. Files live in Cloudinary; we store the URL.
+-- ── Documents: many per field. Files live in Cloudinary; we store the URL. ──
 CREATE TABLE IF NOT EXISTS field_documents (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   field_id     UUID NOT NULL REFERENCES fields(id) ON DELETE CASCADE,

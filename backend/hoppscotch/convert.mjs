@@ -158,7 +158,7 @@ writeFileSync(
   join(OUT_DIR, "full-collection.json"),
   JSON.stringify(full, null, 2)
 );
-console.log("full-collection.json");
+console.log("✅ full-collection.json");
 
 // 2. One file per top-level folder (import just the new day's APIs).
 for (const folder of topFolders) {
@@ -167,7 +167,7 @@ for (const folder of topFolders) {
   const file = { ...hopp };
   const name = `${slug(folder.name)}.json`;
   writeFileSync(join(OUT_DIR, name), JSON.stringify(file, null, 2));
-  console.log(`${name}`);
+  console.log(`✅ ${name}`);
 }
 
 // 3. Environment file (import under Environments → Import).
@@ -185,7 +185,7 @@ writeFileSync(
   join(OUT_DIR, "environment.json"),
   JSON.stringify(env, null, 2)
 );
-console.log("environment.json");
+console.log("✅ environment.json");
 
 console.log("\nImport into Hoppscotch:");
 console.log("  1. Environments → Import → environment.json (sets baseUrl etc.)");

@@ -6,6 +6,7 @@ import {
   useUpdateUserMutation,
 } from "../store/endpoints/usersApi";
 import { showSuccess, showError } from "../lib/toast";
+import { applyServerFieldErrors } from "../lib/serverErrors";
 import {
   required,
   requiredEmail,
@@ -107,7 +108,11 @@ export default function UserForm() {
       }
       navigate("/users");
     } catch (err) {
-      showError(errMsg(err));
+      const placed = applyServerFieldErrors(err, setErrors, [
+        { field: "email", test: /email/i },
+        { field: "phone", test: /phone/i },
+      ]);
+      if (!placed) showError(errMsg(err));
     }
   }
 

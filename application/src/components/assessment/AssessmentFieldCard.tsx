@@ -11,17 +11,17 @@ import {
 } from '../../constants';
 import { formatDate, moderateScale, scale } from '../../utils';
 import AppText from '../AppText/AppText';
-import AssessmentProgressBar from './AssessmentProgressBar';
+import AssessmentProgressMeter from './AssessmentProgressMeter';
 import AssessmentStatusBadge from './AssessmentStatusBadge';
 import type { MyAssessmentField } from '../../types/assessment';
 
 export interface AssessmentFieldCardProps {
   item: MyAssessmentField;
-  onPress: (fieldId: string) => void;
+  onPress: (item: MyAssessmentField) => void;
 }
 
 const AssessmentFieldCard: React.FC<AssessmentFieldCardProps> = ({ item, onPress }) => {
-  const handlePress = useCallback(() => onPress(item.fieldId), [onPress, item.fieldId]);
+  const handlePress = useCallback(() => onPress(item), [onPress, item]);
 
   return (
     <Pressable
@@ -45,8 +45,20 @@ const AssessmentFieldCard: React.FC<AssessmentFieldCardProps> = ({ item, onPress
         <AssessmentStatusBadge status={item.status} />
       </View>
 
+      {item.programName ? (
+        <View style={styles.programChip}>
+          <AppIcon name="clipboard-list-outline" size={moderateScale(13)} color={COLORS.primary} />
+          <AppText style={styles.programText} numberOfLines={1}>
+            {item.programName}
+          </AppText>
+        </View>
+      ) : null}
+
       <View style={styles.progressRow}>
-        <AssessmentProgressBar progress={Math.round(item.percentage)} />
+        <AssessmentProgressMeter
+          progress={item.percentage}
+          isComplete={item.status === 'COMPLETED'}
+        />
       </View>
 
       <View style={styles.footerRow}>
@@ -105,6 +117,22 @@ const styles = StyleSheet.create({
   sub: {
     ...presets.bodyXS,
     color: COLORS.gray700,
+  },
+  programChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: spacing[1],
+    marginTop: -spacing[1],
+    paddingHorizontal: spacing[2],
+    paddingVertical: spacing[0.5],
+    borderRadius: borderRadius.full,
+    backgroundColor: COLORS.lightPrimary,
+  },
+  programText: {
+    ...presets.caption,
+    color: COLORS.primaryDark,
+    maxWidth: scale(200),
   },
   progressRow: {
     marginTop: -spacing[1],

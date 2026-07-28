@@ -3,6 +3,11 @@ import type { ApiSuccess } from "../../types";
 
 interface AppConfig {
   saasEnabled: boolean;
+  branding?: {
+    appName: string | null;
+    logoUrl: string | null;
+    faviconUrl: string | null;
+  };
 }
 
 export const configApi = apiSlice.injectEndpoints({

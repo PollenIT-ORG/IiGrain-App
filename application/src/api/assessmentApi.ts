@@ -14,6 +14,7 @@ import type {
     AssessmentSubmitResult,
     CategoryQuestionList,
     FieldAssessmentSummary,
+    FieldRegenIndex,
     MyAssessmentCounts,
     MyAssessmentField,
     MyAssessmentsOverview,
@@ -22,9 +23,17 @@ import type {
     SaveAnswerInput,
     SavedAnswer,
 } from '../types/assessment';
+import {
+    normalizePageMeta,
+    toPageParams,
+    type PageMeta,
+    type PageQuery,
+    type RawPageMeta,
+} from '../types/pagination';
 
 interface Envelope<T> {
     data: T;
+    meta?: RawPageMeta;
 }
 
 interface RawAssessmentField {
@@ -206,6 +215,9 @@ const mapAssessment = (raw: RawAssessment): AssessmentInfo => ({
     totalQuestions: raw.totalQuestions ?? 0,
     answered: raw.answered ?? 0,
     percentage: raw.percentage ?? 0,
+    // `mapAssessmentStatus` folds 'submitted' into COMPLETED, so keep the
+    // distinction here — it is what separates "View & Submit" from "View".
+    submitted: raw.status === 'submitted',
 });
 
 const mapAssessmentCategory = (
@@ -350,72 +362,83 @@ const trace = (label: string, payload: Record<string, unknown>): void => {
 };
 
 export const getAssessmentSummary = async (
+    programId: string,
     fieldId: string,
 ): Promise<FieldAssessmentSummary> => {
-    trace('GET summary', { fieldId });
+    trace('GET summary', { programId, fieldId });
     const res = await http.get<Envelope<AssessmentSummaryPayload>>(
-        Endpoints.assessment.summary(fieldId),
+        Endpoints.assessment.summary(programId, fieldId),
     );
     return mapAssessmentSummary(res.data.data);
 };
 
 export const getCategoryQuestions = async (
+    programId: string,
     fieldId: string,
     categoryId: string,
 ): Promise<CategoryQuestionList> => {
-    trace('GET categoryQuestions', { fieldId, categoryId });
+    trace('GET categoryQuestions', { programId, fieldId, categoryId });
     const res = await http.get<Envelope<CategoryQuestionsPayload>>(
-        Endpoints.assessment.categoryQuestions(fieldId, categoryId),
+        Endpoints.assessment.categoryQuestions(programId, fieldId, categoryId),
     );
     return mapCategoryQuestionList(res.data.data);
 };
 
 export const getQuestionDetail = async (
+    programId: string,
     fieldId: string,
     categoryId: string,
     questionId: string,
 ): Promise<AssessmentQuestionDetail> => {
-    trace('GET question', { fieldId, categoryId, questionId });
+    trace('GET question', { programId, fieldId, categoryId, questionId });
     const res = await http.get<Envelope<QuestionDetailPayload>>(
-        Endpoints.assessment.question(fieldId, categoryId, questionId),
+        Endpoints.assessment.question(programId, fieldId, categoryId, questionId),
     );
     return mapQuestionDetail(res.data.data);
 };
 
 export const saveAnswer = async (
+    programId: string,
     fieldId: string,
     questionId: string,
     input: SaveAnswerInput,
 ): Promise<SavedAnswer> => {
     trace('PUT saveAnswer', {
-        url: Endpoints.assessment.saveAnswer(fieldId, questionId),
+        url: Endpoints.assessment.saveAnswer(programId, fieldId, questionId),
+        programId,
         fieldId,
         questionId,
         body: input,
     });
     const res = await http.put<Envelope<SaveAnswerPayload>>(
-        Endpoints.assessment.saveAnswer(fieldId, questionId),
+        Endpoints.assessment.saveAnswer(programId, fieldId, questionId),
         input,
     );
     return mapSavedAnswer(res.data.data.response);
 };
 
 export const getAssessmentReview = async (
+    programId: string,
     fieldId: string,
 ): Promise<AssessmentReview> => {
-    trace('GET review', { fieldId });
+    trace('GET review', { programId, fieldId });
     const res = await http.get<Envelope<ReviewPayload>>(
-        Endpoints.assessment.review(fieldId),
+        Endpoints.assessment.review(programId, fieldId),
     );
     return mapReview(res.data.data);
 };
 
 export const submitAssessment = async (
+    programId: string,
     fieldId: string,
 ): Promise<AssessmentSubmitResult> => {
-    trace('POST submit', { fieldId, url: Endpoints.assessment.submit(fieldId) });
+    trace('POST submit', {
+        programId,
+        fieldId,
+        url: Endpoints.assessment.submit(programId, fieldId),
+    });
     const res = await http.post<Envelope<SubmitPayload>>(
-        Endpoints.assessment.submit(fieldId),
+        Endpoints.assessment.submit(programId, fieldId),
     );
     return mapSubmitResult(res.data.data);
 };
@@ -423,6 +446,7 @@ export const submitAssessment = async (
 interface RawMyAssessmentField {
     field: { id: string; name: string; crop: string; status: string };
     farm: { id: string; name: string };
+    program?: { id: string | null; name: string | null } | null;
     assessment: {
         status: string;
         inProgress: boolean;
@@ -447,6 +471,8 @@ const mapMyAssessmentField = (raw: RawMyAssessmentField): MyAssessmentField => (
     fieldStatus: raw.field.status ?? '',
     farmId: raw.farm.id,
     farmName: raw.farm.name ?? '',
+    programId: raw.program?.id ?? '',
+    programName: raw.program?.name ?? '',
     status: mapAssessmentStatus(raw.assessment.status),
     totalQuestions: raw.assessment.totalQuestions ?? 0,
     answered: raw.assessment.answered ?? 0,
@@ -469,12 +495,138 @@ const mapMyAssessments = (payload: MyAssessmentsPayload): MyAssessmentsOverview 
     };
 };
 
-export const getMyAssessmentFields = async (): Promise<MyAssessmentsOverview> => {
-    trace('GET myFields', { url: Endpoints.assessment.myFields });
+export interface DiscardAssessmentResult {
+    field: { id: string; name: string };
+    discardedAnswers: number;
+}
+
+interface RawDiscardPayload {
+    field?: { id?: string; name?: string };
+    discardedAnswers?: number;
+    discarded_answers?: number;
+}
+
+/** Clears every saved answer + the draft for a (field, program) so the
+ *  assessment can be started fresh. Rejects with 409 once submitted. */
+export const discardAssessment = async (
+    programId: string,
+    fieldId: string,
+): Promise<DiscardAssessmentResult> => {
+    trace('DELETE discard', { programId, fieldId });
+    const res = await http.delete<Envelope<RawDiscardPayload>>(
+        Endpoints.assessment.discard(programId, fieldId),
+    );
+    const raw = res.data.data;
+    return {
+        field: { id: raw.field?.id ?? fieldId, name: raw.field?.name ?? '' },
+        discardedAnswers: raw.discardedAnswers ?? raw.discarded_answers ?? 0,
+    };
+};
+
+export const getMyAssessmentFields = async (
+    query?: PageQuery,
+): Promise<MyAssessmentsOverview> => {
+    trace('GET myFields', { url: Endpoints.assessment.myFields, query });
     const res = await http.get<Envelope<MyAssessmentsPayload>>(
         Endpoints.assessment.myFields,
+        { params: toPageParams(query) },
     );
-    return mapMyAssessments(res.data.data);
+    const overview = mapMyAssessments(res.data.data);
+    return {
+        ...overview,
+        meta: normalizePageMeta(res.data.meta, overview.fields.length, query),
+    };
+};
+
+interface RawHistoryItem {
+    field: { id: string; name: string; crop: string | null };
+    farm: { id: string; name: string };
+    program?: { id: string | null; name: string | null } | null;
+    assessment: {
+        totalQuestions: number;
+        answered: number;
+        percentage: number;
+        submittedAt: string | null;
+    };
+}
+interface HistoryPayload {
+    count: number;
+    assessments: RawHistoryItem[];
+}
+
+export interface MyAssessmentHistory {
+    count: number;
+    items: MyAssessmentField[];
+    meta: PageMeta;
+}
+
+const mapHistoryItem = (raw: RawHistoryItem): MyAssessmentField => ({
+    fieldId: raw.field.id,
+    fieldName: raw.field.name ?? '',
+    crop: raw.field.crop ?? '',
+    fieldStatus: '',
+    farmId: raw.farm.id,
+    farmName: raw.farm.name ?? '',
+    programId: raw.program?.id ?? '',
+    programName: raw.program?.name ?? '',
+    status: 'COMPLETED',
+    totalQuestions: raw.assessment.totalQuestions ?? 0,
+    answered: raw.assessment.answered ?? 0,
+    percentage: toPercentage(raw.assessment.percentage),
+    submittedAtISO: raw.assessment.submittedAt ?? null,
+});
+
+export const getMyAssessmentHistory = async (
+    farmId?: string,
+    query?: PageQuery,
+): Promise<MyAssessmentHistory> => {
+    trace('GET myHistory', { url: Endpoints.assessment.myHistory, farmId, query });
+    const res = await http.get<Envelope<HistoryPayload>>(Endpoints.assessment.myHistory, {
+        params: { ...toPageParams(query), ...(farmId ? { farmId } : {}) },
+    });
+    const data = res.data.data;
+    const items = (data.assessments ?? []).map(mapHistoryItem);
+    const meta = normalizePageMeta(res.data.meta, items.length, query);
+    return { count: data.count ?? meta.total, items, meta };
+};
+
+interface RawRegenCategory {
+    id: string;
+    name: string;
+    score: number | null;
+    answered: number;
+}
+
+interface RawFieldRegenIndex {
+    field: RawAssessmentField;
+    regenHealthIndex: number | null;
+    rating: string | null;
+    categories: RawRegenCategory[];
+    topCategory: string | null;
+}
+
+const mapRegenIndex = (raw: RawFieldRegenIndex): FieldRegenIndex => ({
+    field: mapAssessmentField(raw.field),
+    regenHealthIndex: raw.regenHealthIndex,
+    rating: raw.rating,
+    categories: (raw.categories ?? []).map(c => ({
+        id: c.id,
+        name: c.name ?? '',
+        score: c.score,
+        answered: c.answered ?? 0,
+    })),
+    topCategory: raw.topCategory,
+});
+
+export const getFieldRegenIndex = async (
+    programId: string,
+    fieldId: string,
+): Promise<FieldRegenIndex> => {
+    trace('GET regenIndex', { programId, fieldId });
+    const res = await http.get<Envelope<RawFieldRegenIndex>>(
+        Endpoints.assessment.regenIndex(programId, fieldId),
+    );
+    return mapRegenIndex(res.data.data);
 };
 
 export interface EvidenceUploadFile {
@@ -508,9 +660,25 @@ export const uploadEvidence = async (
     const res = await http.post<Envelope<EvidenceUploadPayload>>(
         Endpoints.assessment.uploadEvidence,
         form,
+        EVIDENCE_UPLOAD_CONFIG,
     );
     return res.data.data.urls ?? [];
 };
+
+/**
+ * Evidence can be a video up to 50 MB, which on a mobile connection takes far
+ * longer than the 15s default request timeout and would otherwise abort. The
+ * abort reads as a network error, which the http retry interceptor treats as
+ * retryable — re-sending the whole file from 0% and making the progress bar
+ * restart after it already hit 100%. A long timeout + `skipRetry` stops both:
+ * the upload gets the time it needs, and a genuine failure surfaces once (as a
+ * retryable tile) instead of silently looping.
+ */
+const EVIDENCE_UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
+const EVIDENCE_UPLOAD_CONFIG = {
+    timeout: EVIDENCE_UPLOAD_TIMEOUT_MS,
+    skipRetry: true,
+} as const;
 
 export const uploadEvidenceFile = async (
     file: EvidenceUploadFile,
@@ -524,6 +692,7 @@ export const uploadEvidenceFile = async (
         Endpoints.assessment.uploadEvidence,
         form,
         {
+            ...EVIDENCE_UPLOAD_CONFIG,
             onUploadProgress: event => {
                 if (onProgress && event.total) {
                     onProgress(Math.min(event.loaded / event.total, 1));

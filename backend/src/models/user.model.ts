@@ -19,6 +19,7 @@ export interface PublicUser {
   full_name: string | null;
   email: string;
   phone: string | null;
+  avatar_url: string | null;
   role: string;
   is_active: boolean;
   is_email_verified: boolean;
@@ -33,6 +34,7 @@ const PUBLIC_USER_SELECT = {
   full_name: true,
   email: true,
   phone: true,
+  avatar_url: true,
   is_active: true,
   is_email_verified: true,
   last_login_at: true,
@@ -70,6 +72,7 @@ function toPublicUser(u: PublicUserRow): PublicUser {
     full_name: u.full_name,
     email: u.email,
     phone: u.phone,
+    avatar_url: u.avatar_url,
     role: u.roles.name,
     is_active: u.is_active,
     is_email_verified: u.is_email_verified,
@@ -100,6 +103,28 @@ export async function findByEmail(
 export async function findById(id: string): Promise<UserWithRole | null> {
   const u = await prisma.users.findFirst({
     where: { id, deleted_at: null },
+    include: { roles: true },
+  });
+  return u ? toUserWithRole(u) : null;
+}
+
+// Minimal status lookup used on every authenticated request to confirm the
+// account still exists and is active. Selects only what is needed so it stays
+// cheap (a primary-key hit).
+export async function getUserAuthStatus(
+  id: string
+): Promise<{ is_active: boolean; deleted_at: Date | null } | null> {
+  const u = await prisma.users.findUnique({
+    where: { id },
+    select: { is_active: true, deleted_at: true },
+  });
+  return u ?? null;
+}
+
+// Includes soft-deleted rows - used when restoring, where the target is deleted.
+export async function findAnyById(id: string): Promise<UserWithRole | null> {
+  const u = await prisma.users.findFirst({
+    where: { id },
     include: { roles: true },
   });
   return u ? toUserWithRole(u) : null;
@@ -161,6 +186,21 @@ export async function updatePassword(
       updated_at: new Date(),
     },
   });
+}
+
+export async function setUserAvatar(
+  userId: string,
+  avatarUrl: string | null
+): Promise<PublicUser | null> {
+  await prisma.users.updateMany({
+    where: { id: userId, deleted_at: null },
+    data: { avatar_url: avatarUrl, updated_at: new Date() },
+  });
+  const u = await prisma.users.findFirst({
+    where: { id: userId, deleted_at: null },
+    select: PUBLIC_USER_SELECT,
+  });
+  return u ? toPublicUser(u) : null;
 }
 
 export async function softDeleteUser(id: string): Promise<boolean> {

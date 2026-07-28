@@ -1,6 +1,7 @@
 import http from '../services/http';
 import { Endpoints } from '../config/endpoints';
-import type { AuthUser } from './authApi';
+import { normalizeAuthUser, type AuthUser } from './authApi';
+import type { MediaFile } from '../types/media';
 
 interface Envelope<T> {
   data: T;
@@ -34,17 +35,14 @@ interface RawUser {
   createdAt?: string;
   updated_at?: string;
   updatedAt?: string;
+  avatar_url?: string | null;
+  avatarUrl?: string | null;
 }
 
 type ProfilePayload = RawUser & { user?: RawUser };
 
 const normalizeProfile = (raw: RawUser): UserProfile => ({
-  id: raw.id,
-  fullName: raw.fullName ?? raw.full_name ?? '',
-  email: raw.email,
-  phone: raw.phone ?? undefined,
-  role: raw.role,
-  emailVerified: raw.emailVerified ?? raw.is_email_verified,
+  ...normalizeAuthUser(raw),
   createdAt: raw.createdAt ?? raw.created_at,
   updatedAt: raw.updatedAt ?? raw.updated_at,
 });
@@ -66,6 +64,29 @@ export const updateMyProfile = async (
 
 export const changePassword = async (payload: ChangePasswordPayload): Promise<void> => {
   await http.post(Endpoints.profile.changePassword, payload);
+};
+
+interface RawFilePart {
+  uri: string;
+  name: string;
+  type: string;
+}
+
+export const uploadMyAvatar = async (file: MediaFile): Promise<UserProfile> => {
+  const form = new FormData();
+  const part: RawFilePart = { uri: file.uri, name: file.name, type: file.mime };
+  form.append('avatar', part as unknown as Blob);
+  const res = await http.post<Envelope<ProfilePayload>>(Endpoints.profile.avatar, form, {
+    silent: true,
+  });
+  return unwrapProfile(res.data.data);
+};
+
+export const removeMyAvatar = async (): Promise<UserProfile> => {
+  const res = await http.delete<Envelope<ProfilePayload>>(Endpoints.profile.avatar, {
+    silent: true,
+  });
+  return unwrapProfile(res.data.data);
 };
 
 export const deleteMyAccount = async (): Promise<void> => {

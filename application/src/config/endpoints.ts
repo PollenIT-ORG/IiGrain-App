@@ -5,6 +5,7 @@ export const Endpoints = {
   },
   auth: {
     register: '/auth/register',
+    checkEmail: '/auth/check-email',
     login: '/auth/login',
     requestOtp: '/auth/request-otp',
     verifyOtp: '/auth/verify-otp',
@@ -28,15 +29,19 @@ export const Endpoints = {
   },
   profile: {
     me: '/profile/me',
+    avatar: '/profile/me/avatar',
     changePassword: '/profile/change-password',
     organization: '/profile/organization',
   },
   farms: {
     myFarms: '/farms/me/farms',
     myFarm: (farmId: string): string => `/farms/me/farms/${farmId}`,
+    resetMyFarm: (farmId: string): string => `/farms/me/farms/${farmId}/reset`,
     fields: (farmId: string): string => `/farms/${farmId}/fields`,
     field: (farmId: string, fieldId: string): string =>
       `/farms/${farmId}/fields/${fieldId}`,
+    resetField: (farmId: string, fieldId: string): string =>
+      `/farms/${farmId}/fields/${fieldId}/reset`,
   },
   dashboard: {
     farms: '/dashboard/my/farms',
@@ -52,56 +57,90 @@ export const Endpoints = {
   assessment: {
     uploadEvidence: '/assessments/evidence',
 
-    summary: (fieldId: string): string =>
-      `/assessments/my/fields/${fieldId}/summary`,
+    summary: (programId: string, fieldId: string): string =>
+      `/assessments/my/programs/${programId}/fields/${fieldId}/summary`,
 
-    categoryQuestions: (fieldId: string, categoryId: string): string =>
-      `/assessments/my/fields/${fieldId}/categories/${categoryId}/questions/list`,
+    categoryQuestions: (programId: string, fieldId: string, categoryId: string): string =>
+      `/assessments/my/programs/${programId}/fields/${fieldId}/categories/${categoryId}/questions/list`,
 
-    question: (fieldId: string, categoryId: string, questionId: string): string =>
-      `/assessments/my/fields/${fieldId}/categories/${categoryId}/questions/${questionId}`,
+    question: (
+      programId: string,
+      fieldId: string,
+      categoryId: string,
+      questionId: string,
+    ): string =>
+      `/assessments/my/programs/${programId}/fields/${fieldId}/categories/${categoryId}/questions/${questionId}`,
 
-    saveAnswer: (fieldId: string, questionId: string): string =>
-      `/assessments/my/fields/${fieldId}/questions/${questionId}/answer`,
+    saveAnswer: (programId: string, fieldId: string, questionId: string): string =>
+      `/assessments/my/programs/${programId}/fields/${fieldId}/questions/${questionId}/answer`,
 
-    review: (fieldId: string): string =>
-      `/assessments/my/fields/${fieldId}/review`,
+    review: (programId: string, fieldId: string): string =>
+      `/assessments/my/programs/${programId}/fields/${fieldId}/review`,
 
-    submit: (fieldId: string): string =>
-      `/assessments/my/fields/${fieldId}/submit`,
+    submit: (programId: string, fieldId: string): string =>
+      `/assessments/my/programs/${programId}/fields/${fieldId}/submit`,
+
+    discard: (programId: string, fieldId: string): string =>
+      `/assessments/my/programs/${programId}/fields/${fieldId}/discard`,
 
     myFields: '/assessments/my/fields',
+
+    myHistory: '/assessments/my/history',
+
+    regenIndex: (programId: string, fieldId: string): string =>
+      `/assessments/my/programs/${programId}/fields/${fieldId}/regen-index`,
   },
   assessor: {
     fields: '/assessor/fields',
 
-    summary: (fieldId: string): string => `/assessor/fields/${fieldId}/summary`,
+    summary: (programId: string, fieldId: string): string =>
+      `/assessor/programs/${programId}/fields/${fieldId}/summary`,
 
-    categoryQuestions: (fieldId: string, categoryId: string): string =>
-      `/assessor/fields/${fieldId}/categories/${categoryId}/questions/list`,
+    categoryQuestions: (programId: string, fieldId: string, categoryId: string): string =>
+      `/assessor/programs/${programId}/fields/${fieldId}/categories/${categoryId}/questions/list`,
 
-    question: (fieldId: string, categoryId: string, questionId: string): string =>
-      `/assessor/fields/${fieldId}/categories/${categoryId}/questions/${questionId}`,
+    question: (
+      programId: string,
+      fieldId: string,
+      categoryId: string,
+      questionId: string,
+    ): string =>
+      `/assessor/programs/${programId}/fields/${fieldId}/categories/${categoryId}/questions/${questionId}`,
 
-    categoryQuestionsFull: (fieldId: string, categoryId: string): string =>
-      `/assessor/fields/${fieldId}/categories/${categoryId}/questions`,
+    categoryQuestionsFull: (programId: string, fieldId: string, categoryId: string): string =>
+      `/assessor/programs/${programId}/fields/${fieldId}/categories/${categoryId}/questions`,
 
-    saveAnswer: (fieldId: string, questionId: string): string =>
-      `/assessor/fields/${fieldId}/questions/${questionId}/answer`,
+    saveAnswer: (programId: string, fieldId: string, questionId: string): string =>
+      `/assessor/programs/${programId}/fields/${fieldId}/questions/${questionId}/answer`,
 
-    review: (fieldId: string): string => `/assessor/fields/${fieldId}/review`,
+    review: (programId: string, fieldId: string): string =>
+      `/assessor/programs/${programId}/fields/${fieldId}/review`,
 
-    submit: (fieldId: string): string => `/assessor/fields/${fieldId}/submit`,
+    submit: (programId: string, fieldId: string): string =>
+      `/assessor/programs/${programId}/fields/${fieldId}/submit`,
 
-    farmerAssessment: (fieldId: string): string =>
-      `/assessor/fields/${fieldId}/farmer-assessment`,
+    farmerAssessment: (programId: string, fieldId: string): string =>
+      `/assessor/programs/${programId}/fields/${fieldId}/farmer-assessment`,
 
-    comparison: (fieldId: string): string => `/assessor/fields/${fieldId}/comparison`,
+    comparison: (programId: string, fieldId: string): string =>
+      `/assessor/programs/${programId}/fields/${fieldId}/comparison`,
   },
   programs: {
     available: '/programs/my/available',
     enrollableFields: '/programs/my/fields',
     enrollSelf: (programId: string): string => `/programs/${programId}/enroll-self`,
+    unenrollField: (programId: string, fieldId: string): string =>
+      `/programs/${programId}/fields/${fieldId}/unenroll`,
+  },
+  notifications: {
+    list: '/notifications',
+    unreadCount: '/notifications/unread-count',
+    markRead: (id: string): string => `/notifications/${id}/read`,
+    markAllRead: '/notifications/read-all',
+    remove: (id: string): string => `/notifications/${id}`,
+    // Bulk delete is a POST because a DELETE body is not reliably sent.
+    removeMany: '/notifications/delete',
+    removeAll: '/notifications',
   },
 } as const;
 

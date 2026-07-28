@@ -1,5 +1,10 @@
 /** @type {import('tailwindcss').Config} */
-// Shared theme color palette. Keep these values in sync with the mobile app.
+// ─────────────────────────────────────────────
+// Farmer App - Shared theme color palette.
+// These EXACT values are used by both the admin panel and the mobile app,
+// so the brand stays consistent everywhere. Update colors here (and mirror
+// them in the app) - never hardcode hex values in components.
+// ─────────────────────────────────────────────
 export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {

@@ -10,7 +10,10 @@ export interface PublicOrganization {
   description: string | null;
   contact_email: string | null;
   contact_phone: string | null;
+  contact_hours: string | null;
   address: string | null;
+  logo_url: string | null;
+  favicon_url: string | null;
   is_active: boolean;
   member_count: number;
   created_at: Date;
@@ -24,7 +27,10 @@ const PUBLIC_ORG_SELECT = {
   description: true,
   contact_email: true,
   contact_phone: true,
+  contact_hours: true,
   address: true,
+  logo_url: true,
+  favicon_url: true,
   is_active: true,
   created_at: true,
   updated_at: true,
@@ -43,7 +49,10 @@ function toPublicOrg(o: PublicOrgRow): PublicOrganization {
     description: o.description,
     contact_email: o.contact_email,
     contact_phone: o.contact_phone,
+    contact_hours: o.contact_hours,
     address: o.address,
+    logo_url: o.logo_url,
+    favicon_url: o.favicon_url,
     is_active: o.is_active,
     member_count: o._count.users,
     created_at: o.created_at,
@@ -82,6 +91,7 @@ interface CreateOrgParams {
   description: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
+  contactHours: string | null;
   address: string | null;
   isActive: boolean;
 }
@@ -96,6 +106,7 @@ export async function createOrg(
       description: p.description,
       contact_email: p.contactEmail,
       contact_phone: p.contactPhone,
+      contact_hours: p.contactHours,
       address: p.address,
       is_active: p.isActive,
     },
@@ -145,6 +156,7 @@ interface UpdateOrgParams {
   description?: string | null;
   contactEmail?: string | null;
   contactPhone?: string | null;
+  contactHours?: string | null;
   address?: string | null;
   isActive?: boolean;
 }
@@ -159,6 +171,7 @@ export async function updateOrg(
   if (p.description !== undefined) data.description = p.description;
   if (p.contactEmail !== undefined) data.contact_email = p.contactEmail;
   if (p.contactPhone !== undefined) data.contact_phone = p.contactPhone;
+  if (p.contactHours !== undefined) data.contact_hours = p.contactHours;
   if (p.address !== undefined) data.address = p.address;
   if (p.isActive !== undefined) data.is_active = p.isActive;
 
@@ -172,6 +185,47 @@ export async function updateOrg(
   });
   if (!count) return null;
   return findOrgById(id);
+}
+
+// Sets or clears the organization's logo or favicon URL.
+export async function setOrgBranding(
+  id: string,
+  field: "logo_url" | "favicon_url",
+  url: string | null
+): Promise<PublicOrganization | null> {
+  const { count } = await prisma.organizations.updateMany({
+    where: { id, deleted_at: null },
+    data: { [field]: url, updated_at: new Date() },
+  });
+  if (!count) return null;
+  return findOrgById(id);
+}
+
+// The default (first) organization - used by the public config to expose
+// branding app-wide, including on the login screen.
+export async function findDefaultOrgBranding(): Promise<{
+  logo_url: string | null;
+  favicon_url: string | null;
+  name: string;
+  contact_email: string | null;
+  contact_phone: string | null;
+  contact_hours: string | null;
+  address: string | null;
+} | null> {
+  const o = await prisma.organizations.findFirst({
+    where: { deleted_at: null },
+    orderBy: { created_at: "asc" },
+    select: {
+      logo_url: true,
+      favicon_url: true,
+      name: true,
+      contact_email: true,
+      contact_phone: true,
+      contact_hours: true,
+      address: true,
+    },
+  });
+  return o ?? null;
 }
 
 export async function softDeleteOrg(id: string): Promise<boolean> {

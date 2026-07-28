@@ -33,7 +33,7 @@ const FarmCard: React.FC<FarmCardProps> = ({ farm, onPress, fieldCount }) => {
   const handlePress = useCallback(() => onPress(farm.id), [onPress, farm.id]);
   const statusMeta = FARM_STATUS_META[farm.status];
   const resolvedCount = fieldCount ?? (farm.fieldsCount || undefined);
-  const fieldsLabel = resolvedCount === undefined ? '-' : `${resolvedCount}`;
+  const fieldsLabel = resolvedCount === undefined ? '—' : `${resolvedCount}`;
 
   return (
     <Pressable

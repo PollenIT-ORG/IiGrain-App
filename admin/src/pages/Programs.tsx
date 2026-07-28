@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useUrlSearchSync } from "../lib/useUrlSearchSync";
+import { useLiveData } from "../lib/useLiveData";
 import {
   useListProgramsQuery,
   useDeleteProgramMutation,
@@ -46,13 +48,15 @@ export default function Programs() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  useUrlSearchSync(setSearchInput);
 
-  const { data, isLoading, isError, error } = useListProgramsQuery({
+  const { data, isLoading, isError, error, refetch } = useListProgramsQuery({
     page,
     limit: PAGE_SIZE,
     isActive: status === "" ? undefined : status === "true",
     search: search || undefined,
   });
+  useLiveData(["programs", "enrollments"], refetch);
   const programs = data?.programs ?? [];
   const meta = data?.meta ?? null;
 
@@ -70,7 +74,7 @@ export default function Programs() {
   async function handleDelete(program: Program) {
     const ok = await confirm({
       title: "Delete program?",
-      message: `"${program.name}" will be removed along with its enrollments. This can be restored later if needed.`,
+      message: `"${program.name}" will be removed along with its enrollments. A program with submitted assessments cannot be deleted - set it inactive instead.`,
       confirmLabel: "Delete",
       tone: "danger",
     });

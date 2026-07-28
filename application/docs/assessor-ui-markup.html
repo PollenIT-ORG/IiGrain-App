@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>iiGrain - Assessor App Markup (Complete Flow)</title>
+<style>
+  :root{
+    --primary:#167A45; --primary-dark:#0F5E33; --primary-light:#3FAE72; --primary-lighter:#7DD8A5;
+    --secondary:#27B36E; --accent:#F6B43C; --info:#2E8B57; --success:#2FBF71; --warning:#F4B740; --danger:#E5484D;
+    --g900:#212B36; --g700:#495057; --g500:#ADB5BD; --g300:#DEE2E6; --g100:#F8F9FA; --white:#fff;
+    --line:#E7ECF0; --ink:#212B36; --tintP:#E7F4ED; --tintA:#FFF6E6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#EEF1F4;color:var(--ink);font-family:'Segoe UI',Roboto,-apple-system,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .sheet{width:1560px;margin:24px auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:34px 38px 30px;box-shadow:0 10px 40px rgba(0,0,0,.08)}
+  h1.title{font-size:30px;font-weight:800;margin:0;color:var(--primary);letter-spacing:-.3px}
+  .subtitle{color:var(--g500);font-size:14px;margin:2px 0 14px;font-weight:600}
+  .leaf{font-size:26px}
+  .secnum{font-size:16px;font-weight:800;color:var(--g900);margin:26px 0 14px;text-transform:uppercase;letter-spacing:.4px}
+  .secnum small{font-weight:600;color:var(--g500);text-transform:none;letter-spacing:0}
+  .hr{height:1px;background:var(--line);margin:6px 0 0}
+  .grid{display:grid;gap:18px}
+
+  .callout{display:flex;gap:12px;align-items:flex-start;background:var(--tintP);border:1px solid var(--primary-lighter);border-radius:12px;padding:13px 16px;margin:4px 0 2px}
+  .callout .lk{font-size:22px;margin-top:1px}
+  .callout b{color:var(--primary-dark)}
+  .callout span{font-size:12.5px;color:var(--g700);line-height:1.5}
+
+  .ds{grid-template-columns:1.15fr .95fr 1.05fr 1.05fr}
+  .colrow{display:flex;align-items:center;gap:9px;margin-bottom:9px;font-size:12px}
+  .sw{width:22px;height:22px;border-radius:6px;border:1px solid rgba(0,0,0,.08);flex:0 0 auto}
+  .colname{font-weight:700;color:var(--g900)} .colhex{color:var(--g500);font-size:11px}
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px}
+  .panelhead{font-size:11px;font-weight:800;letter-spacing:.6px;color:var(--g500);margin:0 0 12px;text-transform:uppercase}
+  .type .t{display:flex;align-items:baseline;gap:12px;margin-bottom:9px}
+  .type .Aa{font-weight:800;color:var(--g900)} .type .meta{color:var(--g700);font-size:11px}
+  .btn{display:block;text-align:center;border-radius:10px;padding:9px;font-size:12px;font-weight:700;margin-bottom:8px}
+  .btn.p{background:var(--primary);color:#fff} .btn.s{background:#fff;border:1.5px solid var(--primary);color:var(--primary)}
+  .btn.a{background:var(--accent);color:#5a3c00}
+  .inp{border:1px solid var(--g300);border-radius:9px;padding:9px 11px;color:var(--g500);font-size:12px;margin-bottom:8px;display:flex;justify-content:space-between}
+  .scoreGrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .scard{border:1.5px solid var(--g300);border-radius:9px;padding:7px 8px}
+  .scard .n{font-weight:800;color:var(--g900);font-size:13px} .scard .l{font-size:9px;color:var(--g500)}
+  .scard.on{border-color:var(--primary);background:var(--tintP)} .scard.on .n{color:var(--primary-dark)}
+  .chips{display:flex;gap:8px;margin-bottom:9px;flex-wrap:wrap}
+  .chip{border:1px solid var(--g300);border-radius:20px;padding:5px 11px;font-size:11px;color:var(--g700);font-weight:600}
+  .chip.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .lock{display:inline-flex;align-items:center;gap:5px;background:#FDECEC;color:var(--danger);border-radius:7px;padding:4px 9px;font-size:10px;font-weight:800}
+  .doit{display:inline-flex;align-items:center;gap:5px;background:var(--tintA);color:#8A5A00;border-radius:7px;padding:4px 9px;font-size:10px;font-weight:800}
+  .iconwrap{display:grid;grid-template-columns:repeat(4,1fr);gap:13px 4px;text-align:center}
+  .ic{font-size:10.5px;color:var(--g700)}
+  .ic .glyph{display:flex;align-items:center;justify-content:center;width:36px;height:36px;margin:0 auto 4px;border:1.5px solid var(--g300);border-radius:10px;font-size:17px;color:var(--primary)}
+
+  .flow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:9px}
+  .step{border:1.5px solid var(--primary);background:var(--tintP);color:var(--primary-dark);border-radius:10px;padding:10px 12px;font-size:11.5px;font-weight:700;text-align:center}
+  .step.alt{border-color:var(--accent);background:var(--tintA);color:#8A5A00}
+  .step.ro{border-color:var(--danger);background:#FDECEC;color:var(--danger)}
+  .arrow{color:var(--g500);font-size:16px} .branch{font-size:11px;color:var(--g500);font-weight:700;margin-right:4px}
+  .sync{border:1.5px dashed var(--secondary);color:var(--secondary);border-radius:10px;padding:9px 15px;font-weight:700;font-size:12px}
+
+  .ia{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .ia .col{padding:13px 13px 15px;border-right:1px solid var(--line)} .ia .col:last-child{border-right:0}
+  .ia h4{margin:0 0 10px;color:var(--primary);font-size:12.5px;font-weight:800}
+  .ia li{font-size:11px;color:var(--g700);margin-bottom:7px;list-style:none;padding-left:12px;position:relative}
+  .ia li:before{content:'•';position:absolute;left:0;color:var(--g500)} .ia ul{margin:0;padding:0}
+
+  .screens{display:grid;grid-template-columns:repeat(4,1fr);gap:24px 20px}
+  .pcol{display:flex;flex-direction:column}
+  .ptitle{font-size:12.5px;font-weight:800;color:var(--g900);margin:0 0 8px;display:flex;align-items:center;gap:7px}
+  .pnum{background:var(--primary);color:#fff;width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex:0 0 auto}
+  .pnum.a{background:var(--accent);color:#5a3c00}
+  .phone{border:1.5px solid var(--g300);border-radius:16px;background:#fff;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,.05)}
+  .pbar{background:var(--primary);color:#fff;padding:9px 11px;font-size:11.5px;font-weight:700;display:flex;align-items:center;justify-content:space-between}
+  .pbar.acc{background:var(--accent);color:#5a3c00}
+  .pbody{padding:10px;font-size:10.5px;color:var(--g700)}
+  .greet{font-size:12px;font-weight:800;color:var(--g900)} .muted{color:var(--g500)}
+  .statrow{display:flex;gap:6px;margin:9px 0}
+  .stat{flex:1;border:1px solid var(--line);border-radius:9px;padding:7px 4px;text-align:center;background:var(--g100)}
+  .stat b{display:block;font-size:15px;color:var(--g900)} .stat span{font-size:8px;color:var(--g500)}
+  .sech{font-size:10px;font-weight:800;color:var(--g900);margin:11px 0 6px;display:flex;justify-content:space-between;align-items:center}
+  .seelink{color:var(--primary);font-weight:700;font-size:9.5px}
+  .acard{border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:7px;background:#fff}
+  .acard .nm{font-weight:800;color:var(--g900);font-size:11px;display:flex;align-items:center;gap:5px}
+  .row{display:flex;align-items:center;justify-content:space-between;margin-top:5px}
+  .bar{height:6px;border-radius:6px;background:var(--g300);overflow:hidden;margin-top:5px}
+  .bar i{display:block;height:100%;background:var(--primary)}
+  .pill{border-radius:20px;padding:2px 8px;font-size:8.5px;font-weight:800;white-space:nowrap}
+  .pill.farmer{background:#E2F0FB;color:#1668A8} .pill.assessor{background:var(--tintP);color:var(--primary-dark)}
+  .pill.done{background:#DDF3E4;color:#1B7A3D} .pill.pend{background:var(--tintA);color:#8A5A00}
+  .pill.locked{background:#FDECEC;color:var(--danger)}
+  .meta2{display:flex;gap:8px;flex-wrap:wrap;margin-top:5px}
+  .tag{background:var(--g100);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:9px;color:var(--g700)}
+  .evi{display:flex;gap:5px;margin-top:6px}
+  .evi span{width:30px;height:30px;border-radius:7px;background:var(--g100);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--g500)}
+  .evi .add{border:1.5px dashed var(--primary);color:var(--primary);font-size:18px}
+  .ans{border:1px solid var(--line);border-radius:8px;padding:7px;background:var(--g100);margin-bottom:8px}
+  .blk{font-size:8.5px;font-weight:800;letter-spacing:.4px;color:var(--g500);text-transform:uppercase;margin-bottom:5px}
+  .catrow{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:9px;padding:7px 9px;margin-bottom:6px;font-size:10.5px;color:var(--g900);font-weight:700}
+  .catrow small{color:var(--g500);font-weight:600}
+  .field{border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:8px;background:#fff}
+  .field.pendf{border-color:var(--accent);background:#FFFCF4}
+  .more{color:var(--primary);font-weight:700;font-size:9.5px;margin-top:6px;display:inline-block}
+  .footbtns{display:flex;gap:6px;margin-top:8px} .footbtns .btn{flex:1;margin:0;padding:8px;font-size:10px}
+  .annot{margin:9px 2px 0;padding:0}
+  .annot li{font-size:10.5px;color:var(--g700);list-style:none;position:relative;padding-left:12px;margin-bottom:5px}
+  .annot li:before{content:'•';position:absolute;left:0;color:var(--primary)}
+
+  .bottoms{display:grid;grid-template-columns:1fr 1.35fr 1.5fr .85fr;gap:18px;margin-top:8px}
+  .panel{border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .tabs{display:flex;justify-content:space-around;align-items:flex-end}
+  .tab{text-align:center;color:var(--g500);font-size:10px;font-weight:700} .tab .g{font-size:20px;display:block;margin-bottom:3px} .tab.active{color:var(--primary)}
+  .rules li{font-size:11.5px;color:var(--g700);margin-bottom:8px;list-style:none;position:relative;padding-left:18px}
+  .rules li:before{content:attr(data-i);position:absolute;left:0}
+  .tech{font-size:11px;color:var(--g700);columns:2;column-gap:22px} .tech div{margin-bottom:7px;break-inside:avoid} .tech b{color:var(--g900)}
+  .legend div{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--g700);margin-bottom:8px} .lg{width:12px;height:12px;border-radius:50%}
+  @media print{body{background:#fff}.sheet{box-shadow:none;margin:0;border:0;width:auto}}
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <h1 class="title"><span class="leaf">🌱</span> iiGrain - Assessor App Markup</h1>
+  <div class="subtitle">Cross Platform (iOS &amp; Android) · Role-gated view · Complete Flow + UI (no API) · sibling of the Farmer markup</div>
+
+  <div class="callout">
+    <span class="lk">📋</span>
+    <span><b>Scope of the assessor.</b> The assessor fills assessments <b>only for the farmer(s) assigned to them</b> (not all farmers). For an assigned field they conduct their <b>own independent assessment</b> - a <b>brand-new, separate assessment</b> of that field, using the <b>exact same form as the farmer</b> (every question, score 0-3 + comment + evidence). It is <b>not a review of the farmer's answers</b>: the assessor fills every question themselves, regardless of what the farmer did. A field can hold <b>two records</b> - one “By Farmer”, one “By Assessor” - each independent. <b>🔒 On submit it locks (complete)</b> - there is <b>no admin review / sign-off</b>; submitting finalizes it and it can't be edited. Every submission is stamped with the submitter's <b>user id + role</b> (“Submitted by Farmer / Assessor”) and shows in History.</span>
+  </div>
+  <div class="hr"></div>
+
+  <!-- 1. DESIGN SYSTEM -->
+  <div class="secnum">1. Design System <small>(matches the live app · src/constants)</small></div>
+  <div class="grid ds">
+    <div>
+      <div class="panelhead">Colors</div>
+      <div class="twocol">
+        <div>
+          <div class="colrow"><span class="sw" style="background:var(--primary)"></span><span><span class="colname">Primary</span><br><span class="colhex">#167A45</span></span></div>
+          <div class="colrow"><span class="sw" style="background:var(--primary-dark)"></span><span><span class="colname">Primary Dark</span><br><span class="colhex">#0F5E33</span></span></div>
+          <div class="colrow"><span class="sw" style="background:var(--secondary)"></span><span><span class="colname">Secondary</span><br><span class="colhex">#27B36E</span></span></div>
+          <div class="colrow"><span class="sw" style="background:var(--accent)"></span><span><span class="colname">Accent</span><br><span class="colhex">#F6B43C</span></span></div>
+          <div class="colrow"><span class="sw" style="background:var(--success)"></span><span><span class="colname">Success</span><br><span class="colhex">#2FBF71</span></span></div>
+        </div>
+        <div>
+          <div class="colrow"><span class="sw" style="background:var(--warning)"></span><span><span class="colname">Warning</span><br><span class="colhex">#F4B740</span></span></div>
+          <div class="colrow"><span class="sw" style="background:var(--danger)"></span><span><span class="colname">Danger</span><br><span class="colhex">#E5484D</span></span></div>
+          <div class="colrow"><span class="sw" style="background:var(--g900)"></span><span><span class="colname">Gray 900</span><br><span class="colhex">#212B36</span></span></div>
+          <div class="colrow"><span class="sw" style="background:var(--g500)"></span><span><span class="colname">Gray 500</span><br><span class="colhex">#ADB5BD</span></span></div>
+          <div class="colrow"><span class="sw" style="background:var(--g100);border-color:var(--g300)"></span><span><span class="colname">Gray 100</span><br><span class="colhex">#F8F9FA</span></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="type">
+      <div class="panelhead">Typography</div>
+      <div class="t"><span class="Aa" style="font-size:25px">Aa</span><span class="meta">Heading 1 · 28 / Bold</span></div>
+      <div class="t"><span class="Aa" style="font-size:20px">Aa</span><span class="meta">Heading 2 · 22 / SemiBold</span></div>
+      <div class="t"><span class="Aa" style="font-size:17px">Aa</span><span class="meta">Heading 3 · 18 / SemiBold</span></div>
+      <div class="t"><span class="Aa" style="font-size:14px">Aa</span><span class="meta">Body · 16 / 14</span></div>
+      <div class="t"><span class="Aa" style="font-size:11px">Aa</span><span class="meta">Caption · 12</span></div>
+      <div style="display:flex;gap:6px;margin-top:6px"><span class="doit">✎ Editable (pending)</span><span class="lock">🔒 Locked</span></div>
+    </div>
+    <div>
+      <div class="panelhead">Components</div>
+      <div class="btn p">Submit Assessment</div>
+      <div class="btn a">Assess (pending)</div>
+      <div class="btn s">View (read-only)</div>
+      <div class="panelhead" style="margin:6px 0 6px">Score Selector (same form)</div>
+      <div class="scoreGrid">
+        <div class="scard"><div class="n">0</div><div class="l">No action</div></div>
+        <div class="scard"><div class="n">1</div><div class="l">Beginning</div></div>
+        <div class="scard on"><div class="n">2 ✓</div><div class="l">Developing</div></div>
+        <div class="scard"><div class="n">3</div><div class="l">Regenerative</div></div>
+      </div>
+    </div>
+    <div>
+      <div class="panelhead">Icons (outline)</div>
+      <div class="iconwrap">
+        <div class="ic"><span class="glyph">🏠</span>Home</div>
+        <div class="ic"><span class="glyph">👥</span>Farmers</div>
+        <div class="ic"><span class="glyph">🕘</span>History</div>
+        <div class="ic"><span class="glyph">🚜</span>Farm</div>
+        <div class="ic"><span class="glyph">🌾</span>Field</div>
+        <div class="ic"><span class="glyph">📋</span>Assess</div>
+        <div class="ic"><span class="glyph">📷</span>Evidence</div>
+        <div class="ic"><span class="glyph">🔒</span>Locked</div>
+        <div class="ic"><span class="glyph">✎</span>Edit</div>
+        <div class="ic"><span class="glyph">🔎</span>Search</div>
+        <div class="ic"><span class="glyph">⛯</span>Filter</div>
+        <div class="ic"><span class="glyph">👤</span>Profile</div>
+      </div>
+    </div>
+  </div>
+  <div class="hr"></div>
+
+  <!-- 2. FLOW -->
+  <div class="secnum">2. Complete Assessor Flow</div>
+  <div class="flow">
+    <div class="step">Splash</div><span class="arrow">→</span>
+    <div class="step">Login</div><span class="arrow">→</span>
+    <div class="step">Role = Assessor</div><span class="arrow">→</span>
+    <div class="step">Dashboard</div><span class="arrow">→</span>
+    <div class="step">Assigned<br>Farmers</div><span class="arrow">→</span>
+    <div class="step">Farmer<br><small>farms + count</small></div><span class="arrow">→</span>
+    <div class="step">Farm<br><small>fields · see more</small></div>
+  </div>
+  <div class="flow">
+    <span class="branch">Per field (your assessment) →</span>
+    <div class="step alt">NOT assessed<br><small>✎ same form</small></div><span class="arrow">→</span>
+    <div class="step">Summary</div><span class="arrow">→</span>
+    <div class="step alt">Question form<br><small>score · evidence</small></div><span class="arrow">→</span>
+    <div class="step">Review</div><span class="arrow">→</span>
+    <div class="step">Submit<br><small>(completes)</small></div><span class="arrow">→</span>
+    <div class="step ro">🔒 Locked<br><small>by Assessor</small></div>
+    <span class="arrow">||</span>
+    <div class="step ro">Already assessed by you → 🔒 read-only view</div>
+    <span class="arrow">＋</span><div class="step">History</div>
+    <span class="arrow">⇄</span><div class="sync">Sync</div>
+  </div>
+  <div class="hr"></div>
+
+  <!-- 3. IA -->
+  <div class="secnum">3. Information Architecture</div>
+  <div class="ia">
+    <div class="col"><h4>Dashboard</h4><ul><li>Recent done assessments</li><li>Submitted by farmer/assessor</li><li>Assigned farmers preview</li><li>Pending count</li></ul></div>
+    <div class="col"><h4>Farmers</h4><ul><li>Assigned by admin only</li><li>Search</li><li>Pending vs done</li><li>→ Farmer detail</li></ul></div>
+    <div class="col"><h4>Farmer Detail</h4><ul><li>Farmer info</li><li>Total farms + details</li><li>Fields count / farm</li><li>→ Farm detail</li></ul></div>
+    <div class="col"><h4>Farm Detail</h4><ul><li>Fields + all details</li><li>“See more” inline</li><li>Assess btn on card</li><li>Your status: done vs to-assess</li></ul></div>
+    <div class="col"><h4>Assessment</h4><ul><li>Same form as farmer</li><li>Your own, fresh assessment</li><li>Score · evidence · comment</li><li>Review → Submit → 🔒 (complete)</li></ul></div>
+    <div class="col"><h4>History</h4><ul><li>By farmer id</li><li>All fields' assessments</li><li>Farmer + assessor entries</li><li>Read-only</li></ul></div>
+    <div class="col"><h4>More</h4><ul><li>Profile</li><li>Edit / password</li><li>Help</li><li>Logout</li></ul></div>
+  </div>
+  <div class="hr"></div>
+
+  <!-- 4. KEY SCREENS -->
+  <div class="secnum">4. Key Screens <small>(wireframe + annotations)</small></div>
+  <div class="screens">
+
+    <!-- 1 Dashboard -->
+    <div class="pcol">
+      <div class="ptitle"><span class="pnum">1</span> Dashboard</div>
+      <div class="phone">
+        <div class="pbar"><span>☰ iiGrain</span><span>🔔</span></div>
+        <div class="pbody">
+          <div class="greet">Good morning, Asha</div>
+          <div class="muted">Assessor · Default Org</div>
+          <div class="statrow">
+            <div class="stat"><b>12</b><span>Assigned</span></div>
+            <div class="stat"><b>34</b><span>Done</span></div>
+            <div class="stat"><b>5</b><span>Pending</span></div>
+          </div>
+          <div class="sech"><span>Recent done assessments</span><span class="seelink">See all</span></div>
+          <div class="acard">
+            <div class="row"><span><b>North Field</b> · 2026</span><span class="pill done">78%</span></div>
+            <div class="muted">Green Valley · Field Farmer</div>
+            <div class="meta2"><span class="pill farmer">By Farmer</span><span class="tag">2d ago</span></div>
+          </div>
+          <div class="acard">
+            <div class="row"><span><b>West Field</b> · 2026</span><span class="pill done">88%</span></div>
+            <div class="meta2"><span class="pill assessor">By Assessor (you)</span><span class="tag">5d ago</span></div>
+          </div>
+          <div class="sech"><span>Assigned farmers</span><span class="seelink">See all</span></div>
+          <div class="acard"><div class="nm">👤 Field Farmer</div><div class="row"><span class="muted">Green Valley · 4 fields</span><span class="pill pend">2 pending</span></div></div>
+        </div>
+      </div>
+      <ul class="annot"><li>Recent done assessments (read-only)</li><li>By Farmer / By Assessor chips</li><li>Assigned farmers + pending count</li></ul>
+    </div>
+
+    <!-- 2 Assigned Farmers -->
+    <div class="pcol">
+      <div class="ptitle"><span class="pnum">2</span> Assigned Farmers</div>
+      <div class="phone">
+        <div class="pbar"><span>👥 Farmers</span><span>⛯</span></div>
+        <div class="pbody">
+          <div class="inp"><span>🔎 Search farmer…</span></div>
+          <div class="acard"><div class="nm">👤 Field Farmer</div><div class="muted">Green Valley · 4 fields</div><div class="row"><span class="muted">Quarterly soil-health visit</span><span class="pill pend">2 pending</span></div></div>
+          <div class="acard"><div class="nm">👤 Meena Devi</div><div class="muted">Sunrise · 2 fields</div><div class="row"><span class="muted">By Program Admin</span><span class="pill done">All done</span></div></div>
+          <div class="acard"><div class="nm">👤 Sanjay Patel</div><div class="muted">Riverbend · 5 fields</div><div class="row"><span class="muted">-</span><span class="pill pend">5 pending</span></div></div>
+        </div>
+      </div>
+      <ul class="annot"><li><b>Only farmers assigned to you</b></li><li>Search · note · pending vs done</li><li>Tap → Farmer detail</li></ul>
+    </div>
+
+    <!-- 3 Farmer Detail -->
+    <div class="pcol">
+      <div class="ptitle"><span class="pnum">3</span> Farmer Detail · Farms</div>
+      <div class="phone">
+        <div class="pbar"><span>← Field Farmer</span></div>
+        <div class="pbody">
+          <div class="acard"><div class="nm">👤 Field Farmer</div><div class="muted">farmer1@example.com · Default Org</div></div>
+          <div class="sech"><span>Farms (2)</span></div>
+          <div class="acard"><div class="nm">🚜 Green Valley Farm</div><div class="meta2"><span class="tag">📍 Illinois</span><span class="tag">1,250 ac</span></div><div class="row"><span><b>Fields:</b> 4</span><span class="seelink">View fields ›</span></div></div>
+          <div class="acard"><div class="nm">🚜 Hilltop Farm</div><div class="meta2"><span class="tag">📍 Iowa</span><span class="tag">640 ac</span></div><div class="row"><span><b>Fields:</b> 2</span><span class="seelink">View fields ›</span></div></div>
+        </div>
+      </div>
+      <ul class="annot"><li>Total farms list with details</li><li><b>Fields count</b> on each farm</li><li>Tap → Farm detail</li></ul>
+    </div>
+
+    <!-- 4 Farm Detail · Fields -->
+    <div class="pcol">
+      <div class="ptitle"><span class="pnum">4</span> Farm Detail · Fields</div>
+      <div class="phone">
+        <div class="pbar"><span>← Green Valley Farm</span></div>
+        <div class="pbody">
+          <div class="muted">Illinois · 1,250 ac · 4 fields</div>
+          <div class="sech"><span>Fields (4)</span></div>
+          <div class="field">
+            <div class="nm">🌾 North Field <span class="pill done" style="margin-left:auto">🔒 Done</span></div>
+            <div class="meta2"><span class="tag">Corn</span><span class="tag">320 ac</span></div>
+            <span class="more">See more ▾</span>
+            <div class="row"><span class="pill assessor">By Assessor (you) · 78%</span><span class="btn s" style="margin:0;padding:6px 10px">View</span></div>
+          </div>
+          <div class="field pendf">
+            <div class="nm">🌾 West Field <span class="pill pend" style="margin-left:auto">To assess</span></div>
+            <div class="meta2"><span class="tag">Soy</span><span class="tag">300 ac</span></div>
+            <span class="more">See more ▾</span>
+            <div class="row"><span class="doit">✎ Not assessed by you</span><span class="btn a" style="margin:0;padding:6px 10px">Assess</span></div>
+          </div>
+        </div>
+      </div>
+      <ul class="annot"><li>Status = <b>your own</b> assessment (done vs to-assess)</li><li>Done → <b>View (🔒 read-only)</b> · To assess → <b>Assess</b> (same form)</li><li>Independent of the farmer's own assessment</li></ul>
+    </div>
+
+    <!-- 5 Assessment Summary (pending) -->
+    <div class="pcol">
+      <div class="ptitle"><span class="pnum a">5</span> Assessment · Summary <small>(pending)</small></div>
+      <div class="phone">
+        <div class="pbar acc"><span>← West Field</span><span>✎</span></div>
+        <div class="pbody">
+          <div class="acard" style="background:var(--tintA);border-color:var(--accent)">
+            <div class="row"><span><b>2026 Annual Assessment</b></span><span class="pill pend">In progress</span></div>
+            <div class="muted">You are assessing · not yet submitted</div>
+            <div class="row"><span class="muted">12 / 31 completed</span><span>39%</span></div>
+            <div class="bar"><i style="width:39%;background:var(--accent)"></i></div>
+          </div>
+          <div class="sech"><span>Categories</span></div>
+          <div class="catrow"><span>🌱 Soil Health</span><span>6/6 <small>done</small></span></div>
+          <div class="catrow"><span>💧 Water Stewardship</span><span>2/4 <small>pending</small></span></div>
+          <div class="catrow"><span>🐝 Biodiversity</span><span>0/6 <small>pending</small></span></div>
+          <div class="btn a">Continue Assessment</div>
+        </div>
+      </div>
+      <ul class="annot"><li>Same summary UI as the farmer</li><li><b>Your own</b> assessment - fill every category</li><li>Progress = your answered / total</li></ul>
+    </div>
+
+    <!-- 6 Question form (EDITABLE) -->
+    <div class="pcol">
+      <div class="ptitle"><span class="pnum a">6</span> Question · Fill form <small>(same as farmer)</small></div>
+      <div class="phone">
+        <div class="pbar acc"><span>← Question</span><span>13/31</span></div>
+        <div class="pbody">
+          <div class="muted">Biodiversity &amp; Habitat</div>
+          <div class="greet">b6. Invasive species mgmt</div>
+          <div class="doit" style="margin:6px 0">✎ Pending - you are assessing</div>
+          <div class="blk">Select score</div>
+          <div class="scoreGrid">
+            <div class="scard"><div class="n">0</div><div class="l">No action</div></div>
+            <div class="scard"><div class="n">1</div><div class="l">Beginning</div></div>
+            <div class="scard on"><div class="n">2 ✓</div><div class="l">Developing</div></div>
+            <div class="scard"><div class="n">3</div><div class="l">Regenerative</div></div>
+          </div>
+          <div class="inp" style="margin-top:8px"><span>Evidence / comment…</span><span>120/500</span></div>
+          <div class="blk">Upload evidence</div>
+          <div class="evi"><span>📷</span><span>📷</span><span class="add">＋</span></div>
+          <div class="footbtns"><div class="btn s">Save Draft</div><div class="btn a">Next</div></div>
+        </div>
+      </div>
+      <ul class="annot"><li><b>Identical form to the farmer</b> (editable)</li><li>Score + comment + upload evidence</li><li>Save Draft / Next</li></ul>
+    </div>
+
+    <!-- 7 Question read-only (your submitted assessment) -->
+    <div class="pcol">
+      <div class="ptitle"><span class="pnum">7</span> Question · Read-only <small>(you submitted)</small></div>
+      <div class="phone">
+        <div class="pbar"><span>← Question</span><span>5/31</span></div>
+        <div class="pbody">
+          <div class="muted">Soil Health</div>
+          <div class="greet">a3. Cover cropping</div>
+          <div class="lock" style="margin:6px 0">🔒 Submitted by Assessor - cannot edit</div>
+          <div class="blk">Your score</div>
+          <div class="scoreGrid">
+            <div class="scard"><div class="n">0</div><div class="l">No action</div></div>
+            <div class="scard"><div class="n">1</div><div class="l">Beginning</div></div>
+            <div class="scard"><div class="n">2</div><div class="l">Developing</div></div>
+            <div class="scard on"><div class="n">3 ✓</div><div class="l">Regenerative</div></div>
+          </div>
+          <div class="ans" style="margin-top:8px"><div class="blk">Your evidence / comment</div><div>"Multi-species cover crop drilled post-harvest."</div><div class="evi"><span>📷</span><span>📄</span></div></div>
+          <div class="meta2"><span class="pill assessor">By Assessor (you) · #A-204</span></div>
+        </div>
+      </div>
+      <ul class="annot"><li>After submit, <b>your</b> answers are read-only</li><li>No edit - only Prev / Next to view</li><li>Same screen, locked state</li></ul>
+    </div>
+
+    <!-- 8 Review & Submit -->
+    <div class="pcol">
+      <div class="ptitle"><span class="pnum a">8</span> Review &amp; Submit <small>(assessor)</small></div>
+      <div class="phone">
+        <div class="pbar acc"><span>← Review &amp; Submit</span></div>
+        <div class="pbody">
+          <div class="sech"><span>Your answers</span></div>
+          <div class="catrow"><span>b5 Invasive species</span><span>Score 2</span></div>
+          <div class="catrow"><span>b6 Riparian buffer</span><span>Score 3</span></div>
+          <div class="catrow"><span>c1 Nutrient plan</span><span>Score 1</span></div>
+          <div class="row" style="margin-top:8px"><span class="muted">31 / 31 completed</span><span>100%</span></div>
+          <div class="bar"><i style="width:100%;background:var(--accent)"></i></div>
+          <div class="doit" style="margin:8px 0">⚠ After submit it locks - no edits</div>
+          <div class="btn p">Submit Assessment</div>
+          <div class="muted" style="text-align:center">Stamped: Submitted by Assessor · #A-204</div>
+        </div>
+      </div>
+      <ul class="annot"><li>Same review UI as farmer</li><li>Submit → <b>🔒 locks</b> as “By Assessor”</li><li>Confirm dialog before submit</li></ul>
+    </div>
+
+    <!-- 9 History -->
+    <div class="pcol">
+      <div class="ptitle"><span class="pnum">9</span> History <small>(by farmer)</small></div>
+      <div class="phone">
+        <div class="pbar"><span>🕘 History</span><span>⛯</span></div>
+        <div class="pbody">
+          <div class="chips"><span class="chip on">Field Farmer</span><span class="chip">All ▾</span></div>
+          <div class="acard"><div class="row"><span><b>North Field</b> · 2026</span><span class="pill done">78%</span></div><div class="meta2"><span class="pill farmer">Farmer · #F-1029</span><span class="tag">12 Jun 26</span><span class="pill locked">🔒</span></div></div>
+          <div class="acard"><div class="row"><span><b>West Field</b> · 2026</span><span class="pill done">88%</span></div><div class="meta2"><span class="pill assessor">Assessor · #A-204</span><span class="tag">18 Jun 26</span><span class="pill locked">🔒</span></div></div>
+          <div class="acard"><div class="row"><span><b>North Field</b> · 2025</span><span class="pill done">64%</span></div><div class="meta2"><span class="pill assessor">Assessor · #A-204</span><span class="tag">10 Aug 25</span><span class="pill locked">🔒</span></div></div>
+        </div>
+      </div>
+      <ul class="annot"><li>Farmer id → all fields' assessments</li><li>Farmer &amp; assessor entries (with id)</li><li>Tap → read-only assessment</li></ul>
+    </div>
+
+    <!-- 10 More -->
+    <div class="pcol">
+      <div class="ptitle"><span class="pnum">10</span> More / Profile</div>
+      <div class="phone">
+        <div class="pbar"><span>⋯ More</span></div>
+        <div class="pbody">
+          <div class="acard"><div class="nm">👤 Asha Verma</div><div class="muted">Assessor · Default Org</div></div>
+          <div class="catrow"><span>👤 Edit Profile</span><span>›</span></div>
+          <div class="catrow"><span>🔒 Change Password</span><span>›</span></div>
+          <div class="catrow"><span>❓ Help &amp; Support</span><span>›</span></div>
+          <div class="btn s" style="color:var(--danger);border-color:var(--danger)">Logout</div>
+        </div>
+      </div>
+      <ul class="annot"><li>Reuses farmer Profile screens</li><li>Drawer shows role = Assessor</li><li>Real auth/profile only</li></ul>
+    </div>
+
+  </div>
+  <div class="hr"></div>
+
+  <!-- bottoms -->
+  <div class="bottoms">
+    <div class="panel">
+      <div class="panelhead">5. Bottom Tabs</div>
+      <div class="tabs">
+        <div class="tab active"><span class="g">🏠</span>Home</div>
+        <div class="tab"><span class="g">👥</span>Farmers</div>
+        <div class="tab"><span class="g">🕘</span>History</div>
+        <div class="tab"><span class="g">⋯</span>More</div>
+      </div>
+      <div class="muted" style="text-align:center;margin-top:10px;font-size:10px">Assessment opens from a field card</div>
+    </div>
+
+    <div class="panel">
+      <div class="panelhead">6. Assessor Rules</div>
+      <ul class="rules" style="margin:0;padding:0">
+        <li data-i="✅">Assesses <b>only assigned farmers</b>.</li>
+        <li data-i="✅">Conducts an <b>independent, fresh assessment</b> of the field - the <b>same form</b> as the farmer, every question.</li>
+        <li data-i="🔗">Separate from the farmer's: a field can hold a “By Farmer” <b>and</b> a “By Assessor” record.</li>
+        <li data-i="🔒">On submit it <b>completes &amp; locks</b> - no admin review; can't be edited after.</li>
+        <li data-i="🧾">Stores <b>submitter id + role</b>; shows in History.</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <div class="panelhead">7. Notes (flow + UI only)</div>
+      <div class="tech">
+        <div><b>Scope:</b> markup only - no API</div>
+        <div><b>Form:</b> reuse farmer assessment 1:1</div>
+        <div><b>Assessment:</b> assessor's own, fresh &amp; independent</div>
+        <div><b>Submit:</b> completes - no admin review</div>
+        <div><b>Locked:</b> after submit, can't edit</div>
+        <div><b>Fields:</b> inline “See more”, no new screen</div>
+        <div><b>History:</b> farmer + assessor records</div>
+        <div><b>Design:</b> live app tokens</div>
+      </div>
+    </div>
+
+    <div class="panel legend">
+      <div class="panelhead">Legend</div>
+      <div><span class="lg" style="background:#1668A8"></span> Submitted by Farmer</div>
+      <div><span class="lg" style="background:var(--primary)"></span> Submitted by Assessor</div>
+      <div><span class="lg" style="background:var(--accent)"></span> Pending · you assess</div>
+      <div><span class="lg" style="background:var(--success)"></span> Done</div>
+      <div><span class="lg" style="background:var(--danger)"></span> 🔒 Locked (no edit)</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

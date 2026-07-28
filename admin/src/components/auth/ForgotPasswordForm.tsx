@@ -122,7 +122,7 @@ export default function ForgotPasswordForm({
             disabled={loading}
             className="btn-primary w-full py-3 text-base"
           >
-            {loading ? "Sending…" : "Send code"}
+            {loading ? "Sending..." : "Send code"}
           </button>
         </form>
       )}
@@ -196,7 +196,7 @@ export default function ForgotPasswordForm({
             disabled={loading}
             className="btn-primary w-full py-3 text-base"
           >
-            {loading ? "Updating…" : "Reset password"}
+            {loading ? "Updating..." : "Reset password"}
           </button>
 
           <button

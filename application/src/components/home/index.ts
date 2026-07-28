@@ -15,3 +15,6 @@ export { default as FarmerEmptyState } from './FarmerEmptyState';
 export type { FarmerEmptyStateProps } from './FarmerEmptyState';
 export { default as FarmerLoader } from './FarmerLoader';
 export type { FarmerLoaderProps } from './FarmerLoader';
+
+export { default as FarmSelectorCard } from './FarmSelectorCard';
+export type { FarmSelectorCardProps } from './FarmSelectorCard';

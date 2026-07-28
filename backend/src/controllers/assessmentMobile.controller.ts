@@ -14,8 +14,11 @@ import {
   getFieldReview,
   getFieldAssessmentHistory,
   submitFieldAssessmentForUser,
+  discardFieldAssessmentForUser,
 } from "../services/assessmentMobile.service.js";
 import { uploadEvidenceImages } from "../services/upload.service.js";
+import type { PaginationQuery } from "../validators/pagination.schema.js";
+import type { HistoryQuery } from "../validators/assessment.schema.js";
 
 export const uploadEvidence = asyncHandler(
   async (req: Request, res: Response) => {
@@ -36,8 +39,15 @@ export const myFieldsAssessmentList = asyncHandler(
     if (!userId) throw ApiError.unauthorized("Authentication required.");
 
     const year = new Date().getFullYear();
-    const result = await getMyFieldsAssessmentList(userId, year);
-    ApiResponse.send(res, 200, "My assessments fetched.", result);
+    const q = req.query as unknown as PaginationQuery;
+    const { result, meta } = await getMyFieldsAssessmentList({
+      userId,
+      year,
+      page: q.page,
+      limit: q.limit,
+      search: q.search,
+    });
+    ApiResponse.send(res, 200, "My assessments fetched.", result, meta);
   }
 );
 
@@ -46,9 +56,15 @@ export const myAssessmentHistory = asyncHandler(
     const userId = req.user?.sub;
     if (!userId) throw ApiError.unauthorized("Authentication required.");
 
-    const farmId = (req.query.farmId as string | undefined) ?? null;
-    const result = await getMyCompletedAssessments(userId, farmId);
-    ApiResponse.send(res, 200, "Assessment history fetched.", result);
+    const q = req.query as unknown as HistoryQuery;
+    const { result, meta } = await getMyCompletedAssessments({
+      userId,
+      farmId: q.farmId ?? null,
+      page: q.page,
+      limit: q.limit,
+      search: q.search,
+    });
+    ApiResponse.send(res, 200, "Assessment history fetched.", result, meta);
   }
 );
 
@@ -60,6 +76,7 @@ export const myFieldAssessmentSummary = asyncHandler(
     const year = new Date().getFullYear();
     const summary = await getFieldAssessmentSummary(
       req.params.fieldId,
+      req.params.programId,
       userId,
       year
     );
@@ -72,7 +89,11 @@ export const myFieldRegenIndex = asyncHandler(
     const userId = req.user?.sub;
     if (!userId) throw ApiError.unauthorized("Authentication required.");
 
-    const result = await getFieldRegenIndex(req.params.fieldId, userId);
+    const result = await getFieldRegenIndex(
+      req.params.fieldId,
+      req.params.programId,
+      userId
+    );
     ApiResponse.send(res, 200, "Field regen health index fetched.", result);
   }
 );
@@ -84,6 +105,7 @@ export const myFieldCategoryQuestions = asyncHandler(
 
     const result = await getFieldCategoryQuestions(
       req.params.fieldId,
+      req.params.programId,
       req.params.categoryId,
       userId
     );
@@ -98,6 +120,7 @@ export const myFieldCategoryQuestionList = asyncHandler(
 
     const result = await getFieldCategoryQuestionList(
       req.params.fieldId,
+      req.params.programId,
       req.params.categoryId,
       userId
     );
@@ -112,6 +135,7 @@ export const myFieldQuestionDetail = asyncHandler(
 
     const result = await getFieldQuestionDetail(
       req.params.fieldId,
+      req.params.programId,
       req.params.categoryId,
       req.params.questionId,
       userId
@@ -127,6 +151,7 @@ export const saveMyFieldAnswer = asyncHandler(
 
     const response = await saveFieldAnswer(
       req.params.fieldId,
+      req.params.programId,
       req.params.questionId,
       userId,
       req.body
@@ -140,7 +165,11 @@ export const myFieldReview = asyncHandler(
     const userId = req.user?.sub;
     if (!userId) throw ApiError.unauthorized("Authentication required.");
 
-    const review = await getFieldReview(req.params.fieldId, userId);
+    const review = await getFieldReview(
+      req.params.fieldId,
+      req.params.programId,
+      userId
+    );
     ApiResponse.send(res, 200, "Assessment review fetched.", review);
   }
 );
@@ -150,7 +179,11 @@ export const myFieldAssessmentHistory = asyncHandler(
     const userId = req.user?.sub;
     if (!userId) throw ApiError.unauthorized("Authentication required.");
 
-    const history = await getFieldAssessmentHistory(req.params.fieldId, userId);
+    const history = await getFieldAssessmentHistory(
+      req.params.fieldId,
+      req.params.programId,
+      userId
+    );
     ApiResponse.send(res, 200, "Assessment history fetched.", history);
   }
 );
@@ -160,7 +193,25 @@ export const submitMyFieldAssessment = asyncHandler(
     const userId = req.user?.sub;
     if (!userId) throw ApiError.unauthorized("Authentication required.");
 
-    const result = await submitFieldAssessmentForUser(req.params.fieldId, userId);
+    const result = await submitFieldAssessmentForUser(
+      req.params.fieldId,
+      req.params.programId,
+      userId
+    );
     ApiResponse.send(res, 200, "Assessment submitted successfully.", result);
+  }
+);
+
+export const discardMyFieldAssessment = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?.sub;
+    if (!userId) throw ApiError.unauthorized("Authentication required.");
+
+    const result = await discardFieldAssessmentForUser(
+      req.params.fieldId,
+      req.params.programId,
+      userId
+    );
+    ApiResponse.send(res, 200, "Assessment discarded.", result);
   }
 );

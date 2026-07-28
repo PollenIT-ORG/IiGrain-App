@@ -27,7 +27,7 @@ import type { ComparisonQuestion } from '../../types/assessor';
 
 const diffMeta = (q: ComparisonQuestion): { text: string; color: string; icon: string } => {
   if (q.difference === null || q.farmerScore === null || q.assessorScore === null) {
-    return { text: '-', color: COLORS.gray500, icon: 'minus' };
+    return { text: '—', color: COLORS.gray500, icon: 'minus' };
   }
   if (q.difference === 0) {
     return { text: 'Match', color: COLORS.success, icon: 'equal' };
@@ -41,7 +41,7 @@ const AssessorComparisonScreen: React.FC<AssessorScreenProps<'AssessorComparison
   route,
   navigation,
 }) => {
-  const { fieldId, fieldName } = route.params;
+  const { programId, fieldId, fieldName } = route.params;
   const dispatch = useAppDispatch();
   const data = useAppSelector(selectAssessorComparison);
   const error = useAppSelector(selectAssessorError);
@@ -51,8 +51,8 @@ const AssessorComparisonScreen: React.FC<AssessorScreenProps<'AssessorComparison
 
   const load = useCallback(() => {
     setAttempted(true);
-    dispatch(fetchComparisonThunk(fieldId));
-  }, [dispatch, fieldId]);
+    dispatch(fetchComparisonThunk({ programId, fieldId }));
+  }, [dispatch, programId, fieldId]);
   useEffect(() => {
     load();
   }, [load]);

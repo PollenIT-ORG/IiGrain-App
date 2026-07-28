@@ -68,7 +68,6 @@ const buildValue = (
     e164 = digits ? `${dialCode}${digits}` : '';
     valid = e164 ? isValidPhoneNumber(e164) : false;
   } catch {
-    // unknown ISO code; keep the defaults
   }
   return { raw: digits, dialCode, e164, countryCode: iso, isValid: valid };
 };

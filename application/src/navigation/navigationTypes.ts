@@ -13,7 +13,10 @@ export type AuthStackParamList = {
 
 export type AppTabParamList = {
   Home: undefined;
-  Assessment: { fieldId?: string } | undefined;
+  Assessment: { fieldId?: string; programId?: string } | undefined;
+  // Driven by the tab bar's centre action button rather than a tab of its own,
+  // so the tab bar stays visible while enrolling.
+  EnrollNow: undefined;
   Farms: undefined;
   More: undefined;
 };
@@ -24,7 +27,7 @@ export type AppDrawerParamList = {
 
 export type AppStackParamList = {
   Shell: NavigatorScreenParams<AppDrawerParamList>;
-  EnrollNow: undefined;
+  Notifications: undefined;
   Account: undefined;
   Reports: { farmId?: string } | undefined;
   Profile: undefined;
@@ -34,14 +37,44 @@ export type AppStackParamList = {
   FieldDetails: { farmId: string; fieldId: string };
   AddFarm: { farmId?: string } | undefined;
   AddField: { farmId: string; farmName?: string; fieldId?: string };
-  AssessmentCategory: { fieldId: string; categoryId: string; categoryName: string };
+  AssessmentCategory: {
+    programId: string;
+    fieldId: string;
+    categoryId: string;
+    categoryName: string;
+  };
   AssessmentQuestionDetail: {
+    programId: string;
     fieldId: string;
     categoryId: string;
     questionId: string;
   };
-  AssessmentReview: { fieldId: string; locked?: boolean };
+  AssessmentFieldSummary: {
+    programId: string;
+    fieldId: string;
+    /** Shown in the header until the summary loads its real title. */
+    fieldName?: string;
+  };
+  AssessmentReview: { programId: string; fieldId: string; locked?: boolean };
   FarmerVisitTracking: { visitId?: string } | undefined;
+  /** Reached from More → Help. Hosts the self-service tools. */
+  Help: undefined;
+  /**
+   * Map of every farm the user owns that has coordinates saved.
+   * `focusFarmId` opens the map already centred on — and with the card open for
+   * — that farm, so the screen can also be linked to from a farm detail page.
+   */
+  FieldMap: { focusFarmId?: string } | undefined;
+  PolygonDebugScreen: undefined;
+  
+  /**
+   * Full-screen satellite boundary editor for one field. Opened from
+   * FieldDetails. `fieldName` seeds the header until the field data loads.
+   * See docs/maps/FarmBoundary/.
+   */
+  BoundaryEditor: { farmId: string; fieldId: string; fieldName?: string };
+  /** ⚠️ DEBUG ONLY — minimal map + one polyline (A→B). */
+  SimpleMap: undefined;
 };
 
 export type AssessorTabParamList = {
@@ -55,13 +88,24 @@ export type AssessorStackParamList = {
   AssessorShell: NavigatorScreenParams<AssessorTabParamList> | undefined;
   AssessorFarmerDetail: { farmerId: string; farmerName?: string };
   AssessorFarmDetail: { farmId: string; farmName?: string };
-  AssessorAssessmentSummary: { fieldId: string; fieldName?: string };
-  AssessorCategory: { fieldId: string; categoryId: string; categoryName: string };
-  AssessorQuestion: { fieldId: string; categoryId: string; questionId: string };
-  AssessorReview: { fieldId: string };
-  AssessorFarmerAssessment: { fieldId: string; fieldName?: string };
-  AssessorComparison: { fieldId: string; fieldName?: string };
+  AssessorAssessmentSummary: { programId: string; fieldId: string; fieldName?: string };
+  AssessorCategory: {
+    programId: string;
+    fieldId: string;
+    categoryId: string;
+    categoryName: string;
+  };
+  AssessorQuestion: {
+    programId: string;
+    fieldId: string;
+    categoryId: string;
+    questionId: string;
+  };
+  AssessorReview: { programId: string; fieldId: string };
+  AssessorFarmerAssessment: { programId: string; fieldId: string; fieldName?: string };
+  AssessorComparison: { programId: string; fieldId: string; fieldName?: string };
   AssessorVisit: { visitId?: string } | undefined;
+  Notifications: undefined;
   Account: undefined;
   Profile: undefined;
   EditProfile: undefined;

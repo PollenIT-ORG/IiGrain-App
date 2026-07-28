@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -10,7 +10,7 @@ import { useNavigation, type NavigationProp } from '@react-navigation/native';
 import { AppIcon, ICONS } from '../../components/AppIcon';
 import { AppHeader, AppStatusBadge, AppText, Button } from '../../components';
 import { EmptyState, StatCard } from '../../components/farms';
-import { FadeSlideIn, QuickActions, type QuickAction } from '../../components/home';
+import { FadeSlideIn } from '../../components/home';
 import {
   AppShimmer,
   AppShimmerChip,
@@ -23,6 +23,7 @@ import {
 import { COLORS, borderRadius, borderWidth, presets, shadows, spacing, fonts } from '../../constants';
 import { addAlpha, formatDate, getInitials, moderateScale, scale } from '../../utils';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
+import { useAssessorOverviewSync } from '../../hooks/useAssessorOverviewSync';
 import {
   fetchAssessorFieldsThunk,
   selectAssessorDashboard,
@@ -53,11 +54,9 @@ const AssessorDashboardScreen: React.FC = () => {
   const error = useAppSelector(selectAssessorError);
   const user = useAppSelector(selectAuthUser);
 
-  useEffect(() => {
-    if (!overview) {
-      dispatch(fetchAssessorFieldsThunk());
-    }
-  }, [dispatch, overview]);
+  // Shared overview cache: fetch once, then refresh only when the socket says
+  // an assignment/assessment changed (or the TTL lapses). See the hook.
+  useAssessorOverviewSync(!!overview);
 
   const onRefresh = useCallback(() => {
     dispatch(fetchAssessorFieldsThunk());
@@ -71,27 +70,12 @@ const AssessorDashboardScreen: React.FC = () => {
   const openHistory = useCallback(
     (it: AssessorHistoryItem) =>
       navigation.navigate('AssessorAssessmentSummary', {
+        programId: it.programId,
         fieldId: it.fieldId,
         fieldName: it.fieldName,
       }),
     [navigation],
   );
-
-  const goFarmers = useCallback(
-    () => navigation.navigate('AssessorShell', { screen: 'AssessorFarmers' }),
-    [navigation],
-  );
-  const goHistory = useCallback(
-    () => navigation.navigate('AssessorShell', { screen: 'AssessorHistory' }),
-    [navigation],
-  );
-  const goProfile = useCallback(() => navigation.navigate('Profile'), [navigation]);
-
-  const quickActions: QuickAction[] = [
-    { key: 'farmers', icon: 'account-group-outline', label: 'My Farmers', onPress: goFarmers },
-    { key: 'history', icon: 'history', label: 'History', onPress: goHistory },
-    { key: 'profile', icon: 'account-circle-outline', label: 'Profile', onPress: goProfile },
-  ];
 
   const header = <AppHeader variant="logo" rightActions={['notification']} bgColor />;
 
@@ -155,7 +139,7 @@ const AssessorDashboardScreen: React.FC = () => {
   const pending = dashboard?.counts.pending ?? 0;
   const summaryPositive = pending === 0;
   const summaryText = summaryPositive
-    ? "You're all caught up - great work!"
+    ? "You're all caught up — great work!"
     : `${pending} assessment${pending > 1 ? 's' : ''} pending your review`;
   const noFields = overview.fields.length === 0;
 

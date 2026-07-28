@@ -487,7 +487,7 @@ function EnrollmentRow({
               disabled={savingAssessor}
             />
             {savingAssessor && (
-              <span className="text-xs font-medium text-gray-500">Saving…</span>
+              <span className="text-xs font-medium text-gray-500">Saving...</span>
             )}
           </div>
         </td>

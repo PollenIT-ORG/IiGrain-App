@@ -20,10 +20,17 @@ export interface FarmSummaryCardProps {
   fieldsCount?: number;
 }
 
+/**
+ * The screen's single source of farm identity.
+ *
+ * Everything the old layout scattered across "Quick Stats", "Farm Information"
+ * and "Business" now lives here exactly once — identity in the header, the
+ * attribute list below it. Nothing in this card is repeated elsewhere.
+ */
 const FarmSummaryCard: React.FC<FarmSummaryCardProps> = ({ farm, fieldsCount }) => {
   const statusMeta = FARM_STATUS_META[farm.status];
   const resolved = fieldsCount ?? (farm.fieldsCount || undefined);
-  const fieldsValue = resolved === undefined ? '-' : `${resolved}`;
+  const fieldsValue = resolved === undefined ? '—' : `${resolved}`;
 
   return (
     <View style={styles.card}>
@@ -32,28 +39,31 @@ const FarmSummaryCard: React.FC<FarmSummaryCardProps> = ({ farm, fieldsCount }) 
           <AppIcon name={ICONS.FARM} size={moderateScale(26)} color={COLORS.primary} />
         </View>
         <View style={styles.identity}>
-          <AppText style={styles.name} numberOfLines={1}>
+          <AppText style={styles.name} numberOfLines={2}>
             {farm.name}
           </AppText>
           <AppText style={styles.owner} numberOfLines={1}>
-            Owned by {farm.ownerName}
+            {farm.ownerName}
           </AppText>
         </View>
-        <StatusBadge label={statusMeta.label} tone={statusMeta.tone} />
       </View>
 
+      {/* On its own line so a long farm name can never squeeze the chip. */}
+      {/* <View style={styles.badgeRow}>
+        <StatusBadge label={statusMeta.label} tone={statusMeta.tone} />
+      </View> */}
+
       <View style={styles.info}>
+        {farm.businessEntity ? (
+          <InfoRow icon="domain" label="Business Entity" value={farm.businessEntity} />
+        ) : null}
         <InfoRow icon="map-marker-outline" label="Location" value={farm.location} />
         <InfoRow
           icon="vector-square"
           label="Total Area"
           value={`${formatNumber(farm.areaAcres)} acres`}
         />
-        <InfoRow
-          icon="view-grid-outline"
-          label="Fields"
-          value={fieldsValue}
-        />
+        <InfoRow icon="view-grid-outline" label="Fields" value={fieldsValue} last />
       </View>
     </View>
   );
@@ -64,28 +74,28 @@ export default React.memo(FarmSummaryCard);
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.white,
-    borderRadius: borderRadius.xl,
+    borderRadius: borderRadius['2xl'],
     borderWidth: borderWidth.thin,
     borderColor: COLORS.gray200,
-    padding: spacing[4],
+    padding: spacing[5],
     ...shadows.md,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing[3],
+    gap: spacing[3.5],
   },
   iconCircle: {
-    width: scale(52),
-    height: scale(52),
-    borderRadius: borderRadius.lg,
+    width: scale(56),
+    height: scale(56),
+    borderRadius: borderRadius.xl,
     backgroundColor: COLORS.lightPrimary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   identity: {
     flex: 1,
-    gap: spacing[0.5],
+    gap: spacing[1],
   },
   name: {
     ...presets.headingMD,
@@ -93,7 +103,11 @@ const styles = StyleSheet.create({
   },
   owner: {
     ...presets.bodySM,
-    color: COLORS.gray700,
+    color: COLORS.gray600,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    marginTop: spacing[3],
   },
   info: {
     marginTop: spacing[2],

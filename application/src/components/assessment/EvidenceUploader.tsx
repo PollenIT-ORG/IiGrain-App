@@ -311,18 +311,41 @@ const EvidenceUploader: React.FC<EvidenceUploaderProps> = ({
     [addEvidence],
   );
 
+  /**
+   * A ref, not state: two taps in the same tick would both read a stale
+   * `false` from state and open two native pickers, which iOS rejects the same
+   * way a picker over a live modal is rejected.
+   */
+  const pickBusy = useRef(false);
+
   const runPick = useCallback(
-    async (fn: () => Promise<ImagePickerResult>) => handlePickResult(await fn()),
+    async (fn: () => Promise<ImagePickerResult>) => {
+      if (pickBusy.current) {
+        return;
+      }
+      pickBusy.current = true;
+      try {
+        handlePickResult(await fn());
+      } finally {
+        pickBusy.current = false;
+      }
+    },
     [handlePickResult],
   );
 
   const choosePdf = useCallback(async () => {
+    if (pickBusy.current) {
+      return;
+    }
+    pickBusy.current = true;
     let doc: PickedDocument | null;
     try {
       doc = await pickDocument({ pdfOnly: true });
     } catch {
       showToast('Could not open the file picker.', { type: 'error' });
       return;
+    } finally {
+      pickBusy.current = false;
     }
     if (!doc) {
       return;

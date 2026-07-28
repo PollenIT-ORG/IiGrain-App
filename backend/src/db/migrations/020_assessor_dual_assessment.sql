@@ -7,7 +7,7 @@
 --
 -- Also links assessments to a program (so reporting can roll up per program).
 
--- assessment_responses: who authored the answer
+-- ── assessment_responses: who authored the answer ──
 ALTER TABLE assessment_responses
   ADD COLUMN IF NOT EXISTS author_role VARCHAR(20) NOT NULL DEFAULT 'farmer'
     CHECK (author_role IN ('farmer', 'assessor'));
@@ -34,7 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_assessment_responses_field_role
   ON assessment_responses (field_id, author_role)
   WHERE deleted_at IS NULL;
 
--- field_assessments: one submission record PER ROLE per field
+-- ── field_assessments: one submission record PER ROLE per field ──
 -- The farmer's submission and the assessor's submission lock independently and
 -- each keeps its own score snapshot.
 ALTER TABLE field_assessments

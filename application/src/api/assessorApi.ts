@@ -80,6 +80,7 @@ interface RawFieldEntry {
   field: { id: string; name: string; crop: string; status: string };
   farm: RawRef;
   farmer: RawRef;
+  program?: { id: string | null; name: string | null } | null;
   assessment: {
     status: string;
     inProgress: boolean;
@@ -108,6 +109,7 @@ const mapFieldEntry = (raw: RawFieldEntry): AssessorFieldEntry => ({
   },
   farm: mapRef(raw.farm),
   farmer: mapRef(raw.farmer),
+  program: { id: raw.program?.id ?? '', name: raw.program?.name ?? '' },
   assessment: {
     status: mapAssessmentStatus(raw.assessment.status),
     inProgress: !!raw.assessment.inProgress,
@@ -170,6 +172,7 @@ const mapAssessorSummary = (payload: SummaryPayload): AssessorAssessmentSummary 
       totalQuestions: payload.assessment.totalQuestions ?? 0,
       answered: payload.assessment.answered ?? 0,
       percentage: toPercentage(payload.assessment.percentage),
+      submitted: payload.assessment.status === 'submitted',
     },
     categories,
   };
@@ -480,75 +483,102 @@ export const getFields = async (): Promise<AssessorFieldsOverview> => {
   return mapFieldsOverview(res.data.data);
 };
 
-export const getSummary = async (fieldId: string): Promise<AssessorAssessmentSummary> => {
-  trace('GET summary', { fieldId });
-  const res = await http.get<Envelope<SummaryPayload>>(Endpoints.assessor.summary(fieldId));
+export const getSummary = async (
+  programId: string,
+  fieldId: string,
+): Promise<AssessorAssessmentSummary> => {
+  trace('GET summary', { programId, fieldId });
+  const res = await http.get<Envelope<SummaryPayload>>(
+    Endpoints.assessor.summary(programId, fieldId),
+  );
   return mapAssessorSummary(res.data.data);
 };
 
 export const getCategoryQuestions = async (
+  programId: string,
   fieldId: string,
   categoryId: string,
 ): Promise<CategoryQuestionList> => {
-  trace('GET categoryQuestions', { fieldId, categoryId });
+  trace('GET categoryQuestions', { programId, fieldId, categoryId });
   const res = await http.get<Envelope<CategoryQuestionsPayload>>(
-    Endpoints.assessor.categoryQuestions(fieldId, categoryId),
+    Endpoints.assessor.categoryQuestions(programId, fieldId, categoryId),
   );
   return mapCategoryQuestionList(res.data.data);
 };
 
 export const getQuestion = async (
+  programId: string,
   fieldId: string,
   categoryId: string,
   questionId: string,
 ): Promise<AssessmentQuestionDetail> => {
-  trace('GET question', { fieldId, categoryId, questionId });
+  trace('GET question', { programId, fieldId, categoryId, questionId });
   const res = await http.get<Envelope<QuestionDetailPayload>>(
-    Endpoints.assessor.question(fieldId, categoryId, questionId),
+    Endpoints.assessor.question(programId, fieldId, categoryId, questionId),
   );
   return mapQuestionDetail(res.data.data);
 };
 
 export const saveAnswer = async (
+  programId: string,
   fieldId: string,
   questionId: string,
   input: SaveAnswerInput,
 ): Promise<SavedAnswer> => {
   trace('PUT saveAnswer', {
-    url: Endpoints.assessor.saveAnswer(fieldId, questionId),
+    url: Endpoints.assessor.saveAnswer(programId, fieldId, questionId),
+    programId,
     fieldId,
     questionId,
     body: input,
   });
   const res = await http.put<Envelope<SaveAnswerPayload>>(
-    Endpoints.assessor.saveAnswer(fieldId, questionId),
+    Endpoints.assessor.saveAnswer(programId, fieldId, questionId),
     input,
   );
   return mapSavedAnswer(res.data.data.response);
 };
 
-export const getReview = async (fieldId: string): Promise<AssessmentReview> => {
-  trace('GET review', { fieldId });
-  const res = await http.get<Envelope<ReviewPayload>>(Endpoints.assessor.review(fieldId));
+export const getReview = async (
+  programId: string,
+  fieldId: string,
+): Promise<AssessmentReview> => {
+  trace('GET review', { programId, fieldId });
+  const res = await http.get<Envelope<ReviewPayload>>(
+    Endpoints.assessor.review(programId, fieldId),
+  );
   return mapReview(res.data.data);
 };
 
-export const submit = async (fieldId: string): Promise<AssessmentSubmitResult> => {
-  trace('POST submit', { fieldId, url: Endpoints.assessor.submit(fieldId) });
-  const res = await http.post<Envelope<SubmitPayload>>(Endpoints.assessor.submit(fieldId));
+export const submit = async (
+  programId: string,
+  fieldId: string,
+): Promise<AssessmentSubmitResult> => {
+  trace('POST submit', { programId, fieldId, url: Endpoints.assessor.submit(programId, fieldId) });
+  const res = await http.post<Envelope<SubmitPayload>>(
+    Endpoints.assessor.submit(programId, fieldId),
+  );
   return mapSubmitResult(res.data.data);
 };
 
-export const getFarmerAssessment = async (fieldId: string): Promise<FarmerAssessmentView> => {
-  trace('GET farmerAssessment', { fieldId });
+export const getFarmerAssessment = async (
+  programId: string,
+  fieldId: string,
+): Promise<FarmerAssessmentView> => {
+  trace('GET farmerAssessment', { programId, fieldId });
   const res = await http.get<Envelope<FarmerAssessmentPayload>>(
-    Endpoints.assessor.farmerAssessment(fieldId),
+    Endpoints.assessor.farmerAssessment(programId, fieldId),
   );
   return mapFarmerAssessment(res.data.data);
 };
 
-export const getComparison = async (fieldId: string): Promise<AssessorComparison> => {
-  trace('GET comparison', { fieldId });
-  const res = await http.get<Envelope<ComparisonPayload>>(Endpoints.assessor.comparison(fieldId));
+export const getComparison = async (
+  programId: string,
+  fieldId: string,
+): Promise<AssessorComparison> => {
+  trace('GET comparison', { programId, fieldId });
+  const res = await http.get<Envelope<ComparisonPayload>>(
+    Endpoints.assessor.comparison(programId, fieldId),
+  );
   return mapComparison(res.data.data);
 };

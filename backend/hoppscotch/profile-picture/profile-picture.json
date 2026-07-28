@@ -1,0 +1,54 @@
+{
+  "v": 1,
+  "name": "Farmer App - Profile Picture (avatar)",
+  "folders": [],
+  "requests": [
+    {
+      "v": "1",
+      "name": "GET my profile (shows avatar_url)",
+      "method": "GET",
+      "endpoint": "<<baseUrl>>/profile/me",
+      "headers": [],
+      "params": [],
+      "body": { "contentType": null, "body": null },
+      "auth": { "authType": "bearer", "authActive": true, "token": "<<token>>" },
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status is 200\", () => pw.expect(pw.response.status).toBe(200));\nconst u = pw.response.body.data && pw.response.body.data.user;\nif (u) pw.env.set('avatarUrl', u.avatar_url || '');"
+    },
+    {
+      "v": "1",
+      "name": "POST upload avatar (multipart, field 'avatar')",
+      "method": "POST",
+      "endpoint": "<<baseUrl>>/profile/me/avatar",
+      "headers": [],
+      "params": [],
+      "body": {
+        "contentType": "multipart/form-data",
+        "body": [
+          {
+            "key": "avatar",
+            "value": "",
+            "active": true,
+            "isFile": true,
+            "contentType": ""
+          }
+        ]
+      },
+      "auth": { "authType": "bearer", "authActive": true, "token": "<<token>>" },
+      "preRequestScript": "/* EXPECTED 200:\n{\n  \"success\": true,\n  \"message\": \"Profile picture updated.\",\n  \"data\": { \"user\": { \"id\": \"...\", \"avatar_url\": \"https://res.cloudinary.com/.../farmer_avatars/xyz.jpg\", ... } }\n}\nAttach ONE image file (jpg/jpeg/png/webp/heic, max 5 MB) to the 'avatar' field in Body before sending. */",
+      "testScript": "pw.test(\"Status is 200\", () => pw.expect(pw.response.status).toBe(200));\npw.test(\"success is true\", () => pw.expect(pw.response.body.success).toBe(true));\nconst u = pw.response.body.data && pw.response.body.data.user;\nif (u && u.avatar_url) pw.env.set('avatarUrl', u.avatar_url);"
+    },
+    {
+      "v": "1",
+      "name": "DELETE remove avatar",
+      "method": "DELETE",
+      "endpoint": "<<baseUrl>>/profile/me/avatar",
+      "headers": [],
+      "params": [],
+      "body": { "contentType": null, "body": null },
+      "auth": { "authType": "bearer", "authActive": true, "token": "<<token>>" },
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status is 200\", () => pw.expect(pw.response.status).toBe(200));"
+    }
+  ]
+}

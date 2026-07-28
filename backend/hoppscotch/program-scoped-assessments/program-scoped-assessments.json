@@ -1,0 +1,478 @@
+{
+  "v": 1,
+  "name": "Farmer App - Program-Scoped Assessments (updated + new)",
+  "folders": [
+    {
+      "v": 1,
+      "name": "Farmer (program-scoped)",
+      "folders": [],
+      "requests": [
+        {
+          "v": "1",
+          "name": "List my fields [UPDATED: item now has program{}]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/my/fields",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "pw.test(\"save programId + fieldId from first card\", () => {\n  const f = pw.response.body.data && pw.response.body.data.fields;\n  if (f && f.length) {\n    if (f[0].program && f[0].program.id) pw.env.set('programId', f[0].program.id);\n    if (f[0].field && f[0].field.id) pw.env.set('fieldId', f[0].field.id);\n  }\n});"
+        },
+        {
+          "v": "1",
+          "name": "Summary [UPDATED path]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/summary",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Regen health index [UPDATED path]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/regen-index",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Category question list [UPDATED path]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions/list",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Category questions [UPDATED path]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "One question [UPDATED path]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions/<<questionId>>",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Save answer [UPDATED path]",
+          "method": "PUT",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/questions/<<questionId>>/answer",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true,
+              "description": ""
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"score\": 2,\n  \"comment\": \"Cover crop in place\",\n  \"evidenceUrls\": []\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Review [UPDATED path]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/review",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "History (submitted only) [UPDATED path]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/history",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Submit [UPDATED path]",
+          "method": "POST",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/submit",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        }
+      ]
+    },
+    {
+      "v": 1,
+      "name": "Assessor (program-scoped)",
+      "folders": [],
+      "requests": [
+        {
+          "v": "1",
+          "name": "List assessor fields [UPDATED: item now has program{}]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessor/fields",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": "pw.test(\"save programId + fieldId from first card\", () => {\n  const f = pw.response.body.data && pw.response.body.data.fields;\n  if (f && f.length) {\n    if (f[0].program && f[0].program.id) pw.env.set('programId', f[0].program.id);\n    if (f[0].field && f[0].field.id) pw.env.set('fieldId', f[0].field.id);\n  }\n});"
+        },
+        {
+          "v": "1",
+          "name": "Summary [UPDATED path]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/summary",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Category question list [UPDATED path]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions/list",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Category questions [UPDATED path]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "One question [UPDATED path]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions/<<questionId>>",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Save answer [UPDATED path]",
+          "method": "PUT",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/questions/<<questionId>>/answer",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json",
+              "active": true,
+              "description": ""
+            }
+          ],
+          "params": [],
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"score\": 3,\n  \"comment\": \"Verified on site\",\n  \"evidenceUrls\": []\n}"
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Review [UPDATED path]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/review",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Submit [UPDATED path]",
+          "method": "POST",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/submit",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Farmer's assessment [UPDATED path]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/farmer-assessment",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Comparison [UPDATED path]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/assessor/programs/<<programId>>/fields/<<fieldId>>/comparison",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        }
+      ]
+    },
+    {
+      "v": 1,
+      "name": "Admin (new + updated)",
+      "folders": [],
+      "requests": [
+        {
+          "v": "1",
+          "name": "Program assessment progress [NEW]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/programs/<<programId>>/assessment-progress",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Enrollment assessments [UPDATED: now program-scoped]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/programs/<<programId>>/enrollments/<<enrollmentId>>/assessments",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        },
+        {
+          "v": "1",
+          "name": "Field assessment comparison [UPDATED: optional ?programId]",
+          "method": "GET",
+          "endpoint": "<<baseUrl>>/fields/<<fieldId>>/assessment-comparison?programId=<<programId>>",
+          "headers": [],
+          "params": [],
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "preRequestScript": "",
+          "testScript": ""
+        }
+      ]
+    }
+  ]
+}

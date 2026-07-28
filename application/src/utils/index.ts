@@ -62,10 +62,14 @@ export const lighten = (hex: string, amount: number): string => {
 export const capitalize = (s: string): string =>
   s.charAt(0).toUpperCase() + s.slice(1);
 
-export const getInitials = (name: string, maxLength: number = 2): string =>
-  name
+export const getInitials = (
+  name: string | null | undefined,
+  maxLength: number = 2,
+): string =>
+  (name ?? '')
     .trim()
     .split(/\s+/)
+    .filter(Boolean)
     .slice(0, maxLength)
     .map(w => w.charAt(0).toUpperCase())
     .join('');
@@ -77,11 +81,11 @@ const MONTHS_SHORT = [
 
 export const formatDate = (iso?: string): string => {
   if (!iso) {
-    return '-';
+    return '—';
   }
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) {
-    return '-';
+    return '—';
   }
   return `${MONTHS_SHORT[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
 };

@@ -16,6 +16,8 @@ interface Metric {
   label: string;
   value: number;
   color: string;
+  valueLabel?: string;
+  dimmed?: boolean;
 }
 
 interface RegenHealthCardProps {
@@ -85,6 +87,8 @@ const RegenHealthCard: React.FC<RegenHealthCardProps> = ({
               value={m.value}
               max={max}
               color={m.color}
+              valueLabel={m.valueLabel}
+              dimmed={m.dimmed}
               delay={280 + i * 90}
             />
           ))}

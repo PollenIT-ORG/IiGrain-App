@@ -1,5 +1,7 @@
 import { isAxiosError } from 'axios';
+import type { ErrorPresentation } from '../config/errorMessages';
 import { getApiMessage } from './getApiMessage';
+import { resolveError } from './resolveError';
 
 export type ApiErrorKind =
   | 'auth'
@@ -11,9 +13,18 @@ export type ApiErrorKind =
   | 'unknown';
 
 export interface StandardizedError {
+  /**
+   * The most specific text available — the backend's own message when it sent
+   * one. Kept as-is because inline field errors want the precise detail; use
+   * `presentation` for the user-facing title/copy pair.
+   */
   readonly message: string;
   readonly status: number | null;
   readonly kind: ApiErrorKind;
+  /** Catalogue code this failure resolved to, e.g. 'FIELD_AREA_EXCEEDED'. */
+  readonly code: string;
+  /** Ready-to-render copy from src/config/errorMessages.ts. */
+  readonly presentation: ErrorPresentation;
 }
 
 const classify = (status: number | null, hasResponse: boolean): ApiErrorKind => {
@@ -39,18 +50,24 @@ const classify = (status: number | null, hasResponse: boolean): ApiErrorKind => 
 };
 
 export const handleApiError = (error: unknown): StandardizedError => {
+  const presentation = resolveError(error);
+
   if (isAxiosError(error)) {
     const status = error.response?.status ?? null;
-    const hasResponse = Boolean(error.response);
     return {
-      message: getApiMessage(error),
+      message: getApiMessage(error, presentation.message),
       status,
-      kind: classify(status, hasResponse),
+      kind: classify(status, Boolean(error.response)),
+      code: presentation.code,
+      presentation,
     };
   }
+
   return {
-    message: getApiMessage(error),
+    message: getApiMessage(error, presentation.message),
     status: null,
     kind: 'unknown',
+    code: presentation.code,
+    presentation,
   };
 };

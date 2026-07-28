@@ -1,30 +1,36 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Alert,
   Linking,
-  Pressable,
   ScrollView,
   Share,
   StyleSheet,
   TouchableOpacity,
   View,
-  type ViewStyle,
 } from 'react-native';
 import AppImageViewer from '../../components/AppImageViewer/AppImageViewer';
 import AppVideoViewer from '../../components/AppVideoViewer/AppVideoViewer';
 import { AppIcon, ICONS } from '../../components/AppIcon';
-import { AppHeader, AppText, Button } from '../../components';
-import type { HeaderAction } from '../../components';
+import {
+  AppHeader,
+  AppOverflowMenu,
+  AppText,
+  Button,
+  ConfirmationModal,
+  parseISOMonth,
+} from '../../components';
+import type { OverflowMenuItem } from '../../components';
 import {
   EmptyState,
+  InfoRow,
   SectionHeader,
   StatCard,
-  StatusBadge,
   Timeline,
 } from '../../components/farms';
 import { COLORS, spacing } from '../../constants';
-import { addAlpha, capitalize, formatDate, formatNumber, moderateScale, scale } from '../../utils';
+import { formatDate, formatNumber, moderateScale, scale } from '../../utils';
 import {
   AppShimmer,
   AppShimmerCard,
@@ -36,11 +42,13 @@ import {
   SHIMMER_RADIUS,
   shimmerLayout,
 } from '../../components/Shimmer';
-import { FIELD_HEALTH_META } from '../../types/farm';
 import type { AppScreenProps } from '../../navigation/navigationTypes';
 import { styles } from './FieldDetailsScreenStyle';
 import { AnimatedTabBar } from '../../components/';
-import FieldChips from '../../components/farms/FieldChips';
+import { FieldLocationPreview } from '../../maps';
+import { BoundaryPolygon } from '../../maps/boundary';
+import { selectBoundary } from '../../redux/slices/boundarySlice';
+import { formatArea } from '../../maps/utils/geo';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
   fetchFarmFieldsThunk,
@@ -72,6 +80,24 @@ import {
   selectDeletingDocId,
 } from '../../redux/slices/fieldDetailsSlice';
 import { showToast, showSuccess } from '../../services/toastService';
+import SoilDetailsModal, { type SoilValues } from '../../components/farms/SoilDetailsModal';
+import {
+  resetFieldThunk,
+  deleteFieldThunk,
+} from '../../redux/thunks/fieldThunks';
+import {
+  selectFieldDeleting,
+  selectFieldResetting,
+} from '../../redux/slices/fieldSlice';
+import {
+  fetchFieldSoilRecordThunk,
+  saveFieldSoilThunk,
+  selectSoilFieldId,
+  selectSoilRecord,
+  selectSoilSaving,
+  setSoilField,
+} from '../../redux/slices/soilSlice';
+import type { SaveSoilInput } from '../../types/fieldDetails';
 import { pickDocument } from '../../services/documentPickerService';
 import type { FieldDocument } from '../../types/fieldDetails';
 import { AttachmentCard } from '../../components/media';
@@ -81,6 +107,9 @@ import { classifyMedia } from '../../utils/fileType';
 
 type FieldTab = 'overview' | 'history' | 'soil' | 'documents';
 
+/** Which destructive dialog is open, if any. */
+type PendingAction = 'reset' | 'delete' | null;
+
 const FILTER_TABS: { key: FieldTab; label: string; icon: string }[] = [
   { key: 'overview', label: 'Overview', icon: 'view-dashboard-outline' },
   { key: 'history', label: 'History', icon: 'history' },
@@ -88,9 +117,18 @@ const FILTER_TABS: { key: FieldTab; label: string; icon: string }[] = [
   { key: 'documents', label: 'Docs', icon: 'file-document-outline' },
 ];
 
-const PALETTE = [COLORS.accent, COLORS.info, COLORS.secondary, COLORS.primary];
-
 const DOC_HITSLOP = { top: 8, bottom: 8, left: 8, right: 8 } as const;
+
+const MONTH_LABELS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/** Planting/harvest are captured as months, so show "Mar 2026" not a full date. */
+const formatMonth = (iso?: string | null): string => {
+  const parsed = parseISOMonth(iso);
+  return parsed ? `${MONTH_LABELS[parsed.month]} ${parsed.year}` : '—';
+};
 
 const StatTileShimmer: React.FC = () => (
   <AppShimmerCard style={skStyles.statTile}>
@@ -100,12 +138,30 @@ const StatTileShimmer: React.FC = () => (
   </AppShimmerCard>
 );
 
-const MAP_POSITIONS: ViewStyle[] = [
-  { top: '6%', left: '5%', width: '44%', height: '50%' },
-  { top: '9%', left: '52%', width: '43%', height: '40%' },
-  { top: '58%', left: '6%', width: '41%', height: '36%' },
-  { top: '45%', left: '50%', width: '45%', height: '49%' },
-];
+const EMPTY_SOIL_VALUES: SoilValues = {
+  texture: '',
+  ph: '',
+  organicMatter: '',
+  nitrogen: '',
+  phosphorus: '',
+  potassium: '',
+  moisture: '',
+  testedOn: '',
+  notes: '',
+};
+
+const NOT_RECORDED = 'Not recorded';
+
+const numToText = (n: number | null): string => (n === null ? '' : String(n));
+
+const textToNum = (text: string): number | null => {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const n = Number.parseFloat(trimmed);
+  return Number.isFinite(n) ? n : null;
+};
 
 const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
   route,
@@ -114,8 +170,9 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
   const { farmId, fieldId: initialFieldId } = route.params;
   const dispatch = useAppDispatch();
 
-  const [selectedFieldId, setSelectedFieldId] = useState(initialFieldId);
+  const [selectedFieldId] = useState(initialFieldId);
   const [activeTab, setActiveTab] = useState<FieldTab>('overview');
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
   const farm = useAppSelector(selectSelectedFarm);
   const allFields = useAppSelector(selectFields);
@@ -138,18 +195,33 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
     return farmFields.find(f => f.id === selectedFieldId) || farmFields[0];
   }, [allFields, selectedFieldId, fieldsReady]);
 
-  const handleHeaderAction = useCallback(
-    (action: HeaderAction) => {
-      if (action === 'edit' && currentField) {
-        navigation.navigate('AddField', {
-          farmId,
-          fieldId: currentField.id,
-          farmName: farm?.name,
-        });
-      }
-    },
-    [navigation, farmId, currentField, farm],
+  const goToEditField = useCallback(() => {
+    if (!currentField) {
+      return;
+    }
+    navigation.navigate('AddField', {
+      farmId,
+      fieldId: currentField.id,
+      farmName: farm?.name,
+    });
+  }, [navigation, farmId, currentField, farm]);
+
+  // Saved boundary for this field (null until one is drawn). Drives the Overview
+  // preview overlay and the Draw/Edit button label.
+  const boundary = useAppSelector(state =>
+    currentField ? selectBoundary(state, currentField.id) : null,
   );
+
+  const goToBoundaryEditor = useCallback(() => {
+    if (!currentField) {
+      return;
+    }
+    navigation.navigate('BoundaryEditor', {
+      farmId,
+      fieldId: currentField.id,
+      fieldName: currentField.name,
+    });
+  }, [navigation, farmId, currentField]);
 
   const detailsFieldId = useAppSelector(selectFieldDetailsFieldId);
   const overview = useAppSelector(selectFieldOverview);
@@ -176,6 +248,7 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
     } else if (activeTab === 'history' && activity === null && !tabLoading.activity) {
       dispatch(fetchFieldActivityThunk(selectedFieldId));
     } else if (activeTab === 'soil' && soil === null && !tabLoading.soil) {
+      console.log('[FieldDetails] soil fetch', { fieldId: selectedFieldId });
       dispatch(fetchFieldSoilThunk(selectedFieldId));
     } else if (activeTab === 'documents' && documents === null && !tabLoading.documents) {
       dispatch(fetchFieldDocumentsThunk(selectedFieldId));
@@ -191,6 +264,21 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
     documents,
     tabLoading,
   ]);
+
+  const isFirstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstFocus.current) {
+        isFirstFocus.current = false;
+        return;
+      }
+      if (!selectedFieldId) {
+        return;
+      }
+      dispatch(fetchFieldOverviewThunk(selectedFieldId));
+      dispatch(fetchFieldSoilThunk(selectedFieldId));
+    }, [dispatch, selectedFieldId]),
+  );
 
   const docList = useMemo(() => documents ?? [], [documents]);
   const { entries: downloadEntries, download: startDownload } = useFileDownloads(docList);
@@ -210,8 +298,149 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
   );
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [imageViewerIndex, setImageViewerIndex] = useState(0);
+  // While a finger is on the map, freeze the page ScrollView so the WebView
+  // gets the pan gesture (otherwise the outer scroll swallows it — the map
+  // "won't move"). Re-enabled the moment the touch ends.
+  const [mapPanning, setMapPanning] = useState(false);
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [videoVisible, setVideoVisible] = useState(false);
+  const [soilEditorVisible, setSoilEditorVisible] = useState(false);
+  const [soilDraft, setSoilDraft] = useState<SoilValues>(EMPTY_SOIL_VALUES);
+  const soilSaving = useAppSelector(selectSoilSaving);
+  const soilRecord = useAppSelector(selectSoilRecord);
+  const soilRecordFieldId = useAppSelector(selectSoilFieldId);
+  const fieldResetting = useAppSelector(selectFieldResetting);
+  const fieldDeleting = useAppSelector(selectFieldDeleting);
+
+  // The map only lives in Overview. If a tab switch unmounts it mid-pan the
+  // touch-end never fires, so release the page scroll here or it stays frozen.
+  useEffect(() => {
+    if (activeTab !== 'overview') {
+      setMapPanning(false);
+    }
+  }, [activeTab]);
+
+  // The soil tab renders formatted metrics; the editor needs the raw record, so
+  // it is pulled once the tab is open and the field is unlocked.
+  useEffect(() => {
+    if (activeTab === 'soil' && soil && !soil.locked && soilRecordFieldId !== selectedFieldId) {
+      dispatch(setSoilField(selectedFieldId));
+      dispatch(fetchFieldSoilRecordThunk(selectedFieldId));
+    }
+  }, [activeTab, soil, soilRecordFieldId, selectedFieldId, dispatch]);
+
+  const openSoilEditor = useCallback(() => {
+    const r = soilRecordFieldId === selectedFieldId ? soilRecord : null;
+    setSoilDraft(
+      r
+        ? {
+            texture: r.texture,
+            ph: numToText(r.ph),
+            organicMatter: numToText(r.organicMatter),
+            nitrogen: numToText(r.nitrogen),
+            phosphorus: numToText(r.phosphorus),
+            potassium: numToText(r.potassium),
+            moisture: numToText(r.moisture),
+            testedOn: r.testedOnISO ?? '',
+            notes: r.notes,
+          }
+        : EMPTY_SOIL_VALUES,
+    );
+    setSoilEditorVisible(true);
+  }, [soilRecord, soilRecordFieldId, selectedFieldId]);
+
+  const handleSoilDraftChange = useCallback(
+    (field: keyof SoilValues, value: string) =>
+      setSoilDraft(prev => ({ ...prev, [field]: value })),
+    [],
+  );
+
+  const handleSoilSave = useCallback(async () => {
+    // The backend rejects nutrient values with a 403 while the field is locked,
+    // and it treats key *presence* as an edit. Sending ph..moisture as null
+    // therefore failed texture/notes/tested-on-only saves on a locked field —
+    // so the nutrient keys are omitted entirely until the field is unlocked.
+    const input: SaveSoilInput = {
+      texture: soilDraft.texture.trim() || null,
+      notes: soilDraft.notes.trim() || null,
+      testedOn: soilDraft.testedOn.trim() || null,
+      ...(soil?.locked
+        ? {}
+        : {
+            ph: textToNum(soilDraft.ph),
+            organicMatter: textToNum(soilDraft.organicMatter),
+            nitrogen: textToNum(soilDraft.nitrogen),
+            phosphorus: textToNum(soilDraft.phosphorus),
+            potassium: textToNum(soilDraft.potassium),
+            moisture: textToNum(soilDraft.moisture),
+          }),
+    };
+    const action = await dispatch(
+      saveFieldSoilThunk({ fieldId: selectedFieldId, input }),
+    );
+    if (saveFieldSoilThunk.fulfilled.match(action)) {
+      setSoilEditorVisible(false);
+      showSuccess('Soil details saved');
+      dispatch(fetchFieldSoilThunk(selectedFieldId));
+    }
+  }, [dispatch, selectedFieldId, soilDraft, soil?.locked]);
+
+  const askResetField = useCallback(() => setPendingAction('reset'), []);
+  const askDeleteField = useCallback(() => setPendingAction('delete'), []);
+  const dismissDialog = useCallback(() => setPendingAction(null), []);
+
+  const runResetField = useCallback(async () => {
+    const action = await dispatch(
+      resetFieldThunk({ farmId, fieldId: selectedFieldId }),
+    );
+    // Close before the toast: a root-level toast renders behind an open modal.
+    setPendingAction(null);
+    if (resetFieldThunk.fulfilled.match(action)) {
+      showSuccess('Field reset');
+      dispatch(fetchFieldOverviewThunk(selectedFieldId));
+    }
+  }, [dispatch, farmId, selectedFieldId]);
+
+  const runDeleteField = useCallback(async () => {
+    // A 409 (submitted assessment / still enrolled) surfaces through the global
+    // error modal with the message the backend returned.
+    const action = await dispatch(
+      deleteFieldThunk({ farmId, fieldId: selectedFieldId }),
+    );
+    setPendingAction(null);
+    if (deleteFieldThunk.fulfilled.match(action)) {
+      showSuccess('Field deleted');
+      navigation.goBack();
+    }
+  }, [dispatch, farmId, selectedFieldId, navigation]);
+
+  const menuItems = useMemo<OverflowMenuItem[]>(
+    () => [
+      {
+        key: 'edit',
+        icon: 'pencil-outline',
+        title: 'Edit Field',
+        onPress: goToEditField,
+      },
+      {
+        key: 'reset',
+        icon: 'backup-restore',
+        title: 'Reset Field',
+        onPress: askResetField,
+        loading: fieldResetting,
+      },
+      {
+        key: 'delete',
+        icon: 'trash-can-outline',
+        title: 'Delete Field',
+        onPress: askDeleteField,
+        destructive: true,
+        loading: fieldDeleting,
+      },
+    ],
+    [goToEditField, askResetField, askDeleteField, fieldResetting, fieldDeleting],
+  );
+
 
   const openDocument = useCallback(
     (doc: FieldDocument, previewUri: string) => {
@@ -229,6 +458,7 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
         setVideoVisible(true);
         return;
       }
+
       Linking.openURL(doc.url).catch(() =>
         showToast('Could not open this document.', { type: 'error' }),
       );
@@ -389,8 +619,6 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
     );
   }
 
-  const healthMeta = FIELD_HEALTH_META[currentField.status];
-
   const renderTabLoading = () => (
     <View style={styles.tabLoadingBox}>
       <ActivityIndicator size="large" color={COLORS.primary} />
@@ -419,16 +647,72 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
     const o = overview;
     const infoRows = o
       ? [
-          { label: 'Farm', value: o.farmName || '-' },
-          { label: 'Crop', value: o.crop || '-' },
-          { label: 'Season', value: o.season || '-' },
-          { label: 'Status', value: capitalize(o.status) },
+          { label: 'Farm', value: o.farmName || '—' },
+          { label: 'Crop', value: o.crop || '—' },
+          { label: 'Season', value: o.season || '—' },
         ]
       : [];
     const locationText = o?.location || currentField.coordinates;
 
     return (
       <View style={styles.tabAnimateWrap}>
+        {/* The map belongs to Overview only — the other tabs render without it. */}
+        <View
+          style={[styles.mapBox, skStyles.overviewMap]}
+          // Hand the pan gesture to the WebView map: freeze the page scroll on
+          // touch-down (capture phase, before the WebView consumes it) and
+          // release it when the finger lifts or the gesture is cancelled.
+          onStartShouldSetResponderCapture={() => {
+            setMapPanning(true);
+            return false;
+          }}
+          onTouchEnd={() => setMapPanning(false)}
+          onTouchCancel={() => setMapPanning(false)}>
+          {currentField.latitude != null && currentField.longitude != null ? (
+            <FieldLocationPreview
+              latitude={currentField.latitude}
+              longitude={currentField.longitude}
+              onTouchStart={() => setMapPanning(true)}
+              onTouchEnd={() => setMapPanning(false)}
+              onTouchCancel={() => setMapPanning(false)}>
+              {/* Overlay the saved boundary on the preview, when one exists. */}
+              {boundary ? <BoundaryPolygon ring={boundary.ring} strokeWidth={2} /> : null}
+            </FieldLocationPreview>
+          ) : (
+            <View style={styles.mapEmpty}>
+              <AppIcon name={ICONS.LOCATION} size={moderateScale(28)} color={COLORS.gray300} />
+              <AppText style={styles.mapEmptyText}>Location not set for this field</AppText>
+            </View>
+          )}
+        </View>
+
+        {/* Farm Boundary entry — see docs/maps/FarmBoundary/UX.md §1. */}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={goToBoundaryEditor}
+          style={styles.boundaryRow}
+          accessibilityRole="button"
+          accessibilityLabel={boundary ? 'Edit field boundary' : 'Draw field boundary'}>
+          <View style={styles.boundaryIcon}>
+            <AppIcon name="vector-polygon" size={moderateScale(20)} color={COLORS.primary} />
+          </View>
+          <View style={styles.flex}>
+            <AppText style={styles.boundaryTitle}>
+              {boundary ? 'Edit field boundary' : 'Draw field boundary'}
+            </AppText>
+            <AppText style={styles.boundarySub}>
+              {boundary
+                ? `Mapped · ${formatArea(boundary.areaSqM, 'acre')}`
+                : 'Trace the field on satellite imagery'}
+            </AppText>
+          </View>
+          <AppIcon
+            name={boundary ? 'check-circle' : ICONS.CHEVRON_RIGHT}
+            size={moderateScale(boundary ? 20 : 22)}
+            color={boundary ? COLORS.primary : COLORS.gray500}
+          />
+        </TouchableOpacity>
+
         <View style={styles.overviewHero}>
           <View style={styles.heroTopRow}>
             <View style={styles.flex}>
@@ -437,7 +721,6 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
                 {o?.crop ?? currentField.crop} · {o?.season ?? currentField.season}
               </AppText>
             </View>
-            <StatusBadge label={healthMeta.label} tone={healthMeta.tone} />
           </View>
 
           {locationText ? (
@@ -454,13 +737,13 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
             <StatCard icon="vector-square" label="Area" value={`${formatNumber(o?.areaAcres ?? currentField.areaAcres)} ac`} tone="neutral" />
           </View>
           <View style={styles.statsCell}>
-            <StatCard icon="water-outline" label="Irrigation" value={o?.irrigation || currentField.irrigation || '-'} tone="info" />
+            <StatCard icon="water-outline" label="Irrigation" value={o?.irrigation || currentField.irrigation || '—'} tone="info" />
           </View>
           <View style={styles.statsCell}>
-            <StatCard icon="calendar-outline" label="Sown Date" value={formatDate(o?.sowingDateISO ?? currentField.sowingDateISO)} tone="neutral" />
+            <StatCard icon="calendar-outline" label="Planting Month" value={formatMonth(o?.sowingDateISO ?? currentField.sowingDateISO)} tone="neutral" />
           </View>
           <View style={styles.statsCell}>
-            <StatCard icon="calendar-check-outline" label="Harvest Est." value={formatDate(o?.expectedHarvestISO ?? currentField.expectedHarvestISO)} tone="success" />
+            <StatCard icon="calendar-check-outline" label="Harvest Month" value={formatMonth(o?.expectedHarvestISO ?? currentField.expectedHarvestISO)} tone="success" />
           </View>
         </View>
 
@@ -505,6 +788,18 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
   };
 
   const renderSoil = () => {
+    console.log('[FieldDetails] soil render', {
+      fieldId: selectedFieldId,
+      locked: soil?.locked,
+      metricsCount: soil?.metrics.length ?? 0,
+      texture: soil?.texture,
+      testedOnISO: soil?.testedOnISO,
+      notes: soil?.notes,
+      loading: tabLoading.soil,
+      error: tabError.soil,
+      raw: soil,
+    });
+
     if (!soil && tabLoading.soil) {
       return renderTabLoading();
     }
@@ -514,7 +809,7 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
       );
     }
     const s = soil;
-    if (!s || s.metrics.length === 0) {
+    if (!s) {
       return (
         <View style={styles.tabAnimateWrap}>
           <AppText style={styles.emptyText}>
@@ -525,38 +820,70 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
     }
     return (
       <View style={styles.tabAnimateWrap}>
-        <SectionHeader title="Lab & Sensor Metrics" />
-        <View style={styles.statsGrid}>
-          {s.metrics.map(item => (
-            <View key={item.id} style={styles.statsCell}>
-              <StatCard icon={item.icon} label={item.label} value={item.value} tone={item.tone} />
+        {s.locked ? (
+          <View style={styles.soilLockCard}>
+            <View style={styles.soilLockIcon}>
+              <AppIcon name="lock-outline" size={moderateScale(18)} color={COLORS.warning} />
             </View>
-          ))}
-        </View>
-        {s.texture || s.testedOnISO || s.notes ? (
-          <View style={styles.card}>
-            <View style={styles.soilFootnote}>
-              {s.texture ? (
-                <View style={styles.soilNoteRow}>
-                  <AppIcon name={ICONS.HARVEST} size={moderateScale(15)} color={COLORS.gray500} />
-                  <AppText style={styles.soilNoteText}>Texture: {s.texture}</AppText>
-                </View>
-              ) : null}
-              {s.testedOnISO ? (
-                <View style={styles.soilNoteRow}>
-                  <AppIcon name={ICONS.CALENDAR} size={moderateScale(15)} color={COLORS.gray500} />
-                  <AppText style={styles.soilNoteText}>Tested on {formatDate(s.testedOnISO)}</AppText>
-                </View>
-              ) : null}
-              {s.notes ? (
-                <View style={styles.soilNoteRow}>
-                  <AppIcon name={ICONS.NOTE} size={moderateScale(15)} color={COLORS.gray500} />
-                  <AppText style={styles.soilNoteText}>{s.notes}</AppText>
-                </View>
-              ) : null}
+            <View style={styles.soilLockTexts}>
+              <AppText style={styles.soilLockTitle}>Nutrient details locked</AppText>
+              <AppText style={styles.soilLockText}>
+                Enroll this field in a program to record pH, organic matter, N-P-K and
+                moisture.
+              </AppText>
             </View>
           </View>
+        ) : (
+          <Button
+            title={s.metrics.length > 0 ? 'Edit Soil Details' : 'Add Soil Details'}
+            variant="outline"
+            onPress={openSoilEditor}
+            leftIcon={
+              <AppIcon name={ICONS.EDIT} size={moderateScale(18)} color={COLORS.primary} />
+            }
+          />
+        )}
+        {s.metrics.length > 0 ? (
+          <>
+            <SectionHeader title="Lab & Sensor Metrics" />
+            <View style={styles.statsGrid}>
+              {s.metrics.map(item => (
+                <View key={item.id} style={styles.statsCell}>
+                  <StatCard icon={item.icon} label={item.label} value={item.value} tone={item.tone} />
+                </View>
+              ))}
+            </View>
+          </>
+        ) : !s.locked ? (
+          <View style={styles.card}>
+            <AppText style={styles.emptyText}>
+              No nutrient readings yet. Use Add Soil Details to record pH, organic
+              matter, N-P-K and moisture.
+            </AppText>
+          </View>
         ) : null}
+
+        {/* Always rendered: texture, tested-on and notes are editable even while
+            the nutrients are locked, so they must stay visible on their own. */}
+        <SectionHeader title="Soil Profile" />
+        <View style={styles.card}>
+          <InfoRow
+            label="Soil Texture"
+            value={s.texture || NOT_RECORDED}
+            icon={ICONS.HARVEST}
+          />
+          <InfoRow
+            label="Soil Tested On"
+            value={s.testedOnISO ? formatDate(s.testedOnISO) : NOT_RECORDED}
+            icon={ICONS.CALENDAR}
+          />
+          <InfoRow
+            label="Soil Notes"
+            value={s.notes || NOT_RECORDED}
+            icon={ICONS.NOTE}
+            last
+          />
+        </View>
       </View>
     );
   };
@@ -604,81 +931,43 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
       </View>
     );
   };
-  const isWhite = true;
-  const iconColor = isWhite ? COLORS.primary : COLORS.white;
-
   return (
     <View style={styles.safe}>
       <AppHeader
         variant="back"
         title={farm ? `${farm.name} Fields` : 'Field Details'}
         onBack={() => navigation.goBack()}
-        onActionPress={handleHeaderAction}
+        rightActions={null}
+        rightComponent={
+          <AppOverflowMenu items={menuItems} accessibilityLabel="Field actions" />
+        }
       />
 
-      <ScrollView style={styles.flex} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        scrollEnabled={!mapPanning}>
         <View style={styles.mapContainer}>
-
-     <View style={styles.heroTopRow}>
-          <View style={styles.flex}>
-            <AppText style={styles.heroTitle}>{currentField.name}</AppText>
-            <AppText style={styles.heroSub}>
-              {currentField.crop} · {currentField.season}
-            </AppText>
-          </View>
-          <Pressable onPress={() => handleHeaderAction('edit')}>
-            <AppIcon name={ICONS.EDIT} size={moderateScale(20)} color={iconColor} />
-          </Pressable>
-
-        </View>
-
-        <View style={styles.filterBar}>
-
-<AnimatedTabBar
-  tabs={FILTER_TABS}
-  activeKey={activeTab}
-  onTabChange={setActiveTab}
-/>
-
-        </View>
-
-          <View style={styles.mapBox}>
-            <View style={styles.backdrop}>
-              <View style={styles.blobA} />
-              <View style={styles.blobB} />
-              <View style={styles.roadA} />
-              <View style={styles.roadB} />
+          {/* Edit lives in the header overflow menu now, alongside reset and
+              delete, so the hero is pure identity. */}
+          <View style={styles.heroTopRow}>
+            <View style={styles.flex}>
+              <AppText style={styles.heroTitle}>{currentField.name}</AppText>
+              <AppText style={styles.heroSub}>
+                {currentField.crop} · {currentField.season}
+              </AppText>
             </View>
+          </View>
 
-            {allFields.map((fItem, idx) => {
-              const isSelected = fItem.id === selectedFieldId;
-              const parcelColor = PALETTE[idx % PALETTE.length];
-              return (
-                <Pressable
-                  key={fItem.id}
-                  onPress={() => setSelectedFieldId(fItem.id)}
-                  style={({ pressed }) => [
-                    styles.parcel,
-                    MAP_POSITIONS[idx % MAP_POSITIONS.length],
-                    { backgroundColor: addAlpha(parcelColor, isSelected ? 0.45 : 0.25), borderColor: parcelColor },
-                    isSelected && styles.parcelSelected,
-                    pressed && styles.parcelPressed,
-                  ]}>
-                  <View style={[styles.marker, { borderColor: parcelColor }]}>
-                    <AppText style={styles.markerText} color={parcelColor}>{idx + 1}</AppText>
-                  </View>
-                </Pressable>
-              );
-            })}
+          <View style={[styles.filterBar, skStyles.filterBarLast]}>
+            <AnimatedTabBar
+              tabs={FILTER_TABS}
+              activeKey={activeTab}
+              onTabChange={setActiveTab}
+            />
           </View>
         </View>
-
- <FieldChips
-      fields={allFields}
-      selectedId={selectedFieldId}
-      onSelect={setSelectedFieldId}
-    />
 
         <View style={styles.tabBodyContainer}>
           {activeTab === 'overview' && renderOverview()}
@@ -703,6 +992,52 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
         visible={videoVisible}
         onRequestClose={() => setVideoVisible(false)}
       />
+
+      <ConfirmationModal
+        visible={pendingAction === 'reset'}
+        icon="backup-restore"
+        title="Reset this field?"
+        message="Resetting clears the field's recorded details so you can start over. The field itself stays on the farm."
+        consequences={['Crop, season and area details', 'Irrigation and location data']}
+        retains={['The field name', 'Its assessments', 'Soil records and documents']}
+        confirmLabel="Reset Field"
+        loading={fieldResetting}
+        onConfirm={runResetField}
+        onCancel={dismissDialog}
+      />
+
+      <ConfirmationModal
+        visible={pendingAction === 'delete'}
+        tone="danger"
+        icon="trash-can-outline"
+        title="Delete this field?"
+        message={`"${currentField.name}" and everything recorded against it will be removed. This cannot be undone.`}
+        consequences={[
+          'The field and all of its details',
+          'Its soil record and uploaded documents',
+          'Its assessment history',
+          'Its link to any program enrolment',
+        ]}
+        confirmLabel="Delete Field"
+        loading={fieldDeleting}
+        onConfirm={runDeleteField}
+        onCancel={dismissDialog}
+      />
+
+      <SoilDetailsModal
+        visible={soilEditorVisible}
+        onClose={() => setSoilEditorVisible(false)}
+        values={soilDraft}
+        onChange={handleSoilDraftChange}
+        // Hide the nutrient inputs while the field is locked: the backend
+        // rejects those values, and the save path omits them, so showing them
+        // would silently discard whatever the user typed.
+        showNutrients={!soil?.locked}
+        onSubmit={handleSoilSave}
+        submitLabel="Save Soil Details"
+        submitting={soilSaving}
+        subtitle="Recorded against this field's soil test"
+      />
     </View>
   );
 };
@@ -718,5 +1053,13 @@ const skStyles = StyleSheet.create({
   },
   sectionGap: {
     height: spacing[4],
+  },
+  // The map moved into Overview, so the tab bar is now the last row in the
+  // header block and no longer needs to reserve space beneath it.
+  filterBarLast: {
+    marginBottom: 0,
+  },
+  overviewMap: {
+    marginBottom: spacing[4],
   },
 });

@@ -15,6 +15,7 @@ interface SelectProps {
   id?: string;
   disabled?: boolean;
   searchable?: boolean;
+  error?: boolean;
 }
 
 export default function Select({
@@ -26,6 +27,7 @@ export default function Select({
   id,
   disabled = false,
   searchable = false,
+  error = false,
 }: SelectProps) {
   const [open, setOpen] = useState(false);
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
@@ -240,7 +242,11 @@ export default function Select({
         aria-haspopup="listbox"
         aria-expanded={open}
         className={`flex w-full items-center justify-between gap-2 rounded-lg border bg-white px-3.5 py-2.5 text-left text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${
-          open ? "border-primary" : "border-gray-300"
+          error
+            ? "border-danger focus:ring-danger/20"
+            : open
+              ? "border-primary"
+              : "border-gray-300"
         }`}
       >
         <span

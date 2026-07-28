@@ -14,19 +14,26 @@ const initialState: AssessmentProgressState = {
   resumeByField: {},
 };
 
+const resumeKey = (programId: string, fieldId: string): string => `${programId}:${fieldId}`;
+
 const assessmentProgressSlice = createSlice({
   name: 'assessmentProgress',
   initialState,
   reducers: {
     setResumePoint(
       state,
-      action: PayloadAction<{ fieldId: string; categoryId: string; questionId: string }>,
+      action: PayloadAction<{
+        programId: string;
+        fieldId: string;
+        categoryId: string;
+        questionId: string;
+      }>,
     ) {
-      const { fieldId, categoryId, questionId } = action.payload;
-      state.resumeByField[fieldId] = { categoryId, questionId };
+      const { programId, fieldId, categoryId, questionId } = action.payload;
+      state.resumeByField[resumeKey(programId, fieldId)] = { categoryId, questionId };
     },
-    clearResumePoint(state, action: PayloadAction<string>) {
-      delete state.resumeByField[action.payload];
+    clearResumePoint(state, action: PayloadAction<{ programId: string; fieldId: string }>) {
+      delete state.resumeByField[resumeKey(action.payload.programId, action.payload.fieldId)];
     },
   },
   extraReducers: builder => {
@@ -42,6 +49,8 @@ interface HasAssessmentProgress {
 }
 
 export const selectResumePoint =
-  (fieldId: string | undefined) =>
+  (programId: string | undefined, fieldId: string | undefined) =>
   (s: HasAssessmentProgress): ResumePoint | null =>
-    fieldId ? s.assessmentProgress.resumeByField[fieldId] ?? null : null;
+    programId && fieldId
+      ? s.assessmentProgress.resumeByField[resumeKey(programId, fieldId)] ?? null
+      : null;

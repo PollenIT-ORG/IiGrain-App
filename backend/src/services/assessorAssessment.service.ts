@@ -1,8 +1,9 @@
 import ApiError from "../utils/ApiError.js";
+import { assertAssessmentWritable } from "./assessmentMobile.service.js";
+import { emitSync } from "../socket/liveSync.js";
 import {
   listAssessorFields,
   assessorCanAccessField,
-  resolveProgramForField,
   findFieldWithFarmer,
   getCategoryProgressForField,
   getCategoryQuestionsForField,
@@ -29,9 +30,10 @@ function pct(answered: number, total: number): number {
 const ROLE = "assessor" as const;
 
 export interface AssessorFieldCard {
-  field: { id: string; name: string; crop: string | null; status: string };
+  field: { id: string; name: string; crop: string | null };
   farm: { id: string; name: string };
   farmer: { id: string; name: string | null };
+  program: { id: string; name: string };
   assessment: {
     status: "not_started" | "in_progress" | "completed";
     inProgress: boolean;
@@ -75,9 +77,10 @@ export async function getAssessorFieldList(
         : pct(r.assessor_answered, r.total_questions);
 
     return {
-      field: { id: r.id, name: r.name, crop: r.crop, status: r.status },
+      field: { id: r.id, name: r.name, crop: r.crop },
       farm: { id: r.farm_id, name: r.farm_name },
       farmer: { id: r.farmer_id, name: r.farmer_name },
+      program: { id: r.program_id, name: r.program_name },
       assessment: {
         status,
         inProgress: status === "in_progress",
@@ -103,9 +106,10 @@ export async function getAssessorFieldList(
 
 async function assertAssessorField(
   fieldId: string,
+  programId: string,
   assessorId: string
 ): Promise<{ id: string; name: string; farmer_id: string; farmer_name: string | null }> {
-  const ok = await assessorCanAccessField(assessorId, fieldId);
+  const ok = await assessorCanAccessField(assessorId, fieldId, programId);
   if (!ok) throw ApiError.notFound("Field not found.");
   const field = await findFieldWithFarmer(fieldId);
   if (!field) throw ApiError.notFound("Field not found.");
@@ -114,11 +118,12 @@ async function assertAssessorField(
 
 export async function getAssessorSummary(
   fieldId: string,
+  programId: string,
   assessorId: string,
   year: number
 ) {
-  const field = await assertAssessorField(fieldId, assessorId);
-  const rows = await getCategoryProgressForField(fieldId, ROLE);
+  const field = await assertAssessorField(fieldId, programId, assessorId);
+  const rows = await getCategoryProgressForField(fieldId, programId, ROLE);
 
   const categories = rows.map((r) => ({
     id: r.id,
@@ -153,13 +158,14 @@ export async function getAssessorSummary(
 
 export async function getAssessorCategoryQuestionList(
   fieldId: string,
+  programId: string,
   categoryId: string,
   assessorId: string
 ) {
-  const field = await assertAssessorField(fieldId, assessorId);
+  const field = await assertAssessorField(fieldId, programId, assessorId);
   const category = await findActiveCategory(categoryId);
   if (!category) throw ApiError.notFound("Category not found.");
-  const rows = await listCategoryQuestionsForField(categoryId, fieldId, ROLE);
+  const rows = await listCategoryQuestionsForField(categoryId, fieldId, programId, ROLE);
   const questions = rows.map((q) => ({
     id: q.id,
     questionCode: q.question_code,
@@ -182,13 +188,14 @@ export async function getAssessorCategoryQuestionList(
 
 export async function getAssessorCategoryQuestions(
   fieldId: string,
+  programId: string,
   categoryId: string,
   assessorId: string
 ) {
-  const field = await assertAssessorField(fieldId, assessorId);
+  const field = await assertAssessorField(fieldId, programId, assessorId);
   const category = await findActiveCategory(categoryId);
   if (!category) throw ApiError.notFound("Category not found.");
-  const rows = await getCategoryQuestionsForField(categoryId, fieldId, ROLE);
+  const rows = await getCategoryQuestionsForField(categoryId, fieldId, programId, ROLE);
   const questions = rows.map((q) => ({
     id: q.id,
     questionCode: q.question_code,
@@ -220,16 +227,17 @@ export async function getAssessorCategoryQuestions(
 
 export async function getAssessorQuestionDetail(
   fieldId: string,
+  programId: string,
   categoryId: string,
   questionId: string,
   assessorId: string
 ) {
-  const field = await assertAssessorField(fieldId, assessorId);
+  const field = await assertAssessorField(fieldId, programId, assessorId);
   const category = await findActiveCategory(categoryId);
   if (!category) throw ApiError.notFound("Category not found.");
-  const q = await findCategoryQuestionForField(categoryId, questionId, fieldId, ROLE);
+  const q = await findCategoryQuestionForField(categoryId, questionId, fieldId, programId, ROLE);
   if (!q) throw ApiError.notFound("Question not found.");
-  const locked = await isFieldSubmitted(fieldId, ROLE);
+  const locked = await isFieldSubmitted(fieldId, programId, ROLE);
   return {
     field: { id: field.id, name: field.name },
     category: { id: category.id, name: category.name },
@@ -255,45 +263,73 @@ export async function getAssessorQuestionDetail(
 
 export interface SaveAnswerInput {
   score: number;
-  comment?: string;
-  evidenceUrls?: string[];
+  // null clears the stored value; undefined leaves it untouched.
+  comment?: string | null;
+  evidenceUrls?: string[] | null;
 }
 
 export async function saveAssessorAnswer(
   fieldId: string,
+  programId: string,
   questionId: string,
   assessorId: string,
   input: SaveAnswerInput
 ): Promise<SavedResponse> {
-  await assertAssessorField(fieldId, assessorId);
-  if (await isFieldSubmitted(fieldId, ROLE)) {
+  await assertAssessorField(fieldId, programId, assessorId);
+  await assertAssessmentWritable(fieldId, programId);
+  if (await isFieldSubmitted(fieldId, programId, ROLE)) {
     throw ApiError.forbidden(
       "Your assessment has been submitted and can no longer be edited."
     );
   }
   const question = await findActiveQuestion(questionId);
   if (!question) throw ApiError.notFound("Question not found.");
-  const evidenceUrls = input.evidenceUrls ?? [];
-  if (evidenceUrls.length > 5) {
+
+  // Fields the caller did not send stay untouched (a score-only save must not
+  // wipe previously attached files or notes). null explicitly clears.
+  const evidenceUrls =
+    input.evidenceUrls === null ? [] : input.evidenceUrls;
+  if (evidenceUrls !== undefined && evidenceUrls.length > 5) {
     throw ApiError.badRequest("You can attach at most 5 files.");
   }
-  const programId = await resolveProgramForField(fieldId);
-  return upsertResponse({
+  const comment =
+    input.comment === undefined
+      ? undefined
+      : input.comment && input.comment.trim()
+        ? input.comment.trim()
+        : null;
+
+  const saved = await upsertResponse({
     fieldId,
     questionId,
     score: input.score,
-    comment: input.comment?.trim() ? input.comment.trim() : null,
+    comment,
     evidenceUrls,
     authorRole: ROLE,
     authorId: assessorId,
     programId,
   });
+
+  // Live sync to the assessor's other devices.
+  emitSync(assessorId, {
+    resource: "assessment",
+    action: "answer_saved",
+    programId,
+    fieldId,
+    questionId,
+  });
+
+  return saved;
 }
 
-export async function getAssessorReview(fieldId: string, assessorId: string) {
-  const field = await assertAssessorField(fieldId, assessorId);
-  const rows = await getReviewRowsForField(fieldId, ROLE);
-  const submission = await findFieldAssessment(fieldId, ROLE);
+export async function getAssessorReview(
+  fieldId: string,
+  programId: string,
+  assessorId: string
+) {
+  const field = await assertAssessorField(fieldId, programId, assessorId);
+  const rows = await getReviewRowsForField(fieldId, programId, ROLE);
+  const submission = await findFieldAssessment(fieldId, programId, ROLE);
 
   const byCat = new Map<string, {
     id: string; name: string; totalQuestions: number; answered: number;
@@ -344,33 +380,51 @@ export interface SubmitResult {
 
 export async function submitAssessorAssessment(
   fieldId: string,
+  programId: string,
   assessorId: string
 ): Promise<SubmitResult> {
-  const field = await assertAssessorField(fieldId, assessorId);
-  const existing = await findFieldAssessment(fieldId, ROLE);
+  const field = await assertAssessorField(fieldId, programId, assessorId);
+  await assertAssessmentWritable(fieldId, programId);
+  const existing = await findFieldAssessment(fieldId, programId, ROLE);
   if (existing?.status === "submitted") {
     throw ApiError.conflict("Your assessment has already been submitted.");
   }
-  const rows = await getReviewRowsForField(fieldId, ROLE);
+  const rows = await getReviewRowsForField(fieldId, programId, ROLE);
   const answeredCount = rows.filter((r) => r.answer_score !== null).length;
   if (answeredCount === 0) {
     throw ApiError.badRequest("Answer at least one question before submitting.");
   }
-  const programId = await resolveProgramForField(fieldId);
-  const assessment = await submitFieldAssessment(fieldId, ROLE, assessorId, programId);
+  const assessment = await submitFieldAssessment(fieldId, programId, ROLE, assessorId);
   if (!assessment) {
     throw ApiError.conflict("Your assessment has already been submitted.");
+  }
+  emitSync(assessorId, {
+    resource: "assessment",
+    action: "submitted",
+    programId,
+    fieldId,
+  });
+  // Also sync the field's farmer so their app reflects that the assessor finished.
+  const owner = await findFieldWithFarmer(fieldId);
+  if (owner) {
+    emitSync(owner.farmer_id, {
+      resource: "assessment",
+      action: "submitted",
+      programId,
+      fieldId,
+    });
   }
   return { field: { id: field.id, name: field.name }, assessment };
 }
 
 export async function getFarmerAssessmentForAssessor(
   fieldId: string,
+  programId: string,
   assessorId: string
 ) {
-  const field = await assertAssessorField(fieldId, assessorId);
-  const rows = await getReviewRowsForField(fieldId, "farmer");
-  const submission = await findFieldAssessment(fieldId, "farmer");
+  const field = await assertAssessorField(fieldId, programId, assessorId);
+  const rows = await getReviewRowsForField(fieldId, programId, "farmer");
+  const submission = await findFieldAssessment(fieldId, programId, "farmer");
 
   const byCat = new Map<string, {
     id: string; name: string; questions: Array<{ id: string; questionCode: string | null; questionText: string; answerScore: number | null; answerComment: string | null; answerEvidenceUrls: string[]; answered: boolean }>;
@@ -399,11 +453,15 @@ export async function getFarmerAssessmentForAssessor(
   };
 }
 
-export async function getComparison(fieldId: string, assessorId: string) {
-  const field = await assertAssessorField(fieldId, assessorId);
-  const rows = await getComparisonRowsForField(fieldId);
-  const farmerSub = await findFieldAssessment(fieldId, "farmer");
-  const assessorSub = await findFieldAssessment(fieldId, "assessor");
+export async function getComparison(
+  fieldId: string,
+  programId: string,
+  assessorId: string
+) {
+  const field = await assertAssessorField(fieldId, programId, assessorId);
+  const rows = await getComparisonRowsForField(fieldId, programId);
+  const farmerSub = await findFieldAssessment(fieldId, programId, "farmer");
+  const assessorSub = await findFieldAssessment(fieldId, programId, "assessor");
 
   const byCat = new Map<string, {
     id: string; name: string;

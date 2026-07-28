@@ -1,9 +1,15 @@
 import { useNavigate, useParams } from "react-router-dom";
-import { useGetUserQuery } from "../store/endpoints/usersApi";
+import {
+  useGetUserQuery,
+  useSetUserStatusMutation,
+  useDeleteUserMutation,
+} from "../store/endpoints/usersApi";
 import { useListFarmsQuery } from "../store/endpoints/farmsApi";
 import Loader from "../components/Loader";
-import { ChevronLeftIcon, EditIcon } from "../components/icons";
+import { ChevronLeftIcon, EditIcon, TrashIcon } from "../components/icons";
 import { ROLE_LABELS, type User, type UserRole } from "../types";
+import { showSuccess, showError } from "../lib/toast";
+import { useDialog } from "../components/ui/DialogProvider";
 
 function errMsg(err: unknown): string {
   return (
@@ -21,10 +27,43 @@ function formatDate(iso: string | null): string {
 export default function UserDetail() {
   const navigate = useNavigate();
   const { id = "" } = useParams();
+  const { confirm } = useDialog();
 
   const { data: user, isLoading, isError, error } = useGetUserQuery(id, {
     skip: !id,
   });
+
+  const [setStatus, { isLoading: statusSaving }] = useSetUserStatusMutation();
+  const [deleteUser, { isLoading: deleting }] = useDeleteUserMutation();
+
+  async function handleToggleStatus() {
+    if (!user) return;
+    const next = !user.is_active;
+    try {
+      await setStatus({ id: user.id, isActive: next }).unwrap();
+      showSuccess(next ? "User activated." : "User deactivated.");
+    } catch (err) {
+      showError((err as { message?: string })?.message ?? "Could not update status.");
+    }
+  }
+
+  async function handleDelete() {
+    if (!user) return;
+    const ok = await confirm({
+      title: "Delete user?",
+      message: `"${user.full_name || user.email}" will be removed.`,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
+    try {
+      await deleteUser(user.id).unwrap();
+      showSuccess("User deleted.");
+      navigate("/users");
+    } catch (err) {
+      showError((err as { message?: string })?.message ?? "Could not delete user.");
+    }
+  }
 
   const isFarmer = user?.role === "farmer";
   const { data: farmsData, isFetching: farmsLoading } = useListFarmsQuery(
@@ -85,13 +124,30 @@ export default function UserDetail() {
               )}
             </div>
           </div>
-          <button
-            onClick={() => navigate(`/users/${user.id}/edit`)}
-            className="btn-secondary"
-          >
-            <EditIcon width={16} height={16} />
-            Edit user
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleToggleStatus}
+              disabled={statusSaving}
+              className="btn-secondary"
+            >
+              {user.is_active ? "Deactivate" : "Activate"}
+            </button>
+            <button
+              onClick={() => navigate(`/users/${user.id}/edit`)}
+              className="btn-secondary"
+            >
+              <EditIcon width={16} height={16} />
+              Edit user
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="btn-secondary text-danger hover:bg-danger/5"
+            >
+              <TrashIcon width={16} height={16} />
+              Delete
+            </button>
+          </div>
         </div>
       </div>
 

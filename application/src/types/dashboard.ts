@@ -1,3 +1,5 @@
+import type { PageMeta } from './pagination';
+
 import type { ActivityEntry } from './farm';
 
 export interface DashboardFarm {
@@ -9,6 +11,7 @@ export interface DashboardFarm {
 export interface DashboardFarms {
   farms: DashboardFarm[];
   defaultFarmId: string | null;
+  meta: PageMeta;
 }
 
 export interface DashboardCategory {
@@ -51,8 +54,22 @@ export interface DashboardSummary {
   topCategory: string | null;
 }
 
+/** One point of the Regen Health Index trend chart. */
+export interface DashboardTrendPoint {
+  year: number;
+  score: number;
+}
+
 export interface FarmDashboard {
   farm: { id: string; name: string };
+  /** The year this payload is scoped to — echoed back so the picker can
+   *  highlight it (the default is the latest year that has data, not today). */
+  year: number;
+  /** Years the farmer may select, newest-first. Bounded by their registration
+   *  year, so it can never offer a year the backend would reject. */
+  availableYears: number[];
+  /** Oldest → newest, already limited to the requested trend window. */
+  trend: DashboardTrendPoint[];
   regenHealthIndex: number | null;
   trendVsLastYear: number | null;
   categories: DashboardCategory[];

@@ -33,10 +33,25 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<!-- Google Maps iOS SDK key.
+	     NOT read by the SDK itself — the SDK has no Info.plist convention. This
+	     entry exists purely as the transport that carries the key from the build
+	     system into Swift: AppDelegate.swift reads it and calls
+	     GMSServices.provideAPIKey().
+	     $(MAPS_API_KEY) is a BUILD SETTING, expanded by Xcode at build time. It
+	     is defined in ios/Config/Env.generated.xcconfig, which ios/Podfile
+	     regenerates from application/.env on every `pod install`. Never paste a
+	     literal key here — Info.plist is committed to git. -->
+	<key>GMSApiKey</key>
+	<string>$(MAPS_API_KEY)</string>
 	<key>NSCameraUsageDescription</key>
 	<string>iiGrain needs camera access so you can take photos and record videos for your farms, fields and assessments.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>iiGrain needs your location so you can pin farms and fields on the map and record where assessments were carried out.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>iiGrain uses your location to center the map on where you are when picking a farm or field location.</string>
+	<string>iiGrain needs your location so you can pin farms and fields on the map and record where assessments were carried out.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>iiGrain needs microphone access so recorded assessment videos include sound.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
@@ -70,9 +85,9 @@
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
-	<key>UIUserInterfaceStyle</key>
-	<string>Light</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>UIUserInterfaceStyle</key>
+	<string>Light</string>
 </dict>
 </plist>

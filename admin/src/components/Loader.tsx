@@ -1,4 +1,6 @@
 import { LeafIcon } from "./icons";
+import { useGetConfigQuery } from "../store/endpoints/configApi";
+import { readCachedBranding } from "../lib/brandingCache";
 
 type LoaderSize = "sm" | "md" | "lg";
 
@@ -23,6 +25,13 @@ export default function Loader({
 }: LoaderProps) {
   const badge = BADGE_PX[size];
 
+  // Use the uploaded branding icon (the favicon, which is square like this badge)
+  // if one is set; otherwise the default leaf icon. The cached branding is used
+  // while /config loads so the loader does not flash the default first.
+  const { data: config } = useGetConfigQuery();
+  const branding = config?.branding ?? readCachedBranding();
+  const iconUrl = branding?.faviconUrl ?? null;
+
   const spinner = (
     <div
       className="flex flex-col items-center justify-center gap-3"
@@ -31,10 +40,23 @@ export default function Loader({
       aria-label={message || "Loading"}
     >
       <span
-        className={`relative grid place-items-center overflow-hidden bg-primary text-white shadow-card ${RADIUS[size]}`}
+        className={`relative grid place-items-center overflow-hidden shadow-card ${RADIUS[size]} ${
+          iconUrl
+            ? "border border-gray-200 bg-white"
+            : "bg-primary text-white"
+        }`}
         style={{ width: badge, height: badge }}
       >
-        <LeafIcon width={LOGO_PX[size]} height={LOGO_PX[size]} />
+        {iconUrl ? (
+          <img
+            src={iconUrl}
+            alt=""
+            style={{ width: LOGO_PX[size], height: LOGO_PX[size] }}
+            className="object-contain"
+          />
+        ) : (
+          <LeafIcon width={LOGO_PX[size]} height={LOGO_PX[size]} />
+        )}
 
         <span
           className="pointer-events-none absolute inset-y-0 -inset-x-1/2 animate-shimmer"

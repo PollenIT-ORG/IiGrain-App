@@ -8,12 +8,15 @@ export interface ListFarmsParams {
   ownerId?: string;
   orgId?: string;
   search?: string;
+  sortBy?: "name" | "created_at" | "updated_at" | "area_acres";
+  order?: "asc" | "desc";
 }
 
 export interface CreateFarmBody {
   name: string;
   areaAcres?: number;
   location?: string;
+  businessEntity?: string;
   latitude?: number | null;
   longitude?: number | null;
   ownerId: string;
@@ -63,6 +66,16 @@ export const farmsApi = apiSlice.injectEndpoints({
       query: (id) => ({ url: `/farms/${id}`, method: "DELETE" }),
       invalidatesTags: ["Farms"],
     }),
+
+    resetFarm: build.mutation<Farm, string>({
+      query: (id) => ({ url: `/farms/${id}/reset`, method: "POST" }),
+      transformResponse: (res: ApiSuccess<{ farm: Farm }>) => res.data.farm,
+      invalidatesTags: (_r, _e, id) => [
+        "Farms",
+        { type: "Farm", id },
+        "Fields",
+      ],
+    }),
   }),
 });
 
@@ -72,4 +85,5 @@ export const {
   useCreateFarmMutation,
   useUpdateFarmMutation,
   useDeleteFarmMutation,
+  useResetFarmMutation,
 } = farmsApi;

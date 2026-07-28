@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { pageField, limitField } from "./pagination.schema.js";
 import {
   nameField,
   emailField,
@@ -44,8 +45,8 @@ export const setStatusSchema = z.object({
 });
 
 export const listUsersQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(10),
+  page: pageField(1),
+  limit: limitField(10, 100),
   role: z.enum(ROLE_VALUES).optional(),
   status: z.enum(["active", "inactive"]).optional(),
   search: z.string().trim().max(100).optional(),

@@ -130,7 +130,7 @@ export const assessmentQuestions: Record<string, AssessmentQuestion[]> = {
     { title: 'Managed grazing', description: 'Rotational grazing improves pasture recovery' },
     { title: 'Animal welfare', description: 'Stocking density and shelter support welfare' },
     { title: 'Manure cycling', description: 'Manure distributed to fertilise pasture and crops' },
-    { title: 'Crop-livestock integration', description: 'Animals graze cover crops / residues' },
+    { title: 'Crop–livestock integration', description: 'Animals graze cover crops / residues' },
   ]),
 
   'cat-farm': buildQuestions('cat-farm', 'm', 0, [

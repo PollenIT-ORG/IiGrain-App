@@ -8,6 +8,8 @@ import { Endpoints, isPublicAuthPath } from '../config/endpoints';
 import { tokenStorage } from './tokenStorage';
 import { showError } from './errorService';
 import { getApiMessage } from '../utils/getApiMessage';
+import { accountRevocationFor } from '../utils/sessionGuards';
+import { reauthSocket } from './socket';
 import {
   logApiInit,
   logApiRequest,
@@ -18,6 +20,12 @@ import {
 declare module 'axios' {
   export interface AxiosRequestConfig {
     silent?: boolean;
+    /**
+     * Opt a request out of the automatic network-error retry. Set on large
+     * uploads: retrying re-sends the whole file from 0%, which the user sees as
+     * the progress bar restarting after it already reached 100%.
+     */
+    skipRetry?: boolean;
   }
 }
 
@@ -58,6 +66,7 @@ http.interceptors.request.use(async config => {
 type RetryableConfig = InternalAxiosRequestConfig & {
   _retryCount?: number;
   _refreshAttempted?: boolean;
+  skipRetry?: boolean;
 };
 const MAX_RETRIES = 2;
 const RETRY_BASE_DELAY_MS = 800;
@@ -90,6 +99,9 @@ const performRefresh = async (): Promise<string | null> => {
     }
     const rotated = res.data?.data?.refreshToken ?? refreshToken;
     await tokenStorage.save(newAccess, rotated);
+    // Keep the realtime channel on the same credentials as the REST calls,
+    // otherwise the next socket reconnect presents the expired token.
+    reauthSocket(newAccess);
     return newAccess;
   } catch {
     return null;
@@ -112,7 +124,7 @@ http.interceptors.response.use(
   },
   async (error: AxiosError) => {
     const retryConfig = error.config as RetryableConfig | undefined;
-    if (!error.response && retryConfig) {
+    if (!error.response && retryConfig && !retryConfig.skipRetry) {
       retryConfig._retryCount = (retryConfig._retryCount ?? 0) + 1;
       if (retryConfig._retryCount <= MAX_RETRIES) {
         await sleep(RETRY_BASE_DELAY_MS * retryConfig._retryCount);
@@ -130,6 +142,19 @@ http.interceptors.response.use(
     const publicAuth = isPublicAuthPath(url);
     const silent = Boolean((error.config as RetryableConfig | undefined)?.silent);
 
+    // The account was deactivated or deleted while the session was live. A token
+    // refresh cannot fix either, so skip it and tear the session down at once.
+    // Always surfaced, even for a `silent` request: the user is about to land on
+    // the login screen and needs to know why.
+    const revoked = accountRevocationFor(status, message);
+    if (revoked && !publicAuth) {
+      if (onUnauthorized) {
+        onUnauthorized();
+      }
+      showError(error);
+      return Promise.reject(error);
+    }
+
     if (status === 401 && !publicAuth) {
       const original = error.config as RetryableConfig | undefined;
       if (original && !original._refreshAttempted) {
@@ -146,7 +171,7 @@ http.interceptors.response.use(
       if (onUnauthorized) {
         onUnauthorized();
       }
-      showError('Your session has expired. Please log in again.');
+      showError(error);
       return Promise.reject(error);
     }
 
@@ -154,22 +179,11 @@ http.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (status === 429) {
-      if (!silent) {
-        showError('Too many requests. Please wait a moment and try again.');
-      }
-      return Promise.reject(error);
-    }
-
-    if (!error.response) {
-      if (!silent) {
-        showError('No internet connection. Check your network and try again.');
-      }
-      return Promise.reject(error);
-    }
-
+    // Every remaining failure — rate limit, offline, or a plain API error —
+    // resolves its own copy from src/config/errorMessages.ts. Nothing here
+    // decides what the user reads.
     if (!silent) {
-      showError(message);
+      showError(error);
     }
     return Promise.reject(error);
   },

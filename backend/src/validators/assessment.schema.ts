@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { pageField, limitField } from "./pagination.schema.js";
 
 export const idParamSchema = z.object({
   id: z.string().uuid("Invalid id."),
@@ -10,7 +11,12 @@ export const fieldIdParamSchema = z.object({
 
 export const historyQuerySchema = z.object({
   farmId: z.string().uuid("Invalid farm id.").optional(),
+  page: pageField(1),
+  limit: limitField(20, 100),
+  search: z.string().trim().max(100).optional(),
 });
+
+export type HistoryQuery = z.infer<typeof historyQuerySchema>;
 
 export const fieldCategoryParamsSchema = z.object({
   fieldId: z.string().uuid("Invalid field id."),
@@ -23,6 +29,31 @@ export const fieldQuestionParamsSchema = z.object({
 });
 
 export const fieldCategoryQuestionParamsSchema = z.object({
+  fieldId: z.string().uuid("Invalid field id."),
+  categoryId: z.string().uuid("Invalid category id."),
+  questionId: z.string().uuid("Invalid question id."),
+});
+
+// Program-scoped variants: assessments are per (field + program).
+export const programFieldParamsSchema = z.object({
+  programId: z.string().uuid("Invalid program id."),
+  fieldId: z.string().uuid("Invalid field id."),
+});
+
+export const programFieldCategoryParamsSchema = z.object({
+  programId: z.string().uuid("Invalid program id."),
+  fieldId: z.string().uuid("Invalid field id."),
+  categoryId: z.string().uuid("Invalid category id."),
+});
+
+export const programFieldQuestionParamsSchema = z.object({
+  programId: z.string().uuid("Invalid program id."),
+  fieldId: z.string().uuid("Invalid field id."),
+  questionId: z.string().uuid("Invalid question id."),
+});
+
+export const programFieldCategoryQuestionParamsSchema = z.object({
+  programId: z.string().uuid("Invalid program id."),
   fieldId: z.string().uuid("Invalid field id."),
   categoryId: z.string().uuid("Invalid category id."),
   questionId: z.string().uuid("Invalid question id."),
@@ -43,10 +74,18 @@ export const saveAnswerSchema = z.object({
     .int("Score must be a whole number.")
     .min(0, "Score must be between 0 and 3.")
     .max(3, "Score must be between 0 and 3."),
-  comment: z.string().trim().max(2000, "Comment is too long.").optional().or(z.literal("")),
+  // null (or "") clears the comment; undefined leaves whatever was saved.
+  comment: z
+    .string()
+    .trim()
+    .max(2000, "Comment is too long.")
+    .nullable()
+    .optional(),
+  // null (or []) clears the photos; undefined leaves them.
   evidenceUrls: z
     .array(cloudinaryUrl)
     .max(5, "You can attach at most 5 photos.")
+    .nullable()
     .optional(),
 });
 
@@ -110,8 +149,8 @@ export const updateQuestionSchema = z
   });
 
 export const listQuestionsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).optional().default(1),
-  limit: z.coerce.number().int().min(1).max(200).optional().default(50),
+  page: pageField(1),
+  limit: limitField(50, 200),
   categoryId: z.string().uuid().optional(),
   isActive: z
     .string()

@@ -3,10 +3,12 @@ import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useNavigation, type NavigationProp } from '@react-navigation/native';
 import { AppIcon, ICONS } from '../../components/AppIcon';
 import { AppHeader, AppText } from '../../components';
+import { ProfileAvatar } from '../../components/account';
 import { COLORS, borderRadius, borderWidth, presets, spacing, fonts } from '../../constants';
 import { addAlpha, moderateScale, scale } from '../../utils';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
-import { logoutThunk, selectAuthUser } from '../../redux/slices/authSlice';
+import { logoutThunk } from '../../redux/slices/authSlice';
+import { selectProfileIdentity } from '../../redux/selectors/profileSelectors';
 import type { AssessorStackParamList } from '../../navigation/navigationTypes';
 
 interface MenuItem {
@@ -26,7 +28,7 @@ const MENU: MenuItem[] = [
 const AssessorMoreScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<AssessorStackParamList>>();
   const dispatch = useAppDispatch();
-  const user = useAppSelector(selectAuthUser);
+  const identity = useAppSelector(selectProfileIdentity);
 
   const handlePress = useCallback(
     (item: MenuItem) => {
@@ -39,21 +41,32 @@ const AssessorMoreScreen: React.FC = () => {
 
   const handleLogout = useCallback(() => dispatch(logoutThunk()), [dispatch]);
 
-  const initials = (user?.fullName ?? 'A').trim().charAt(0).toUpperCase();
-
   return (
     <View style={styles.safe}>
       <AppHeader variant="title" title="More" />
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <View style={styles.identity}>
-          <View style={styles.avatar}>
-            <AppText style={styles.avatarText}>{initials}</AppText>
-          </View>
+          <ProfileAvatar
+            size={scale(56)}
+            style={styles.avatar}
+            imageStyle={styles.avatarImage}
+            textStyle={styles.avatarText}
+          />
           <View style={styles.flex}>
-            <AppText style={styles.name} numberOfLines={1}>{user?.fullName ?? 'Assessor'}</AppText>
-            <AppText style={styles.email} numberOfLines={1}>{user?.email ?? ''}</AppText>
+            <AppText style={styles.name} numberOfLines={1}>
+              {identity.displayName}
+            </AppText>
+            {identity.email ? (
+              <AppText style={styles.email} numberOfLines={1}>
+                {identity.email}
+              </AppText>
+            ) : (
+              <AppText style={styles.email} numberOfLines={1}>
+                -
+              </AppText>
+            )}
             <View style={styles.roleBadge}>
-              <AppText style={styles.roleText}>Assessor</AppText>
+              <AppText style={styles.roleText}>{identity.roleLabel}</AppText>
             </View>
           </View>
         </View>
@@ -74,6 +87,15 @@ const AssessorMoreScreen: React.FC = () => {
           ))}
         </View>
 
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          activeOpacity={0.8}
+          onPress={handleLogout}
+          accessibilityRole="button"
+          accessibilityLabel="Log out">
+          <AppIcon name={ICONS.LOGOUT} size={moderateScale(20)} color={COLORS.danger} />
+          <AppText style={styles.logoutText}>Logout</AppText>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -90,6 +112,7 @@ const styles = StyleSheet.create({
     width: scale(56), height: scale(56), borderRadius: borderRadius.full,
     backgroundColor: addAlpha(COLORS.primary, 0.12), alignItems: 'center', justifyContent: 'center',
   },
+  avatarImage: { width: scale(56), height: scale(56), borderRadius: borderRadius.full },
   avatarText: { ...presets.headingMD, color: COLORS.primary },
   name: { ...presets.headingSM, color: COLORS.gray900 },
   email: { ...presets.bodySM, color: COLORS.gray600 },

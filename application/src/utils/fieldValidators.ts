@@ -2,7 +2,7 @@ import { isStrongPassword, isValidEmail } from './validators';
 
 export type FieldValidator<V> = (value: string, values: V) => string | undefined;
 
-const PASSWORD_RULE_MESSAGE = 'Use 8-64 characters with a letter and a number';
+const PASSWORD_RULE_MESSAGE = 'Use 8–64 characters with a letter and a number';
 
 export const requiredValidator =
   <V>(message: string): FieldValidator<V> =>
@@ -28,6 +28,17 @@ export const optionalPositiveNumberValidator =
     }
     const n = Number(v);
     return Number.isFinite(n) && n > 0 ? undefined : message;
+  };
+
+export const requiredPositiveNumberValidator =
+  <V>(label: string, invalidMessage: string): FieldValidator<V> =>
+  value => {
+    const v = value.trim();
+    if (!v) {
+      return `${label} is required`;
+    }
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? undefined : invalidMessage;
   };
 
 export const optionalIsoDateValidator =

@@ -7,19 +7,20 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon, ICONS } from '../../components/AppIcon';
 import { AppText } from '../../components';
+import { ProfileAvatar } from '../../components/account';
 import { COLORS } from '../../constants';
-import { capitalize, getInitials, moderateScale } from '../../utils';
+import { moderateScale } from '../../utils';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
-import { logoutThunk, selectAuthUser } from '../../redux/slices/authSlice';
+import { logoutThunk } from '../../redux/slices/authSlice';
+import { selectProfileIdentity } from '../../redux/selectors/profileSelectors';
 import {
   drawerConfig,
   tabToModule,
   type DrawerItem,
 } from '../../config/drawerConfig';
 import type { AppTabParamList } from '../navigationTypes';
+import { APP_VERSION_LABEL } from '../../screens/account/accountData';
 import { styles } from './DrawerContentStyle';
-
-const APP_VERSION = '1.0.0';
 
 const useActiveTab = (
   props: DrawerContentComponentProps,
@@ -35,16 +36,11 @@ const useActiveTab = (
 const DrawerContent: React.FC<DrawerContentComponentProps> = props => {
   const dispatch = useAppDispatch();
   const insets = useSafeAreaInsets();
-  const user = useAppSelector(selectAuthUser);
+  const identity = useAppSelector(selectProfileIdentity);
   const activeTab = useActiveTab(props);
   const module = drawerConfig[tabToModule[activeTab]];
 
   const { navigation } = props;
-  const displayName = user?.fullName?.trim() || 'Farmer';
-  const email = user?.email ?? '';
-  const initials = getInitials(displayName) || 'F';
-  const roleLabel = capitalize((user?.role ?? '').trim()) || 'Farmer';
-
   const goStackRoute = useCallback(
     (route: string) => {
       navigation.getParent()?.navigate(route as never);
@@ -76,27 +72,32 @@ const DrawerContent: React.FC<DrawerContentComponentProps> = props => {
 
   return (
     <View style={styles.container}>
-      <DrawerContentScrollView {...props} contentContainerStyle={styles.scroll}>
+      <DrawerContentScrollView
+        {...props}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + moderateScale(8) }]}>
         <TouchableOpacity
           style={styles.profile}
           activeOpacity={0.8}
           onPress={goProfile}
           accessibilityRole="button"
           accessibilityLabel="Open profile">
-          <View style={styles.avatar}>
-            <AppText style={styles.avatarText}>{initials}</AppText>
-          </View>
+          <ProfileAvatar
+            size={moderateScale(48)}
+            style={styles.avatar}
+            imageStyle={styles.avatarImage}
+            textStyle={styles.avatarText}
+          />
           <View style={styles.profileTexts}>
             <AppText style={styles.name} numberOfLines={1}>
-              {displayName}
+              {identity.displayName}
             </AppText>
-            {email ? (
+            {identity.email ? (
               <AppText style={styles.email} numberOfLines={1}>
-                {email}
+                {identity.email}
               </AppText>
             ) : null}
             <View style={styles.rolePill}>
-              <AppText style={styles.roleText}>{roleLabel}</AppText>
+              <AppText style={styles.roleText}>{identity.roleLabel}</AppText>
             </View>
           </View>
           <AppIcon name={ICONS.CHEVRON_RIGHT} size={moderateScale(22)} color={COLORS.gray500} />
@@ -144,7 +145,7 @@ const DrawerContent: React.FC<DrawerContentComponentProps> = props => {
           <AppIcon name={ICONS.LOGOUT} size={moderateScale(20)} color={COLORS.danger} />
           <AppText style={styles.signOutText}>Sign Out</AppText>
         </TouchableOpacity>
-        <AppText style={styles.version}>iiGrain • v{APP_VERSION}</AppText>
+        <AppText style={styles.version}>iiGrain • v{APP_VERSION_LABEL}</AppText>
       </View>
     </View>
   );

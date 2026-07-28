@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -14,6 +14,7 @@ import { AppShimmer, AppShimmerChip, AppShimmerList } from '../../components/Shi
 import { COLORS, borderRadius, borderWidth, presets, shadows, spacing, fonts } from '../../constants';
 import { addAlpha, formatDate, moderateScale } from '../../utils';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
+import { useAssessorOverviewSync } from '../../hooks/useAssessorOverviewSync';
 import {
   fetchAssessorFieldsThunk,
   selectAssessorError,
@@ -34,17 +35,19 @@ const AssessorHistoryScreen: React.FC = () => {
 
   const header = <AppHeader variant="title" title="History" rightActions={['notification']} />;
 
-  useEffect(() => {
-    if (!overview) {
-      dispatch(fetchAssessorFieldsThunk());
-    }
-  }, [dispatch, overview]);
+  // Shared overview cache: fetch once, then refresh only when the socket says
+  // an assignment/assessment changed (or the TTL lapses). See the hook.
+  useAssessorOverviewSync(!!overview);
 
   const onRefresh = useCallback(() => dispatch(fetchAssessorFieldsThunk()), [dispatch]);
 
   const open = useCallback(
     (it: AssessorHistoryItem) =>
-      navigation.navigate('AssessorAssessmentSummary', { fieldId: it.fieldId, fieldName: it.fieldName }),
+      navigation.navigate('AssessorAssessmentSummary', {
+        programId: it.programId,
+        fieldId: it.fieldId,
+        fieldName: it.fieldName,
+      }),
     [navigation],
   );
 

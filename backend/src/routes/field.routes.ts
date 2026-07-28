@@ -10,6 +10,8 @@ import {
   createMyField,
   updateMyField,
   deleteMyField,
+  resetField,
+  resetMyField,
 } from "../controllers/field.controller.js";
 import {
   getFieldDetails,
@@ -34,8 +36,26 @@ import {
   upsertSoilSchema,
   fieldDocParamsSchema,
 } from "../validators/fieldDetails.schema.js";
+import { idParamSchema, uuidField } from "../validators/common.schema.js";
+import { z } from "zod";
 
 const router = Router();
+const withId = validate(idParamSchema, "params");
+const withProgramQuery = validate(
+  z.object({ programId: uuidField("program id").optional() }),
+  "query"
+);
+
+// The mobile router uses mergeParams, so its schemas must list every param it
+// inherits - a params schema strips whatever it does not declare.
+const withFarmParam = validate(
+  z.object({ farmId: uuidField("farm id") }),
+  "params"
+);
+const withFarmAndId = validate(
+  z.object({ farmId: uuidField("farm id"), id: uuidField("field id") }),
+  "params"
+);
 
 const orgManagers = authorize("super_admin", "admin", "program_administrator");
 
@@ -53,30 +73,40 @@ router.get(
   validate(listFieldsQuerySchema, "query"),
   listFields
 );
-router.get("/:id", authenticate, orgManagers, getField);
+router.get("/:id", authenticate, orgManagers, withId, getField);
 router.patch(
   "/:id",
   authenticate,
   orgManagers,
+  withId,
   validate(updateFieldSchema),
   updateField
 );
-router.delete("/:id", authenticate, orgManagers, deleteField);
+router.delete("/:id", authenticate, orgManagers, withId, deleteField);
+router.post("/:id/reset", authenticate, orgManagers, withId, resetField);
 
 router.get(
   "/:id/details",
   authenticate,
+  withId,
   validate(fieldDetailsQuerySchema, "query"),
   getFieldDetails
 );
 
-router.get("/:id/soil", authenticate, getSoil);
-router.put("/:id/soil", authenticate, validate(upsertSoilSchema), saveSoil);
+router.get("/:id/soil", authenticate, withId, getSoil);
+router.put(
+  "/:id/soil",
+  authenticate,
+  withId,
+  validate(upsertSoilSchema),
+  saveSoil
+);
 
-router.get("/:id/documents", authenticate, listDocuments);
+router.get("/:id/documents", authenticate, withId, listDocuments);
 router.post(
   "/:id/documents",
   authenticate,
+  withId,
   handleUpload(documentUpload.single("file")),
   uploadDocument
 );
@@ -87,19 +117,33 @@ router.delete(
   deleteDocument
 );
 
-router.get("/:id/assessment-comparison", authenticate, getAssessmentComparison);
+router.get(
+  "/:id/assessment-comparison",
+  authenticate,
+  withId,
+  withProgramQuery,
+  getAssessmentComparison
+);
 
 export default router;
 
 export const mobileFieldRouter = Router({ mergeParams: true });
 
-mobileFieldRouter.get("/", authenticate, myFarmFields);
-mobileFieldRouter.get("/:id", authenticate, myFarmField);
-mobileFieldRouter.post("/", authenticate, validate(createFieldSchema), createMyField);
+mobileFieldRouter.get("/", authenticate, withFarmParam, myFarmFields);
+mobileFieldRouter.get("/:id", authenticate, withFarmAndId, myFarmField);
+mobileFieldRouter.post(
+  "/",
+  authenticate,
+  withFarmParam,
+  validate(createFieldSchema),
+  createMyField
+);
 mobileFieldRouter.patch(
   "/:id",
   authenticate,
+  withFarmAndId,
   validate(updateFieldSchema),
   updateMyField
 );
-mobileFieldRouter.delete("/:id", authenticate, deleteMyField);
+mobileFieldRouter.delete("/:id", authenticate, withFarmAndId, deleteMyField);
+mobileFieldRouter.post("/:id/reset", authenticate, withFarmAndId, resetMyField);

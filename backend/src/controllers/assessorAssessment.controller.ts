@@ -18,7 +18,12 @@ export const myAssessorFields = asyncHandler(async (req: Request, res: Response)
 
 export const assessorSummary = asyncHandler(async (req: Request, res: Response) => {
   const year = new Date().getFullYear();
-  const result = await service.getAssessorSummary(req.params.fieldId, assessorId(req), year);
+  const result = await service.getAssessorSummary(
+    req.params.fieldId,
+    req.params.programId,
+    assessorId(req),
+    year
+  );
   return ApiResponse.send(res, 200, "Assessment summary fetched.", result);
 });
 
@@ -26,6 +31,7 @@ export const assessorCategoryQuestionList = asyncHandler(
   async (req: Request, res: Response) => {
     const result = await service.getAssessorCategoryQuestionList(
       req.params.fieldId,
+      req.params.programId,
       req.params.categoryId,
       assessorId(req)
     );
@@ -37,6 +43,7 @@ export const assessorQuestionDetail = asyncHandler(
   async (req: Request, res: Response) => {
     const result = await service.getAssessorQuestionDetail(
       req.params.fieldId,
+      req.params.programId,
       req.params.categoryId,
       req.params.questionId,
       assessorId(req)
@@ -49,6 +56,7 @@ export const assessorCategoryQuestions = asyncHandler(
   async (req: Request, res: Response) => {
     const result = await service.getAssessorCategoryQuestions(
       req.params.fieldId,
+      req.params.programId,
       req.params.categoryId,
       assessorId(req)
     );
@@ -59,6 +67,7 @@ export const assessorCategoryQuestions = asyncHandler(
 export const saveAssessorAnswer = asyncHandler(async (req: Request, res: Response) => {
   const response = await service.saveAssessorAnswer(
     req.params.fieldId,
+    req.params.programId,
     req.params.questionId,
     assessorId(req),
     req.body
@@ -67,7 +76,11 @@ export const saveAssessorAnswer = asyncHandler(async (req: Request, res: Respons
 });
 
 export const assessorReview = asyncHandler(async (req: Request, res: Response) => {
-  const review = await service.getAssessorReview(req.params.fieldId, assessorId(req));
+  const review = await service.getAssessorReview(
+    req.params.fieldId,
+    req.params.programId,
+    assessorId(req)
+  );
   return ApiResponse.send(res, 200, "Assessment review fetched.", review);
 });
 
@@ -75,6 +88,7 @@ export const submitAssessorAssessment = asyncHandler(
   async (req: Request, res: Response) => {
     const result = await service.submitAssessorAssessment(
       req.params.fieldId,
+      req.params.programId,
       assessorId(req)
     );
     return ApiResponse.send(res, 200, "Assessment submitted successfully.", result);
@@ -84,12 +98,17 @@ export const submitAssessorAssessment = asyncHandler(
 export const farmerAssessment = asyncHandler(async (req: Request, res: Response) => {
   const result = await service.getFarmerAssessmentForAssessor(
     req.params.fieldId,
+    req.params.programId,
     assessorId(req)
   );
   return ApiResponse.send(res, 200, "Farmer assessment fetched.", result);
 });
 
 export const comparison = asyncHandler(async (req: Request, res: Response) => {
-  const result = await service.getComparison(req.params.fieldId, assessorId(req));
+  const result = await service.getComparison(
+    req.params.fieldId,
+    req.params.programId,
+    assessorId(req)
+  );
   return ApiResponse.send(res, 200, "Comparison fetched.", result);
 });

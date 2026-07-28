@@ -1,4 +1,4 @@
-import { COLORS } from '../../constants';
+import { progressColorForPercent } from '../../constants';
 import type {
   AssessmentCategory,
   AssessmentCategorySummary,
@@ -13,7 +13,10 @@ import type {
 
 const START_LABEL = 'Start Assessment';
 const CONTINUE_LABEL = 'Continue Assessment';
-const REVIEW_LABEL = 'View';
+/** Everything answered but not yet sent in — the review screen can still submit. */
+const REVIEW_SUBMIT_LABEL = 'View & Submit';
+/** Already submitted — the review screen is read-only from here. */
+const VIEW_LABEL = 'View';
 
 export const isAssessmentComplete = (summary: FieldAssessmentSummary): boolean => {
   const info = summary.assessment;
@@ -33,7 +36,9 @@ export const toSummaryCardModel = (
     totalQuestions: info.totalQuestions,
     progress: info.percentage,
     buttonTitle: isAssessmentComplete(summary)
-      ? REVIEW_LABEL
+      ? info.submitted
+        ? VIEW_LABEL
+        : REVIEW_SUBMIT_LABEL
       : info.answered > 0
       ? CONTINUE_LABEL
       : START_LABEL,
@@ -63,16 +68,6 @@ const iconForCategory = (name: string): string => {
   return 'leaf';
 };
 
-const colorForPercentage = (percentage: number): string => {
-  if (percentage <= 0) {
-    return COLORS.gray500;
-  }
-  if (percentage >= 70) {
-    return COLORS.success;
-  }
-  return COLORS.warning;
-};
-
 export const toCategoryItems = (
   categories: AssessmentCategorySummary[],
 ): AssessmentCategory[] =>
@@ -83,7 +78,7 @@ export const toCategoryItems = (
     total: category.totalQuestions,
     percentage: category.percentage,
     icon: iconForCategory(category.name),
-    color: colorForPercentage(category.percentage),
+    color: progressColorForPercent(category.percentage),
   }));
 
 export const toQuestionCardItem = (
@@ -118,7 +113,7 @@ export const toCategoryHeaderModel = (
       total,
       percentage,
       icon: iconForCategory(list.category.name),
-      color: colorForPercentage(percentage),
+      color: progressColorForPercent(percentage),
     },
     progress: {
       total,

@@ -64,6 +64,9 @@ const errorHandler = (
 };
 
 function normalizeError(err: unknown): ApiError {
+  const prismaErr = mapPrismaError(err);
+  if (prismaErr) return prismaErr;
+
   if (isPostgresError(err) && err.code && /^\d/.test(err.code)) {
     return mapPostgresError(err);
   }
@@ -84,6 +87,89 @@ function normalizeError(err: unknown): ApiError {
   );
   apiErr.original = err;
   return apiErr;
+}
+
+interface PrismaError extends Error {
+  code?: string;
+  meta?: Record<string, unknown>;
+}
+
+// Prisma error messages embed the failing query and absolute source paths, so
+// they must never reach the client. Every branch below returns our own wording
+// and keeps the raw error on `original` (dev-only) for debugging.
+function mapPrismaError(err: unknown): ApiError | null {
+  if (typeof err !== "object" || err === null) return null;
+  const e = err as PrismaError;
+  const name = e.name ?? "";
+  if (!name.startsWith("PrismaClient")) return null;
+
+  const attach = (apiErr: ApiError): ApiError => {
+    apiErr.original = err;
+    return apiErr;
+  };
+
+  if (name === "PrismaClientValidationError") {
+    return attach(
+      ApiError.badRequest(
+        "One or more values are not in the expected format. Please check the data and try again."
+      )
+    );
+  }
+
+  switch (e.code) {
+    case "P2002": {
+      const field = uniqueTargetField(e.meta?.target);
+      return attach(
+        ApiError.conflict(
+          field
+            ? `Another record already uses this ${field}. Please choose a different one.`
+            : "A record with these details already exists."
+        )
+      );
+    }
+    case "P2003":
+      return attach(
+        ApiError.badRequest(
+          "A referenced record no longer exists. Please refresh and try again."
+        )
+      );
+    case "P2025":
+      return attach(ApiError.notFound("Record not found."));
+    case "P2000":
+      return attach(
+        ApiError.badRequest("One of the values is too long for its field.")
+      );
+    case "P2023":
+      return attach(ApiError.badRequest("Invalid id format."));
+    case "P2010": {
+      // Raw query failure - the underlying Postgres code is nested in meta.
+      const pgCode = typeof e.meta?.code === "string" ? e.meta.code : undefined;
+      if (pgCode === "22P02") {
+        return attach(ApiError.badRequest("Invalid id format."));
+      }
+      if (pgCode && /^\d/.test(pgCode)) {
+        return attach(mapPostgresError({ ...new Error(), code: pgCode }));
+      }
+      return attach(ApiError.internal("Database error."));
+    }
+    default:
+      return attach(ApiError.internal("Database error."));
+  }
+}
+
+// Turns a Prisma unique-constraint target such as ["lower(name::text)"] or
+// ["email"] into a word we can put in a sentence.
+function uniqueTargetField(target: unknown): string | null {
+  const raw = Array.isArray(target)
+    ? target.map(String).join(", ")
+    : typeof target === "string"
+      ? target
+      : null;
+  if (!raw) return null;
+  const match = /([a-z_]+)/i.exec(raw.replace(/^lower\(/i, ""));
+  const name = match?.[1];
+  if (!name || name === "lower") return null;
+  return name.replace(/_/g, " ");
 }
 
 function isPostgresError(err: unknown): err is PostgresError {

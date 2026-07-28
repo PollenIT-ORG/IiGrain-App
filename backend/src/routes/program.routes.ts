@@ -11,11 +11,13 @@ import {
   updateEnrollmentFields,
   setEnrollmentAssessor,
   getEnrollmentAssessments,
+  getProgramProgress,
   unenroll,
   listSubmissions,
   myAvailablePrograms,
   myEnrollableFields,
   selfEnroll,
+  selfUnenrollField,
 } from "../controllers/program.controller.js";
 import { authenticate, authorize } from "../middlewares/authenticate.js";
 import { validate } from "../middlewares/validate.js";
@@ -31,7 +33,9 @@ import {
   selfEnrollSchema,
   programIdParamSchema,
   enrollmentParamsSchema,
+  selfUnenrollParamsSchema,
 } from "../validators/program.schema.js";
+import { paginationQuerySchema } from "../validators/pagination.schema.js";
 
 const router = Router();
 
@@ -44,7 +48,13 @@ const programManagers = authorize(
 const farmerOnly = authorize("farmer");
 
 router.get("/my/available", authenticate, farmerOnly, myAvailablePrograms);
-router.get("/my/fields", authenticate, farmerOnly, myEnrollableFields);
+router.get(
+  "/my/fields",
+  authenticate,
+  farmerOnly,
+  validate(paginationQuerySchema, "query"),
+  myEnrollableFields
+);
 router.post(
   "/:id/enroll-self",
   authenticate,
@@ -52,6 +62,13 @@ router.post(
   validate(programIdParamSchema, "params"),
   validate(selfEnrollSchema),
   selfEnroll
+);
+router.delete(
+  "/:id/fields/:fieldId/unenroll",
+  authenticate,
+  farmerOnly,
+  validate(selfUnenrollParamsSchema, "params"),
+  selfUnenrollField
 );
 
 router.get(
@@ -138,6 +155,13 @@ router.get(
   programManagers,
   validate(enrollmentParamsSchema, "params"),
   getEnrollmentAssessments
+);
+router.get(
+  "/:id/assessment-progress",
+  authenticate,
+  programManagers,
+  validate(programIdParamSchema, "params"),
+  getProgramProgress
 );
 router.delete(
   "/:id/enrollments/:enrollmentId",

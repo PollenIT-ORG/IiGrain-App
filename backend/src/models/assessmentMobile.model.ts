@@ -10,7 +10,8 @@ export interface OwnedField {
 
 export async function findOwnedField(
   fieldId: string,
-  userId: string
+  userId: string,
+  programId: string
 ): Promise<OwnedField | null> {
   const today = new Date();
   const f = await prisma.fields.findFirst({
@@ -24,6 +25,7 @@ export async function findOwnedField(
           program_enrollments: {
             deleted_at: null,
             farmer_id: userId,
+            program_id: programId,
             programs: {
               deleted_at: null,
               OR: [{ start_date: null }, { start_date: { lte: today } }],
@@ -44,7 +46,6 @@ export interface MyFieldAssessmentRow {
   farm_id: string;
   farm_name: string;
   crop: string | null;
-  status: string;
   program_id: string | null;
   program_name: string | null;
   total_questions: number;
@@ -54,10 +55,59 @@ export interface MyFieldAssessmentRow {
   percentage: string | null;
 }
 
+export interface MyFieldsAssessmentFilters {
+  userId: string;
+  search?: string;
+  limit: number;
+  offset: number;
+}
+
+export interface MyFieldsAssessmentResult {
+  rows: MyFieldAssessmentRow[];
+  total: number;
+  notStarted: number;
+  inProgress: number;
+}
+
 export async function listMyFieldsWithAssessment(
-  userId: string
-): Promise<MyFieldAssessmentRow[]> {
-  return prisma.$queryRaw<MyFieldAssessmentRow[]>(Prisma.sql`
+  filters: MyFieldsAssessmentFilters
+): Promise<MyFieldsAssessmentResult> {
+  const userId = filters.userId;
+  const search = filters.search?.trim();
+  const searchSql = search
+    ? Prisma.sql`AND (f.name ILIKE ${"%" + search + "%"} OR f.crop ILIKE ${"%" + search + "%"})`
+    : Prisma.empty;
+
+  // Shared: one row per (field, program) the farmer is enrolled in, for STARTED
+  // programs, that is NOT yet submitted, with the current answered count.
+  const enrolledCte = Prisma.sql`
+    enrolled AS (
+      SELECT DISTINCT pef.field_id, pe.program_id, p.name AS program_name
+        FROM program_enrollment_fields pef
+        JOIN program_enrollments pe ON pe.id = pef.enrollment_id AND pe.deleted_at IS NULL
+        JOIN programs p ON p.id = pe.program_id AND p.deleted_at IS NULL
+       WHERE pef.deleted_at IS NULL
+         AND pe.farmer_id = ${userId}::uuid
+         AND (p.start_date IS NULL OR p.start_date <= CURRENT_DATE)
+    )`;
+  const answeredLateral = Prisma.sql`
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*)::int AS answered
+        FROM assessment_responses ar
+        JOIN assessment_questions q  ON q.id = ar.question_id
+        JOIN assessment_categories c ON c.id = q.category_id
+       WHERE ar.field_id = f.id
+         AND ar.program_id = en.program_id
+         AND ar.deleted_at IS NULL
+         AND ar.author_role = 'farmer'
+         AND q.deleted_at IS NULL AND q.is_active = true
+         AND c.deleted_at IS NULL AND c.is_active = true
+    ) ans ON true
+    LEFT JOIN field_assessments fa
+           ON fa.field_id = f.id AND fa.program_id = en.program_id
+          AND fa.author_role = 'farmer'`;
+
+  const rows = await prisma.$queryRaw<MyFieldAssessmentRow[]>(Prisma.sql`
     WITH active_q AS (
       SELECT COUNT(*)::int AS total_questions
         FROM assessment_questions aq
@@ -65,26 +115,12 @@ export async function listMyFieldsWithAssessment(
        WHERE aq.deleted_at IS NULL AND aq.is_active = true
          AND ac.deleted_at IS NULL AND ac.is_active = true
     ),
-    -- The farmer's enrolled fields + which program (latest enrollment per field).
-    -- Only STARTED programs - a field enrolled only in a future-start program is
-    -- not yet assessable, so it must not appear in the assessable list.
-    enrolled AS (
-      SELECT DISTINCT ON (pef.field_id)
-             pef.field_id, pe.program_id, p.name AS program_name
-        FROM program_enrollment_fields pef
-        JOIN program_enrollments pe ON pe.id = pef.enrollment_id AND pe.deleted_at IS NULL
-        JOIN programs p ON p.id = pe.program_id AND p.deleted_at IS NULL
-       WHERE pef.deleted_at IS NULL
-         AND pe.farmer_id = ${userId}::uuid
-         AND (p.start_date IS NULL OR p.start_date <= CURRENT_DATE)
-       ORDER BY pef.field_id, pe.enrolled_at DESC
-    )
+    ${enrolledCte}
     SELECT f.id,
            f.name,
            f.farm_id,
            fm.name AS farm_name,
            f.crop,
-           f.status,
            en.program_id,
            en.program_name,
            aq.total_questions,
@@ -96,23 +132,35 @@ export async function listMyFieldsWithAssessment(
       JOIN fields f ON f.id = en.field_id AND f.deleted_at IS NULL
       JOIN farms fm ON fm.id = f.farm_id AND fm.deleted_at IS NULL
       CROSS JOIN active_q aq
-      LEFT JOIN LATERAL (
-        SELECT COUNT(*)::int AS answered
-          FROM assessment_responses ar
-          JOIN assessment_questions q  ON q.id = ar.question_id
-          JOIN assessment_categories c ON c.id = q.category_id
-         WHERE ar.field_id = f.id
-           AND ar.deleted_at IS NULL
-           AND ar.author_role = 'farmer'
-           AND q.deleted_at IS NULL AND q.is_active = true
-           AND c.deleted_at IS NULL AND c.is_active = true
-      ) ans ON true
-      LEFT JOIN field_assessments fa
-             ON fa.field_id = f.id AND fa.author_role = 'farmer'
+      ${answeredLateral}
      -- Only PENDING work here: not_started + in_progress. Completed (submitted)
      -- assessments are excluded - they live in the history endpoint instead.
-     WHERE fa.status IS NULL OR fa.status <> 'submitted'
-     ORDER BY f.created_at DESC;`);
+     WHERE (fa.status IS NULL OR fa.status <> 'submitted')
+       ${searchSql}
+     ORDER BY f.created_at DESC
+     LIMIT ${filters.limit} OFFSET ${filters.offset};`);
+
+  // Whole-set status breakdown (search-filtered, not paginated) for tab counts.
+  const agg = await prisma.$queryRaw<
+    { total: number; in_progress: number; not_started: number }[]
+  >(Prisma.sql`
+    WITH ${enrolledCte}
+    SELECT COUNT(*)::int AS total,
+           COUNT(*) FILTER (WHERE COALESCE(ans.answered, 0) > 0)::int AS in_progress,
+           COUNT(*) FILTER (WHERE COALESCE(ans.answered, 0) = 0)::int AS not_started
+      FROM enrolled en
+      JOIN fields f ON f.id = en.field_id AND f.deleted_at IS NULL
+      JOIN farms fm ON fm.id = f.farm_id AND fm.deleted_at IS NULL
+      ${answeredLateral}
+     WHERE (fa.status IS NULL OR fa.status <> 'submitted')
+       ${searchSql};`);
+
+  return {
+    rows,
+    total: agg[0]?.total ?? 0,
+    notStarted: agg[0]?.not_started ?? 0,
+    inProgress: agg[0]?.in_progress ?? 0,
+  };
 }
 
 export interface CompletedAssessmentRow {
@@ -131,29 +179,47 @@ export interface CompletedAssessmentRow {
   submitted_at: Date | null;
 }
 
+export interface CompletedAssessmentsFilters {
+  userId: string;
+  farmId: string | null;
+  search?: string;
+  limit: number;
+  offset: number;
+}
+
 export async function listMyCompletedAssessments(
-  userId: string,
-  farmId: string | null
-): Promise<CompletedAssessmentRow[]> {
-  return prisma.$queryRaw<CompletedAssessmentRow[]>(Prisma.sql`
-    WITH active_q AS (
-      SELECT COUNT(*)::int AS total_questions
-        FROM assessment_questions aq
-        JOIN assessment_categories ac ON ac.id = aq.category_id
-       WHERE aq.deleted_at IS NULL AND aq.is_active = true
-         AND ac.deleted_at IS NULL AND ac.is_active = true
-    ),
+  filters: CompletedAssessmentsFilters
+): Promise<{ rows: CompletedAssessmentRow[]; total: number }> {
+  const { userId, farmId } = filters;
+  const search = filters.search?.trim();
+  const searchSql = search
+    ? Prisma.sql`AND (f.name ILIKE ${"%" + search + "%"} OR f.crop ILIKE ${"%" + search + "%"})`
+    : Prisma.empty;
+
+  const enrolledCte = Prisma.sql`
     enrolled AS (
-      SELECT DISTINCT ON (pef.field_id)
-             pef.field_id, pe.program_id, p.name AS program_name
+      SELECT DISTINCT pef.field_id, pe.program_id, p.name AS program_name
         FROM program_enrollment_fields pef
         JOIN program_enrollments pe ON pe.id = pef.enrollment_id AND pe.deleted_at IS NULL
         JOIN programs p ON p.id = pe.program_id AND p.deleted_at IS NULL
        WHERE pef.deleted_at IS NULL
          AND pe.farmer_id = ${userId}::uuid
          AND (p.start_date IS NULL OR p.start_date <= CURRENT_DATE)
-       ORDER BY pef.field_id, pe.enrolled_at DESC
-    )
+    )`;
+  const fromWhere = Prisma.sql`
+      FROM enrolled en
+      JOIN fields f ON f.id = en.field_id AND f.deleted_at IS NULL
+      JOIN farms fm ON fm.id = f.farm_id AND fm.deleted_at IS NULL
+      JOIN field_assessments fa
+             ON fa.field_id = f.id
+            AND fa.program_id = en.program_id
+            AND fa.author_role = 'farmer'
+            AND fa.status = 'submitted'
+     WHERE (${farmId}::uuid IS NULL OR f.farm_id = ${farmId}::uuid)
+       ${searchSql}`;
+
+  const rows = await prisma.$queryRaw<CompletedAssessmentRow[]>(Prisma.sql`
+    WITH ${enrolledCte}
     SELECT f.id,
            f.name,
            f.farm_id,
@@ -167,15 +233,16 @@ export async function listMyCompletedAssessments(
            fa.max_score,
            fa.percentage,
            fa.submitted_at
-      FROM enrolled en
-      JOIN fields f ON f.id = en.field_id AND f.deleted_at IS NULL
-      JOIN farms fm ON fm.id = f.farm_id AND fm.deleted_at IS NULL
-      JOIN field_assessments fa
-             ON fa.field_id = f.id
-            AND fa.author_role = 'farmer'
-            AND fa.status = 'submitted'
-     WHERE (${farmId}::uuid IS NULL OR f.farm_id = ${farmId}::uuid)
-     ORDER BY fa.submitted_at DESC NULLS LAST;`);
+    ${fromWhere}
+     ORDER BY fa.submitted_at DESC NULLS LAST
+     LIMIT ${filters.limit} OFFSET ${filters.offset};`);
+
+  const countRows = await prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
+    WITH ${enrolledCte}
+    SELECT COUNT(*)::bigint AS count
+    ${fromWhere};`);
+
+  return { rows, total: Number(countRows[0]?.count ?? 0) };
 }
 
 export interface AssessorFieldRow {
@@ -186,7 +253,8 @@ export interface AssessorFieldRow {
   farmer_id: string;
   farmer_name: string | null;
   crop: string | null;
-  status: string;
+  program_id: string;
+  program_name: string;
   total_questions: number;
   assessor_answered: number;
   assessor_submitted: boolean;
@@ -214,8 +282,9 @@ export async function listAssessorFields(
            u.id    AS farmer_id,
            u.full_name AS farmer_name,
            f.crop,
-           f.status,
            f.created_at,
+           pe.program_id,
+           p.name  AS program_name,
            aq.total_questions,
            COALESCE(ans.answered, 0)::int AS assessor_answered,
            (afa.status = 'submitted')     AS assessor_submitted,
@@ -236,15 +305,18 @@ export async function listAssessorFields(
           JOIN assessment_questions q  ON q.id = ar.question_id
           JOIN assessment_categories c ON c.id = q.category_id
          WHERE ar.field_id = f.id
+           AND ar.program_id = pe.program_id
            AND ar.deleted_at IS NULL
            AND ar.author_role = 'assessor'
            AND q.deleted_at IS NULL AND q.is_active = true
            AND c.deleted_at IS NULL AND c.is_active = true
       ) ans ON true
       LEFT JOIN field_assessments afa
-             ON afa.field_id = f.id AND afa.author_role = 'assessor'
+             ON afa.field_id = f.id AND afa.program_id = pe.program_id
+            AND afa.author_role = 'assessor'
       LEFT JOIN field_assessments ffa
-             ON ffa.field_id = f.id AND ffa.author_role = 'farmer'
+             ON ffa.field_id = f.id AND ffa.program_id = pe.program_id
+            AND ffa.author_role = 'farmer'
      WHERE pe.assessor_id = ${assessorId}::uuid
        AND pe.deleted_at IS NULL
        -- Only STARTED programs - future-start programs aren't assessable yet.
@@ -254,7 +326,8 @@ export async function listAssessorFields(
 
 export async function assessorCanAccessField(
   assessorId: string,
-  fieldId: string
+  fieldId: string,
+  programId: string
 ): Promise<boolean> {
   const rows = await prisma.$queryRaw<{ ok: number }[]>(Prisma.sql`
     SELECT 1 AS ok
@@ -262,6 +335,7 @@ export async function assessorCanAccessField(
       JOIN program_enrollments pe
              ON pe.id = pef.enrollment_id
             AND pe.assessor_id = ${assessorId}::uuid
+            AND pe.program_id = ${programId}::uuid
             AND pe.deleted_at IS NULL
       JOIN programs p ON p.id = pe.program_id AND p.deleted_at IS NULL
      WHERE pef.field_id = ${fieldId}::uuid
@@ -270,6 +344,32 @@ export async function assessorCanAccessField(
        AND (p.start_date IS NULL OR p.start_date <= CURRENT_DATE)
      LIMIT 1;`);
   return rows.length > 0;
+}
+
+export interface AssessmentWriteContext {
+  field_active: boolean;
+  farm_active: boolean;
+  program_active: boolean;
+  program_ended: boolean;
+}
+
+// Current state of the (field, program) pair, used to decide whether assessment
+// work may still be written. Reads are deliberately not gated by this.
+export async function getAssessmentWriteContext(
+  fieldId: string,
+  programId: string
+): Promise<AssessmentWriteContext | null> {
+  const rows = await prisma.$queryRaw<AssessmentWriteContext[]>(Prisma.sql`
+    SELECT f.is_active  AS field_active,
+           fm.is_active AS farm_active,
+           p.is_active  AS program_active,
+           (p.end_date IS NOT NULL AND p.end_date < CURRENT_DATE) AS program_ended
+      FROM fields f
+      JOIN farms fm ON fm.id = f.farm_id AND fm.deleted_at IS NULL
+      JOIN programs p ON p.id = ${programId}::uuid AND p.deleted_at IS NULL
+     WHERE f.id = ${fieldId}::uuid AND f.deleted_at IS NULL
+     LIMIT 1;`);
+  return rows[0] ?? null;
 }
 
 export async function resolveProgramForField(
@@ -316,6 +416,7 @@ export interface CategoryProgress {
 
 export async function getCategoryProgressForField(
   fieldId: string,
+  programId: string,
   authorRole: AuthorRole = "farmer"
 ): Promise<CategoryProgress[]> {
   const rows = await prisma.$queryRaw<
@@ -336,6 +437,7 @@ export async function getCategoryProgressForField(
             AND ar.field_id = ${fieldId}::uuid
             AND ar.deleted_at IS NULL
             AND ar.author_role = ${authorRole}
+            AND ar.program_id = ${programId}::uuid
      WHERE ac.deleted_at IS NULL
        AND ac.is_active = true
      GROUP BY ac.id
@@ -363,6 +465,7 @@ export type AuthorRole = "farmer" | "assessor";
 
 function questionWithAnswerSelect(
   fieldId: string,
+  programId: string,
   authorRole: AuthorRole = "farmer"
 ) {
   return {
@@ -376,7 +479,12 @@ function questionWithAnswerSelect(
     score3_description: true,
     sort_order: true,
     assessment_responses: {
-      where: { field_id: fieldId, deleted_at: null, author_role: authorRole },
+      where: {
+        field_id: fieldId,
+        program_id: programId,
+        deleted_at: null,
+        author_role: authorRole,
+      },
       select: { score: true, comment: true, evidence_urls: true },
       take: 1,
     },
@@ -417,12 +525,13 @@ function toQuestionWithAnswer(q: QWARow): QuestionWithAnswer {
 export async function getCategoryQuestionsForField(
   categoryId: string,
   fieldId: string,
+  programId: string,
   authorRole: AuthorRole = "farmer"
 ): Promise<QuestionWithAnswer[]> {
   const rows = await prisma.assessment_questions.findMany({
     where: { category_id: categoryId, deleted_at: null, is_active: true },
     orderBy: [{ sort_order: "asc" }, { created_at: "asc" }],
-    select: questionWithAnswerSelect(fieldId, authorRole),
+    select: questionWithAnswerSelect(fieldId, programId, authorRole),
   });
   return (rows as QWARow[]).map(toQuestionWithAnswer);
 }
@@ -431,11 +540,12 @@ export async function findCategoryQuestionForField(
   categoryId: string,
   questionId: string,
   fieldId: string,
+  programId: string,
   authorRole: AuthorRole = "farmer"
 ): Promise<QuestionWithAnswer | null> {
   const q = await prisma.assessment_questions.findFirst({
     where: { id: questionId, category_id: categoryId, deleted_at: null, is_active: true },
-    select: questionWithAnswerSelect(fieldId, authorRole),
+    select: questionWithAnswerSelect(fieldId, programId, authorRole),
   });
   return q ? toQuestionWithAnswer(q as QWARow) : null;
 }
@@ -452,6 +562,7 @@ export interface QuestionListRow {
 export async function listCategoryQuestionsForField(
   categoryId: string,
   fieldId: string,
+  programId: string,
   authorRole: AuthorRole = "farmer"
 ): Promise<QuestionListRow[]> {
   const rows = await prisma.assessment_questions.findMany({
@@ -464,7 +575,12 @@ export async function listCategoryQuestionsForField(
       guidance_note: true,
       sort_order: true,
       assessment_responses: {
-        where: { field_id: fieldId, deleted_at: null, author_role: authorRole },
+        where: {
+          field_id: fieldId,
+          program_id: programId,
+          deleted_at: null,
+          author_role: authorRole,
+        },
         select: { id: true },
         take: 1,
       },
@@ -513,28 +629,43 @@ export interface ResponseInput {
   fieldId: string;
   questionId: string;
   score: number;
-  comment: string | null;
-  evidenceUrls: string[];
+  /** `undefined` leaves an existing comment untouched; `null` clears it. */
+  comment?: string | null;
+  /** `undefined` leaves existing evidence untouched; `[]` clears it. */
+  evidenceUrls?: string[];
   authorRole?: AuthorRole;
   authorId?: string | null;
-  programId?: string | null;
+  /** Required: answers are scoped to the program the field is being assessed for. */
+  programId: string;
 }
 
 export async function upsertResponse(p: ResponseInput): Promise<SavedResponse> {
   const role: AuthorRole = p.authorRole ?? "farmer";
   const authorId = p.authorId ?? null;
-  const programId = p.programId ?? null;
+
+  // Only overwrite comment / evidence when the caller actually sent them. A
+  // partial save (score only) must not wipe photos or notes the user added
+  // earlier. Sending an explicit null / [] still clears them.
+  const setComment =
+    p.comment !== undefined ? Prisma.sql`comment = EXCLUDED.comment,` : Prisma.empty;
+  const setEvidence =
+    p.evidenceUrls !== undefined
+      ? Prisma.sql`evidence_urls = EXCLUDED.evidence_urls,`
+      : Prisma.empty;
+
+  const insertComment = p.comment ?? null;
+  const insertEvidence = p.evidenceUrls ?? [];
+
   const rows = await prisma.$queryRaw<SavedResponse[]>(Prisma.sql`
     INSERT INTO assessment_responses
       (field_id, question_id, score, comment, evidence_urls, author_role, author_id, program_id)
-    VALUES (${p.fieldId}::uuid, ${p.questionId}::uuid, ${p.score}, ${p.comment},
-            ${p.evidenceUrls}::text[], ${role}, ${authorId}::uuid, ${programId}::uuid)
-    ON CONFLICT (field_id, question_id, author_role) WHERE deleted_at IS NULL
+    VALUES (${p.fieldId}::uuid, ${p.questionId}::uuid, ${p.score}, ${insertComment},
+            ${insertEvidence}::text[], ${role}, ${authorId}::uuid, ${p.programId}::uuid)
+    ON CONFLICT (field_id, question_id, author_role, program_id) WHERE deleted_at IS NULL
       DO UPDATE SET score = EXCLUDED.score,
-                    comment = EXCLUDED.comment,
-                    evidence_urls = EXCLUDED.evidence_urls,
+                    ${setComment}
+                    ${setEvidence}
                     author_id = EXCLUDED.author_id,
-                    program_id = COALESCE(EXCLUDED.program_id, assessment_responses.program_id),
                     updated_at = now()
     RETURNING id, field_id, question_id, score, comment, evidence_urls,
               created_at, updated_at;`);
@@ -585,35 +716,85 @@ function toFieldAssessment(r: {
 
 export async function findFieldAssessment(
   fieldId: string,
+  programId: string,
   authorRole: AuthorRole = "farmer"
 ): Promise<FieldAssessment | null> {
   const r = await prisma.field_assessments.findFirst({
-    where: { field_id: fieldId, author_role: authorRole },
+    where: { field_id: fieldId, program_id: programId, author_role: authorRole },
   });
   return r ? toFieldAssessment(r) : null;
 }
 
 export async function isFieldSubmitted(
   fieldId: string,
+  programId: string,
   authorRole: AuthorRole = "farmer"
 ): Promise<boolean> {
   const r = await prisma.field_assessments.findFirst({
-    where: { field_id: fieldId, author_role: authorRole },
+    where: { field_id: fieldId, program_id: programId, author_role: authorRole },
     select: { status: true },
   });
   return r?.status === "submitted";
 }
 
+// How many answers are currently saved for a (field, program, role). 0 means the
+// assessment has not been started.
+export async function countFieldResponses(
+  fieldId: string,
+  programId: string,
+  authorRole: AuthorRole = "farmer"
+): Promise<number> {
+  return prisma.assessment_responses.count({
+    where: {
+      field_id: fieldId,
+      program_id: programId,
+      author_role: authorRole,
+      deleted_at: null,
+    },
+  });
+}
+
+// Discard an in-progress assessment: soft-delete its saved answers and remove any
+// non-submitted draft row, so the (field, program) can be started fresh. The
+// caller must ensure the assessment is not already submitted.
+export async function discardFieldAssessment(
+  fieldId: string,
+  programId: string,
+  authorRole: AuthorRole = "farmer"
+): Promise<number> {
+  return prisma.$transaction(async (tx) => {
+    const res = await tx.assessment_responses.updateMany({
+      where: {
+        field_id: fieldId,
+        program_id: programId,
+        author_role: authorRole,
+        deleted_at: null,
+      },
+      data: { deleted_at: new Date() },
+    });
+    await tx.field_assessments.deleteMany({
+      where: {
+        field_id: fieldId,
+        program_id: programId,
+        author_role: authorRole,
+        status: { not: "submitted" },
+      },
+    });
+    return res.count;
+  });
+}
+
 export async function submitFieldAssessment(
   fieldId: string,
+  programId: string,
   authorRole: AuthorRole = "farmer",
-  authorId: string | null = null,
-  programId: string | null = null
+  authorId: string | null = null
 ): Promise<FieldAssessment | null> {
   return prisma.$transaction(async (tx) => {
     const locked = await tx.$queryRaw<{ status: string }[]>(Prisma.sql`
       SELECT status FROM field_assessments
        WHERE field_id = ${fieldId}::uuid AND author_role = ${authorRole}
+         AND program_id = ${programId}::uuid
        FOR UPDATE;`);
     if (locked[0]?.status === "submitted") return null;
 
@@ -632,6 +813,7 @@ export async function submitFieldAssessment(
         JOIN assessment_categories ac ON ac.id = aq.category_id
        WHERE ar.field_id = ${fieldId}::uuid AND ar.deleted_at IS NULL
          AND ar.author_role = ${authorRole}
+         AND ar.program_id = ${programId}::uuid
          AND aq.deleted_at IS NULL AND aq.is_active = true
          AND ac.deleted_at IS NULL AND ac.is_active = true;`);
 
@@ -662,10 +844,9 @@ export async function submitFieldAssessment(
          total_questions, answered, total_score, max_score, percentage, submitted_at)
       VALUES (${fieldId}::uuid, ${authorRole}, ${authorId}::uuid, ${programId}::uuid, 'submitted',
               ${totalQuestions}, ${answered}, ${totalScore}, ${maxScore}, ${pctStr}::numeric, now())
-      ON CONFLICT (field_id, author_role)
+      ON CONFLICT (field_id, author_role, program_id)
         DO UPDATE SET status = 'submitted',
                       author_id = EXCLUDED.author_id,
-                      program_id = COALESCE(EXCLUDED.program_id, field_assessments.program_id),
                       total_questions = EXCLUDED.total_questions,
                       answered = EXCLUDED.answered,
                       total_score = EXCLUDED.total_score,
@@ -699,6 +880,7 @@ export interface HistoryRow {
 
 export async function getHistoryRowsForField(
   fieldId: string,
+  programId: string,
   authorRole: AuthorRole = "farmer"
 ): Promise<HistoryRow[]> {
   return prisma.$queryRaw<HistoryRow[]>(Prisma.sql`
@@ -725,6 +907,7 @@ export async function getHistoryRowsForField(
       LEFT JOIN assessment_responses ar
              ON ar.question_id = aq.id
             AND ar.field_id = ${fieldId}::uuid
+            AND ar.program_id = ${programId}::uuid
             AND ar.deleted_at IS NULL
             AND ar.author_role = ${authorRole}
      WHERE ac.deleted_at IS NULL AND ac.is_active = true
@@ -749,7 +932,8 @@ export interface ComparisonRow {
 }
 
 export async function getComparisonRowsForField(
-  fieldId: string
+  fieldId: string,
+  programId: string
 ): Promise<ComparisonRow[]> {
   return prisma.$queryRaw<ComparisonRow[]>(Prisma.sql`
     SELECT ac.id          AS category_id,
@@ -773,11 +957,13 @@ export async function getComparisonRowsForField(
       LEFT JOIN assessment_responses fr
              ON fr.question_id = aq.id
             AND fr.field_id = ${fieldId}::uuid
+            AND fr.program_id = ${programId}::uuid
             AND fr.deleted_at IS NULL
             AND fr.author_role = 'farmer'
       LEFT JOIN assessment_responses asr
              ON asr.question_id = aq.id
             AND asr.field_id = ${fieldId}::uuid
+            AND asr.program_id = ${programId}::uuid
             AND asr.deleted_at IS NULL
             AND asr.author_role = 'assessor'
      WHERE ac.deleted_at IS NULL AND ac.is_active = true
@@ -800,6 +986,7 @@ export interface ReviewRow {
 
 export async function getReviewRowsForField(
   fieldId: string,
+  programId: string,
   authorRole: AuthorRole = "farmer"
 ): Promise<ReviewRow[]> {
   return prisma.$queryRaw<ReviewRow[]>(Prisma.sql`
@@ -821,6 +1008,7 @@ export async function getReviewRowsForField(
       LEFT JOIN assessment_responses ar
              ON ar.question_id = aq.id
             AND ar.field_id = ${fieldId}::uuid
+            AND ar.program_id = ${programId}::uuid
             AND ar.deleted_at IS NULL
             AND ar.author_role = ${authorRole}
      WHERE ac.deleted_at IS NULL AND ac.is_active = true
@@ -840,6 +1028,7 @@ export interface FieldCategoryScoreRow {
 
 export async function getFieldCategoryScores(
   fieldId: string,
+  programId: string,
   authorRole: "farmer" | "assessor" = "farmer"
 ): Promise<FieldCategoryScoreRow[]> {
   return prisma.$queryRaw<FieldCategoryScoreRow[]>(Prisma.sql`
@@ -861,6 +1050,7 @@ export async function getFieldCategoryScores(
             AND ar.deleted_at IS NULL
             AND ar.author_role = ${authorRole}
             AND ar.field_id = ${fieldId}::uuid
+            AND ar.program_id = ${programId}::uuid
      WHERE ac.deleted_at IS NULL AND ac.is_active = true
      GROUP BY ac.id
      HAVING COUNT(aq.id) > 0

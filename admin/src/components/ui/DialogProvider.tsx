@@ -105,14 +105,11 @@ function Modal({
   onClose: () => void;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-gray-900/50 p-4"
-      onMouseDown={onClose}
-    >
+    <div className="modal-overlay" onMouseDown={onClose}>
       <div
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-card-hover"
+        className="modal-panel w-full max-w-md overflow-hidden rounded-xl bg-white shadow-card-hover"
         onMouseDown={(e) => e.stopPropagation()}
       >
         {children}

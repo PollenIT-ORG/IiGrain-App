@@ -20,6 +20,7 @@ export interface CreateOrgBody {
   description?: string;
   contactEmail?: string;
   contactPhone?: string;
+  contactHours?: string;
   address?: string;
   isActive?: boolean;
 }
@@ -114,6 +115,45 @@ export const organizationsApi = apiSlice.injectEndpoints({
         "Users",
       ],
     }),
+
+    uploadOrgLogo: build.mutation<Organization, { id: string; file: FormData }>({
+      query: ({ id, file }) => ({
+        url: `/organizations/${id}/logo`,
+        method: "POST",
+        data: file,
+      }),
+      transformResponse: (res: ApiSuccess<{ organization: Organization }>) =>
+        res.data.organization,
+      invalidatesTags: ["Organizations", "Config"],
+    }),
+
+    removeOrgLogo: build.mutation<Organization, string>({
+      query: (id) => ({ url: `/organizations/${id}/logo`, method: "DELETE" }),
+      transformResponse: (res: ApiSuccess<{ organization: Organization }>) =>
+        res.data.organization,
+      invalidatesTags: ["Organizations", "Config"],
+    }),
+
+    uploadOrgFavicon: build.mutation<
+      Organization,
+      { id: string; file: FormData }
+    >({
+      query: ({ id, file }) => ({
+        url: `/organizations/${id}/favicon`,
+        method: "POST",
+        data: file,
+      }),
+      transformResponse: (res: ApiSuccess<{ organization: Organization }>) =>
+        res.data.organization,
+      invalidatesTags: ["Organizations", "Config"],
+    }),
+
+    removeOrgFavicon: build.mutation<Organization, string>({
+      query: (id) => ({ url: `/organizations/${id}/favicon`, method: "DELETE" }),
+      transformResponse: (res: ApiSuccess<{ organization: Organization }>) =>
+        res.data.organization,
+      invalidatesTags: ["Organizations", "Config"],
+    }),
   }),
 });
 
@@ -126,4 +166,8 @@ export const {
   useDeleteOrganizationMutation,
   useAssignUserToOrgMutation,
   useRemoveUserFromOrgMutation,
+  useUploadOrgLogoMutation,
+  useRemoveOrgLogoMutation,
+  useUploadOrgFaviconMutation,
+  useRemoveOrgFaviconMutation,
 } = organizationsApi;

@@ -8,13 +8,19 @@ import { styles } from './CenterActionButtonStyle';
 
 interface CenterActionButtonProps {
   onPress: () => void;
+  /** True while the Enroll tab is the focused route. */
+  active?: boolean;
 }
 
-const CenterActionButton: React.FC<CenterActionButtonProps> = ({ onPress }) => (
+const CenterActionButton: React.FC<CenterActionButtonProps> = ({
+  onPress,
+  active = false,
+}) => (
   <TouchableOpacity
     activeOpacity={0.88}
     onPress={onPress}
     accessibilityRole="button"
+    accessibilityState={{ selected: active }}
     accessibilityLabel="Enroll now"
     style={styles.outer}>
     <AppGradient variant="fab" style={styles.gradient}>

@@ -27,7 +27,7 @@ const AssessorFarmerAssessmentScreen: React.FC<AssessorScreenProps<'AssessorFarm
   route,
   navigation,
 }) => {
-  const { fieldId, fieldName } = route.params;
+  const { programId, fieldId, fieldName } = route.params;
   const dispatch = useAppDispatch();
   const data = useAppSelector(selectAssessorFarmerAssessment);
   const error = useAppSelector(selectAssessorError);
@@ -37,8 +37,8 @@ const AssessorFarmerAssessmentScreen: React.FC<AssessorScreenProps<'AssessorFarm
 
   const load = useCallback(() => {
     setAttempted(true);
-    dispatch(fetchFarmerAssessmentThunk(fieldId));
-  }, [dispatch, fieldId]);
+    dispatch(fetchFarmerAssessmentThunk({ programId, fieldId }));
+  }, [dispatch, programId, fieldId]);
   useEffect(() => {
     load();
   }, [load]);

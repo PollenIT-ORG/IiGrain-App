@@ -39,6 +39,7 @@ export interface AssessorFieldItem {
 
 export interface AssessorHistoryItem {
   fieldId: string;
+  programId: string;
   fieldName: string;
   farmName: string;
   year: number;
@@ -81,6 +82,7 @@ export interface AssessorFieldEntry {
   };
   farm: { id: string; name: string };
   farmer: { id: string; name: string };
+  program: { id: string; name: string };
   assessment: {
     status: AssessmentStatus;
     inProgress: boolean;

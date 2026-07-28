@@ -21,7 +21,7 @@ export const useFarmerVisitWatch = (): void => {
     const onIncoming = (raw: unknown) => {
       if (alive && raw && typeof raw === 'object') {
         const v = mapVisit(raw as RawVisit);
-        console.log('[farmerWatch] visit:incoming · assessor =', v.assessorName, '· id =', v.id);
+        console.log('[farmerWatch] 🔔 visit:incoming · assessor =', v.assessorName, '· id =', v.id);
         dispatch(setIncomingVisit(v));
       }
     };
@@ -49,7 +49,7 @@ export const useFarmerVisitWatch = (): void => {
         return;
       }
       const v = mapVisit(raw as RawVisit);
-      console.log('[farmerWatch] live update · status =', v.status, '· assessor pos =', v.assessorLat, v.assessorLng);
+      console.log('[farmerWatch] ⬇️ live update · status =', v.status, '· assessor pos =', v.assessorLat, v.assessorLng);
       if (v.status === 'completed' || v.status === 'cancelled') {
         dispatch(setIncomingVisit(null));
       } else {

@@ -43,6 +43,7 @@ interface AuthResult {
     email: string;
     phone: string | null;
     role: string;
+    avatar_url: string | null;
   };
 }
 
@@ -63,6 +64,9 @@ async function buildAuthResult(user: UserWithRole): Promise<AuthResult> {
       email: user.email,
       phone: user.phone,
       role: user.role_name,
+      // Included so a client can render the avatar straight after sign-in
+      // without a follow-up profile request.
+      avatar_url: user.avatar_url,
     },
   };
 }
@@ -72,13 +76,38 @@ interface RegisterParams {
   email: string;
   phone?: string;
   password: string;
-  role?: string;
 }
+
+/** Self-registration only ever creates a farmer. */
+const SELF_REGISTER_ROLE = "farmer";
 
 interface RegisterResult {
   email: string;
   verificationRequired: true;
   code?: string;
+}
+
+export interface EmailAvailability {
+  email: string;
+  exists: boolean;
+  /** Whether registration can proceed with this email. */
+  available: boolean;
+}
+
+// Mirrors what register() actually allows: a verified account blocks signup, but
+// an existing UNVERIFIED account can still complete registration (it just gets a
+// fresh verification code), so that email is still reported as available.
+export async function checkEmailAvailability(
+  rawEmail: string
+): Promise<EmailAvailability> {
+  const email = rawEmail.trim().toLowerCase();
+  const existing = await findByEmail(email);
+  if (!existing) return { email, exists: false, available: true };
+  return {
+    email,
+    exists: true,
+    available: !existing.is_email_verified,
+  };
 }
 
 export async function register(
@@ -97,11 +126,10 @@ export async function register(
     throw ApiError.conflict("An account with this email already exists.");
   }
 
-  const roleName = params.role ?? "farmer";
-  const role = await findRoleByName(roleName);
+  const role = await findRoleByName(SELF_REGISTER_ROLE);
   if (!role) {
     throw ApiError.badRequest(
-      `Invalid role "${roleName}". Make sure roles are seeded (DB_SEED=true).`
+      `The "${SELF_REGISTER_ROLE}" role is missing. Make sure roles are seeded (DB_SEED=true).`
     );
   }
 

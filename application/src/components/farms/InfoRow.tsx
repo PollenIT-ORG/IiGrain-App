@@ -7,26 +7,40 @@ import AppText from '../AppText/AppText';
 
 export interface InfoRowProps {
   label: string;
-  value: string;
+  /** Empty / missing values fall back to `placeholder` instead of a blank row. */
+  value?: string | null;
+  /** Shown in a muted style when there is no value. Defaults to "Not added". */
+  placeholder?: string;
   icon?: string;
   last?: boolean;
 }
 
-const InfoRow: React.FC<InfoRowProps> = ({ label, value, icon, last = false }) => (
-  <View style={[styles.row, !last && styles.divider]}>
-    <View style={styles.left}>
-      {icon ? (
-        <AppIcon name={icon} size={moderateScale(18)} color={COLORS.gray500} />
-      ) : null}
-      <AppText style={styles.label} numberOfLines={1}>
-        {label}
+const InfoRow: React.FC<InfoRowProps> = ({
+  label,
+  value,
+  placeholder = 'Not added',
+  icon,
+  last = false,
+}) => {
+  const text = value?.trim();
+  const isEmpty = !text;
+
+  return (
+    <View style={[styles.row, !last && styles.divider]}>
+      <View style={styles.left}>
+        {icon ? (
+          <AppIcon name={icon} size={moderateScale(18)} color={COLORS.gray500} />
+        ) : null}
+        <AppText style={styles.label} numberOfLines={1}>
+          {label}
+        </AppText>
+      </View>
+      <AppText style={[styles.value, isEmpty && styles.empty]} numberOfLines={1}>
+        {isEmpty ? placeholder : text}
       </AppText>
     </View>
-    <AppText style={styles.value} numberOfLines={1}>
-      {value}
-    </AppText>
-  </View>
-);
+  );
+};
 
 export default React.memo(InfoRow);
 
@@ -58,5 +72,9 @@ const styles = StyleSheet.create({
     color: COLORS.gray900,
     maxWidth: scale(180),
     textAlign: 'right',
+  },
+  empty: {
+    ...presets.bodySM,
+    color: COLORS.gray500,
   },
 });

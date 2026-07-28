@@ -1,16 +1,23 @@
 import ApiError from "../utils/ApiError.js";
 import {
+  broadcastToAdmins,
+  broadcastConfigChanged,
+} from "./realtime.service.js";
+import {
   createOrg,
   listOrgs,
   findOrgById,
   updateOrg,
   softDeleteOrg,
   codeExists,
+  setOrgBranding,
   type PublicOrganization,
   type ListOrgsFilters,
 } from "../models/organization.model.js";
+import { uploadBrandingImage } from "./upload.service.js";
 import {
   findPublicById,
+  findById,
   setUserOrg,
   listOrgMembers,
   type PublicUser,
@@ -27,6 +34,7 @@ interface CreateInput {
   description?: string;
   contactEmail?: string;
   contactPhone?: string;
+  contactHours?: string;
   address?: string;
   isActive?: boolean;
 }
@@ -38,15 +46,18 @@ export async function createOrganization(
   if (await codeExists(code)) {
     throw ApiError.conflict("An organization with this code already exists.");
   }
-  return createOrg({
+  const org = await createOrg({
     name: input.name.trim(),
     code,
     description: nn(input.description),
     contactEmail: nn(input.contactEmail),
     contactPhone: nn(input.contactPhone),
+    contactHours: nn(input.contactHours),
     address: nn(input.address),
     isActive: input.isActive ?? true,
   });
+  broadcastToAdmins("organizations", { orgId: org.id });
+  return org;
 }
 
 interface ListInput {
@@ -106,6 +117,7 @@ interface UpdateInput {
   description?: string;
   contactEmail?: string;
   contactPhone?: string;
+  contactHours?: string;
   address?: string;
   isActive?: boolean;
 }
@@ -130,16 +142,60 @@ export async function editOrganization(
       input.contactEmail !== undefined ? nn(input.contactEmail) : undefined,
     contactPhone:
       input.contactPhone !== undefined ? nn(input.contactPhone) : undefined,
+    contactHours:
+      input.contactHours !== undefined ? nn(input.contactHours) : undefined,
     address: input.address !== undefined ? nn(input.address) : undefined,
     isActive: input.isActive,
   });
   if (!updated) throw ApiError.notFound("Organization not found.");
+  broadcastToAdmins("organizations", { orgId: id });
+  broadcastConfigChanged();
   return updated;
 }
 
 export async function removeOrganization(id: string): Promise<void> {
   const ok = await softDeleteOrg(id);
   if (!ok) throw ApiError.notFound("Organization not found.");
+  broadcastToAdmins("organizations", { orgId: id });
+  broadcastConfigChanged();
+}
+
+async function setBranding(
+  id: string,
+  kind: "logo" | "favicon",
+  file: { buffer: Buffer; size?: number } | null
+): Promise<PublicOrganization> {
+  const org = await findOrgById(id);
+  if (!org) throw ApiError.notFound("Organization not found.");
+  const field = kind === "logo" ? "logo_url" : "favicon_url";
+  const url = file ? await uploadBrandingImage(file, kind) : null;
+  const updated = await setOrgBranding(id, field, url);
+  if (!updated) throw ApiError.notFound("Organization not found.");
+  broadcastToAdmins("organizations", { orgId: id });
+  broadcastConfigChanged();
+  return updated;
+}
+
+export function setLogo(
+  id: string,
+  file: { buffer: Buffer; size?: number }
+): Promise<PublicOrganization> {
+  return setBranding(id, "logo", file);
+}
+
+export function removeLogo(id: string): Promise<PublicOrganization> {
+  return setBranding(id, "logo", null);
+}
+
+export function setFavicon(
+  id: string,
+  file: { buffer: Buffer; size?: number }
+): Promise<PublicOrganization> {
+  return setBranding(id, "favicon", file);
+}
+
+export function removeFavicon(id: string): Promise<PublicOrganization> {
+  return setBranding(id, "favicon", null);
 }
 
 export async function assignUser(
@@ -160,8 +216,10 @@ export async function unassignUser(
   orgId: string,
   userId: string
 ): Promise<void> {
-  const user = await findPublicById(userId);
+  const user = await findById(userId);
   if (!user) throw ApiError.notFound("User not found.");
+  if (user.org_id !== orgId) {
+    throw ApiError.conflict("This user is not a member of this organization.");
+  }
   await setUserOrg(userId, null);
-  void orgId;
 }

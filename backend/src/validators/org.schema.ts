@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { pageField, limitField } from "./pagination.schema.js";
 
 const nameField = z
   .string({ error: "Organization name is required." })
@@ -29,6 +30,7 @@ export const createOrgSchema = z.object({
   description: optionalText(2000),
   contactEmail: optionalEmail,
   contactPhone: optionalText(20),
+  contactHours: optionalText(200),
   address: optionalText(500),
   isActive: z.boolean().optional(),
 });
@@ -40,6 +42,7 @@ export const updateOrgSchema = z
     description: optionalText(2000),
     contactEmail: optionalEmail,
     contactPhone: optionalText(20),
+    contactHours: optionalText(200),
     address: optionalText(500),
     isActive: z.boolean().optional(),
   })
@@ -48,8 +51,8 @@ export const updateOrgSchema = z
   });
 
 export const listOrgsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(10),
+  page: pageField(1),
+  limit: limitField(10, 100),
   status: z.enum(["active", "inactive"]).optional(),
   search: z.string().trim().max(100).optional(),
 });

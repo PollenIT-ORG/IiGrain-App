@@ -69,6 +69,45 @@ export async function findSoilByField(
   return s ? toPublicSoil(s) : null;
 }
 
+// The soil nutrient inputs (pH..moisture) unlock while the field is enrolled in a
+// program that is currently usable: live, active, started and not ended. When the
+// program closes or ends, the nutrients lock again.
+export async function isFieldSoilUnlocked(fieldId: string): Promise<boolean> {
+  const rows = await prisma.$queryRaw<{ ok: number }[]>(Prisma.sql`
+    SELECT 1 AS ok
+      FROM program_enrollment_fields pef
+      JOIN program_enrollments pe ON pe.id = pef.enrollment_id AND pe.deleted_at IS NULL
+      JOIN programs p ON p.id = pe.program_id AND p.deleted_at IS NULL
+     WHERE pef.field_id = ${fieldId}::uuid
+       AND pef.deleted_at IS NULL
+       AND p.is_active = true
+       AND (p.start_date IS NULL OR p.start_date <= CURRENT_DATE)
+       AND (p.end_date IS NULL OR p.end_date >= CURRENT_DATE)
+     LIMIT 1;`);
+  return rows.length > 0;
+}
+
+export type SoilLockReason = "unlocked" | "not_enrolled" | "program_closed";
+
+// Tells the caller not just whether soil is locked but WHY, so the message can
+// be accurate: a field that was never enrolled needs a different instruction
+// from one whose program has since closed or ended.
+export async function getSoilLockReason(
+  fieldId: string
+): Promise<SoilLockReason> {
+  const anyEnrollment = await prisma.$queryRaw<{ ok: number }[]>(Prisma.sql`
+    SELECT 1 AS ok
+      FROM program_enrollment_fields pef
+      JOIN program_enrollments pe ON pe.id = pef.enrollment_id AND pe.deleted_at IS NULL
+      JOIN programs p ON p.id = pe.program_id AND p.deleted_at IS NULL
+     WHERE pef.field_id = ${fieldId}::uuid
+       AND pef.deleted_at IS NULL
+     LIMIT 1;`);
+  if (anyEnrollment.length === 0) return "not_enrolled";
+  const usable = await isFieldSoilUnlocked(fieldId);
+  return usable ? "unlocked" : "program_closed";
+}
+
 export interface SoilInput {
   ph?: number | null;
   organicMatter?: number | null;
@@ -228,7 +267,7 @@ export async function buildFieldHistory(
 
   const field = await prisma.fields.findFirst({
     where: { id: fieldId, deleted_at: null },
-    select: { name: true, status: true, created_at: true, updated_at: true },
+    select: { name: true, created_at: true, updated_at: true },
   });
 
   if (field) {
@@ -243,32 +282,43 @@ export async function buildFieldHistory(
       events.push({
         type: "field_updated",
         title: "Field updated",
-        detail: `Status: ${field.status}`,
+        detail: field.name,
         at: field.updated_at,
-        meta: { status: field.status },
+        meta: null,
       });
     }
   }
 
-  const fa = await prisma.field_assessments.findFirst({
-    where: { field_id: fieldId, status: "submitted" },
+  // Assessments are program-scoped: a field can have several submitted
+  // assessments (one per program, per role). Emit one event for each.
+  const submissions = await prisma.field_assessments.findMany({
+    where: { field_id: fieldId, status: "submitted", submitted_at: { not: null } },
     select: {
       answered: true,
       total_questions: true,
       percentage: true,
       submitted_at: true,
+      author_role: true,
+      programs: { select: { name: true } },
     },
+    orderBy: { submitted_at: "desc" },
   });
-  if (fa && fa.submitted_at) {
+  for (const fa of submissions) {
+    if (!fa.submitted_at) continue;
+    const who = fa.author_role === "assessor" ? "Assessor assessment" : "Self assessment";
+    const programName = fa.programs?.name ?? null;
+    const programLabel = programName ? ` · ${programName}` : "";
     events.push({
       type: "assessment_submitted",
-      title: "Assessment submitted",
-      detail: `${fa.answered}/${fa.total_questions} answered · ${fa.percentage.toString()}%`,
+      title: `${who} submitted`,
+      detail: `${fa.answered}/${fa.total_questions} answered · ${fa.percentage.toString()}%${programLabel}`,
       at: fa.submitted_at,
       meta: {
         answered: fa.answered,
         totalQuestions: fa.total_questions,
         percentage: fa.percentage.toString(),
+        role: fa.author_role,
+        program: programName,
       },
     });
   }

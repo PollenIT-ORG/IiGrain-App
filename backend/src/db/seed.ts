@@ -16,7 +16,7 @@ const ROLES: Array<{ name: RoleName; description: string }> = [
 const SALT_ROUNDS = 10;
 
 export async function runSeed(): Promise<void> {
-  logger.info("DB_SEED enabled - seeding baseline data...");
+  logger.info("🌱 DB_SEED enabled - seeding baseline data...");
 
   let inserted = 0;
   for (const role of ROLES) {
@@ -28,7 +28,7 @@ export async function runSeed(): Promise<void> {
     void res;
     inserted += 1;
   }
-  logger.info(`Roles ensured (${ROLES.length} total).`);
+  logger.info(`✅ Roles ensured (${ROLES.length} total).`);
 
   await seedSuperAdmin();
 }
@@ -48,7 +48,7 @@ async function seedSuperAdmin(): Promise<void> {
     select: { id: true },
   });
   if (existing) {
-    logger.info("Super admin already exists - bootstrap skipped.");
+    logger.info("✅ Super admin already exists - bootstrap skipped.");
     return;
   }
 
@@ -63,5 +63,5 @@ async function seedSuperAdmin(): Promise<void> {
       is_email_verified: true,
     },
   });
-  logger.info(`Super admin created: ${env.superAdmin.email}`);
+  logger.info(`✅ Super admin created: ${env.superAdmin.email}`);
 }

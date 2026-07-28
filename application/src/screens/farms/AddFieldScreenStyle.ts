@@ -45,6 +45,22 @@ export const styles = StyleSheet.create({
     marginBottom: spacing[1.5],
   },
 
+  areaWarning: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing[2],
+    marginTop: -spacing[2],
+    marginBottom: spacing[4],
+    padding: spacing[2.5],
+    borderRadius: borderRadius.md,
+    backgroundColor: addAlpha(COLORS.warning, 0.14),
+  },
+  areaWarningText: {
+    ...presets.caption,
+    color: COLORS.warning,
+    flex: 1,
+  },
+
   statusRow: {
     flexDirection: 'row',
     gap: spacing[2],
@@ -78,6 +94,7 @@ export const styles = StyleSheet.create({
   dateRow: {
     flexDirection: 'row',
     gap: spacing[3],
+    marginTop: spacing[5],
   },
   dateCol: {
     flex: 1,

@@ -7,6 +7,7 @@ import {
 import { showSuccess, showError } from "../lib/toast";
 import Loader from "../components/Loader";
 import PhoneInput from "../components/ui/PhoneInput";
+import AvatarUpload from "../components/AvatarUpload";
 import { ROLE_LABELS, type UserRole } from "../types";
 
 function errMsg(err: unknown): string {
@@ -46,13 +47,6 @@ export default function Profile() {
 
   if (loading) return <Loader variant="fullPage" message="Loading profile..." />;
 
-  const initials = (user?.full_name || user?.email || "A")
-    .split(" ")
-    .map((s) => s[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
@@ -62,10 +56,11 @@ export default function Profile() {
         </p>
       </div>
 
-      <div className="card flex items-center gap-4 p-6">
-        <span className="grid h-14 w-14 place-items-center rounded-full bg-primary text-lg font-semibold text-white">
-          {initials}
-        </span>
+      <div className="card space-y-5 p-6">
+        <AvatarUpload
+          avatarUrl={user?.avatar_url ?? null}
+          name={user?.full_name || user?.email || "A"}
+        />
         <div>
           <p className="text-base font-semibold text-gray-900">
             {user?.full_name || "Administrator"}

@@ -1,8 +1,9 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
-import * as farmApi from '../../api/farmApi';
+import * as farmApi from '../../api/FarmApi';
 import * as fieldApi from '../../api/FieldApi';
-import type { CreateFarmInput, UpdateFarmInput } from '../../api/farmApi';
+import type { CreateFarmInput, PagedFarms, UpdateFarmInput } from '../../api/FarmApi';
 import type { Farm } from '../../types/farm';
+import type { PageQuery } from '../../types/pagination';
 import { handleApiError, StandardizedError } from '../../utils/handleApiError';
 
 type ThunkConfig = { rejectValue: StandardizedError };
@@ -12,22 +13,24 @@ export interface UpdateFarmArgs {
   input: UpdateFarmInput;
 }
 
-export const fetchFarmsThunk = createAsyncThunk<Farm[], void, ThunkConfig>(
+export type FarmListArgs = PageQuery | undefined;
+
+export const fetchFarmsThunk = createAsyncThunk<PagedFarms, FarmListArgs, ThunkConfig>(
   'farm/fetchFarms',
-  async (_, { rejectWithValue }) => {
+  async (query, { rejectWithValue }) => {
     try {
-      return await farmApi.getMyFarms();
+      return await farmApi.getMyFarms(query);
     } catch (error) {
       return rejectWithValue(handleApiError(error));
     }
   },
 );
 
-export const refreshFarmsThunk = createAsyncThunk<Farm[], void, ThunkConfig>(
+export const refreshFarmsThunk = createAsyncThunk<PagedFarms, FarmListArgs, ThunkConfig>(
   'farm/refreshFarms',
-  async (_, { rejectWithValue }) => {
+  async (query, { rejectWithValue }) => {
     try {
-      return await farmApi.getMyFarms();
+      return await farmApi.getMyFarms({ ...query, page: 1 });
     } catch (error) {
       return rejectWithValue(handleApiError(error));
     }
@@ -80,6 +83,17 @@ export const fetchFarmDetailThunk = createAsyncThunk<Farm, string, ThunkConfig>(
   },
 );
 
+export const refreshFarmDetailThunk = createAsyncThunk<Farm, string, ThunkConfig>(
+  'farm/refreshFarmDetail',
+  async (farmId, { rejectWithValue }) => {
+    try {
+      return await farmApi.getFarmDetails(farmId);
+    } catch (error) {
+      return rejectWithValue(handleApiError(error));
+    }
+  },
+);
+
 export const createFarmThunk = createAsyncThunk<Farm, CreateFarmInput, ThunkConfig>(
   'farm/createFarm',
   async (input, { rejectWithValue }) => {
@@ -96,6 +110,29 @@ export const updateFarmThunk = createAsyncThunk<Farm, UpdateFarmArgs, ThunkConfi
   async ({ farmId, input }, { rejectWithValue }) => {
     try {
       return await farmApi.updateMyFarm(farmId, input);
+    } catch (error) {
+      return rejectWithValue(handleApiError(error));
+    }
+  },
+);
+
+export const resetFarmThunk = createAsyncThunk<Farm, string, ThunkConfig>(
+  'farm/resetFarm',
+  async (farmId, { rejectWithValue }) => {
+    try {
+      return await farmApi.resetMyFarm(farmId);
+    } catch (error) {
+      return rejectWithValue(handleApiError(error));
+    }
+  },
+);
+
+export const deleteFarmThunk = createAsyncThunk<string, string, ThunkConfig>(
+  'farm/deleteFarm',
+  async (farmId, { rejectWithValue }) => {
+    try {
+      await farmApi.deleteMyFarm(farmId);
+      return farmId;
     } catch (error) {
       return rejectWithValue(handleApiError(error));
     }

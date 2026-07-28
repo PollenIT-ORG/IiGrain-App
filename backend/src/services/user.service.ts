@@ -1,13 +1,14 @@
 import bcrypt from "bcryptjs";
 import ApiError from "../utils/ApiError.js";
 import { sendWelcomeEmail, sendPasswordChangedEmail } from "./mailer.service.js";
-import { canCreateRole } from "../config/rbac.js";
+import { canCreateRole, canManageUser } from "../config/rbac.js";
 import { getDefaultOrgId } from "./tenancy.service.js";
 import { revokeAllForUser } from "../models/refreshToken.model.js";
 import {
   findRoleByName,
   findPublicById,
   findById,
+  findAnyById,
   createUserByAdmin,
   listUsers,
   listAssessors,
@@ -18,13 +19,20 @@ import {
   updatePassword,
   emailExists,
   setUserOrg,
+  setUserAvatar,
   type PublicUser,
   type ListUsersFilters,
   type AssessorOption,
 } from "../models/user.model.js";
+import { uploadAvatarImage } from "./upload.service.js";
+import { emitSync } from "../socket/liveSync.js";
+import { broadcastToAdmins } from "./realtime.service.js";
+import { notifyUser } from "./notification.service.js";
+import { assessorAssignedEmail } from "./emailTemplates.js";
 import {
   setFarmerAssessor,
   clearFarmerAssessor,
+  findAssignmentForFarmer,
 } from "../models/assessorAssignment.model.js";
 
 const SALT_ROUNDS = 10;
@@ -87,6 +95,7 @@ export async function createUser(
     password: input.password,
   });
 
+  broadcastToAdmins("users");
   return user;
 }
 
@@ -166,6 +175,37 @@ export async function assignUserAssessor(
     note: null,
   });
 
+  // Live sync both sides of the assignment.
+  emitSync(farmerId, { resource: "enrollment", action: "updated" });
+  emitSync(assessorId, { resource: "enrollment", action: "updated" });
+  broadcastToAdmins("assignments", { farmerId, assessorId });
+
+  // Live notification to BOTH the farmer and the assessor.
+  void notifyUser({
+    userId: farmerId,
+    type: "assessor_assigned",
+    title: "An assessor was assigned",
+    body: `${assessor.full_name ?? "An assessor"} has been assigned to you.`,
+    data: { assessorId },
+    emailFor: (r) =>
+      assessorAssignedEmail({
+        fullName: r.fullName,
+        assessorName: assessor.full_name,
+      }),
+  });
+  void notifyUser({
+    userId: assessorId,
+    type: "assessor_assigned",
+    title: "New assessment assignment",
+    body: `You have been assigned to assess ${farmer.full_name ?? "a farmer"}.`,
+    data: { farmerId },
+    emailFor: (r) =>
+      assessorAssignedEmail({
+        fullName: r.fullName,
+        assessorName: assessor.full_name,
+      }),
+  });
+
   return getUserById(farmerId);
 }
 
@@ -174,7 +214,14 @@ export async function unassignUserAssessor(
 ): Promise<PublicUser> {
   const farmer = await findById(farmerId);
   if (!farmer) throw ApiError.notFound("User not found.");
+  // Capture the current assessor before clearing so we can sync them too.
+  const current = await findAssignmentForFarmer(farmerId);
   await clearFarmerAssessor(farmerId);
+  emitSync(farmerId, { resource: "enrollment", action: "updated" });
+  if (current?.assessor_id) {
+    emitSync(current.assessor_id, { resource: "enrollment", action: "updated" });
+  }
+  broadcastToAdmins("assignments", { farmerId });
   return getUserById(farmerId);
 }
 
@@ -185,15 +232,37 @@ interface UpdateUserInput {
   isActive?: boolean;
 }
 
-export async function editUser(
-  id: string,
-  input: UpdateUserInput
-): Promise<PublicUser> {
+// A manager may only act on accounts below their own rank. This is what stops a
+// program_administrator from editing, deactivating or deleting an admin or a
+// super_admin (and an admin from touching a super_admin).
+async function loadManageableTarget(id: string, actor: Actor) {
   const existing = await findById(id);
   if (!existing) throw ApiError.notFound("User not found.");
+  if (!canManageUser(actor.role, existing.role_name)) {
+    throw ApiError.forbidden(
+      "You do not have permission to manage this account."
+    );
+  }
+  return existing;
+}
+
+export async function editUser(
+  id: string,
+  input: UpdateUserInput,
+  actor: Actor
+): Promise<PublicUser> {
+  await loadManageableTarget(id, actor);
 
   let roleId: number | undefined;
   if (input.role !== undefined) {
+    // Changing a role is really assigning a new role, so it needs the same
+    // permission as creating that role. This blocks promotion to admin by a
+    // program_administrator.
+    if (!canCreateRole(actor.role, input.role)) {
+      throw ApiError.forbidden(
+        `You do not have permission to assign the "${input.role}" role.`
+      );
+    }
     const role = await findRoleByName(input.role);
     if (!role)
       throw ApiError.badRequest(
@@ -209,12 +278,22 @@ export async function editUser(
     isActive: input.isActive,
   });
   if (!updated) throw ApiError.notFound("User not found.");
+  broadcastToAdmins("users");
+  emitSync(id, { resource: "enrollment", action: "updated" });
   return updated;
 }
 
-export async function removeUser(id: string): Promise<void> {
+export async function removeUser(id: string, actor: Actor): Promise<void> {
+  if (id === actor.id) {
+    throw ApiError.badRequest(
+      "You cannot delete your own account from here. Use your profile settings."
+    );
+  }
+  await loadManageableTarget(id, actor);
   const ok = await softDeleteUser(id);
   if (!ok) throw ApiError.notFound("User not found or already deleted.");
+  await revokeAllForUser(id);
+  broadcastToAdmins("users");
 }
 
 export async function deleteOwnAccount(userId: string): Promise<void> {
@@ -223,22 +302,41 @@ export async function deleteOwnAccount(userId: string): Promise<void> {
   await revokeAllForUser(userId);
 }
 
-export async function restoreUserById(id: string): Promise<PublicUser> {
+export async function restoreUserById(
+  id: string,
+  actor: Actor
+): Promise<PublicUser> {
+  const target = await findAnyById(id);
+  if (!target) throw ApiError.notFound("No deleted user found to restore.");
+  if (!canManageUser(actor.role, target.role_name)) {
+    throw ApiError.forbidden(
+      "You do not have permission to manage this account."
+    );
+  }
   const ok = await restoreUser(id);
   if (!ok) {
     throw ApiError.notFound("No deleted user found to restore.");
   }
   const user = await findPublicById(id);
   if (!user) throw ApiError.notFound("User not found after restore.");
+  broadcastToAdmins("users");
   return user;
 }
 
 export async function changeStatus(
   id: string,
-  isActive: boolean
+  isActive: boolean,
+  actor: Actor
 ): Promise<PublicUser> {
+  if (id === actor.id && !isActive) {
+    throw ApiError.badRequest("You cannot deactivate your own account.");
+  }
+  await loadManageableTarget(id, actor);
   const updated = await setUserStatus(id, isActive);
   if (!updated) throw ApiError.notFound("User not found.");
+  // A deactivated user should not keep working with old sessions.
+  if (!isActive) await revokeAllForUser(id);
+  broadcastToAdmins("users");
   return updated;
 }
 
@@ -250,6 +348,25 @@ export async function updateOwnProfile(
     fullName: input.fullName,
     phone: input.phone,
   });
+  if (!updated) throw ApiError.notFound("User not found.");
+  return updated;
+}
+
+export async function uploadOwnAvatar(
+  userId: string,
+  file: { buffer: Buffer; size?: number } | undefined
+): Promise<PublicUser> {
+  if (!file) {
+    throw ApiError.badRequest("No image was uploaded. Please attach a photo.");
+  }
+  const url = await uploadAvatarImage(file);
+  const updated = await setUserAvatar(userId, url);
+  if (!updated) throw ApiError.notFound("User not found.");
+  return updated;
+}
+
+export async function removeOwnAvatar(userId: string): Promise<PublicUser> {
+  const updated = await setUserAvatar(userId, null);
   if (!updated) throw ApiError.notFound("User not found.");
   return updated;
 }

@@ -24,7 +24,7 @@ const ScorePill: React.FC<ScorePillProps> = ({ score }) => {
         styles.pill,
         { backgroundColor: addAlpha(color, 0.14), borderColor: addAlpha(color, 0.3) },
       ]}>
-      <AppText style={[styles.text, { color }]}>{score === null ? '-' : score}</AppText>
+      <AppText style={[styles.text, { color }]}>{score === null ? '—' : score}</AppText>
     </View>
   );
 };

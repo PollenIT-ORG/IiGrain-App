@@ -1,10 +1,14 @@
 import ApiError from "../utils/ApiError.js";
 import { findFieldById, type PublicField } from "../models/field.model.js";
 import { findFarmById } from "../models/farm.model.js";
+import { findFieldWithFarmer } from "../models/assessmentMobile.model.js";
+import { emitSync } from "../socket/liveSync.js";
 import { isOrgManager } from "../config/rbac.js";
 import {
   findSoilByField,
   upsertSoil,
+  isFieldSoilUnlocked,
+  getSoilLockReason,
   listDocumentsByField,
   createDocument,
   findDocument,
@@ -18,6 +22,7 @@ import {
 import {
   getComparisonRowsForField,
   findFieldAssessment,
+  resolveProgramForField,
 } from "../models/assessmentMobile.model.js";
 
 export interface Actor {
@@ -68,7 +73,6 @@ export interface FieldOverview {
   location: string | null;
   sowing_date: string | null;
   expected_harvest: string | null;
-  status: PublicField["status"];
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -80,6 +84,7 @@ export interface FieldDetailsResult {
   overview?: FieldOverview;
   history?: HistoryEvent[];
   soil?: PublicSoil | null;
+  soilLocked?: boolean;
   documents?: PublicDocument[];
 }
 
@@ -96,19 +101,43 @@ export async function getFieldDetails(
       return { ...base, overview: field as FieldOverview };
     case "history":
       return { ...base, history: await buildFieldHistory(fieldId) };
-    case "soil":
-      return { ...base, soil: await findSoilByField(fieldId) };
+    case "soil": {
+      const [soil, unlocked] = await Promise.all([
+        findSoilByField(fieldId),
+        isFieldSoilUnlocked(fieldId),
+      ]);
+      return { ...base, soil, soilLocked: !unlocked };
+    }
     case "docs":
       return { ...base, documents: await listDocumentsByField(fieldId) };
   }
 }
 
+// Soil nutrient inputs that only unlock once the field is enrolled in a program.
+const SOIL_NUTRIENT_KEYS = [
+  "ph",
+  "organicMatter",
+  "nitrogen",
+  "phosphorus",
+  "potassium",
+  "moisture",
+] as const;
+
+export interface SoilResult {
+  soil: PublicSoil | null;
+  locked: boolean;
+}
+
 export async function getSoil(
   fieldId: string,
   actor: Actor
-): Promise<PublicSoil | null> {
+): Promise<SoilResult> {
   await assertFieldAccess(fieldId, actor);
-  return findSoilByField(fieldId);
+  const [soil, unlocked] = await Promise.all([
+    findSoilByField(fieldId),
+    isFieldSoilUnlocked(fieldId),
+  ]);
+  return { soil, locked: !unlocked };
 }
 
 export async function saveSoil(
@@ -125,10 +154,31 @@ export async function saveSoil(
     testedOn?: string | null;
   },
   actor: Actor
-): Promise<PublicSoil> {
+): Promise<SoilResult> {
   await assertFieldAccess(fieldId, actor);
   if (!canWriteSoil(actor)) {
     throw ApiError.forbidden("You cannot edit this field's soil record.");
+  }
+
+  // Guard on an actual nutrient *value*, not key presence: a client that always
+  // sends the full form would otherwise be blocked from saving texture/notes/
+  // tested_on on a locked field just because it passed ph: null. Clearing a
+  // nutrient (null) writes no nutrient data, so it stays allowed.
+  const touchesNutrients = SOIL_NUTRIENT_KEYS.some(
+    (k) => input[k] !== undefined && input[k] !== null
+  );
+  if (touchesNutrients) {
+    const reason = await getSoilLockReason(fieldId);
+    if (reason === "not_enrolled") {
+      throw ApiError.forbidden(
+        "Soil nutrient values (pH, organic matter, nitrogen, phosphorus, potassium, moisture) can only be entered once this field is enrolled in an active program."
+      );
+    }
+    if (reason === "program_closed") {
+      throw ApiError.forbidden(
+        "This field's program is closed or has ended, so its soil nutrient values are locked. They can only be edited while the program is open."
+      );
+    }
   }
 
   const payload: SoilInput = {};
@@ -142,7 +192,16 @@ export async function saveSoil(
   if ("notes" in input) payload.notes = nn(input.notes);
   if ("testedOn" in input) payload.testedOn = nn(input.testedOn);
 
-  return upsertSoil(fieldId, payload);
+  const soil = await upsertSoil(fieldId, payload);
+  const unlocked = await isFieldSoilUnlocked(fieldId);
+
+  // Sync the field owner's devices, whether the farmer or an admin made the edit.
+  const owner = await findFieldWithFarmer(fieldId);
+  if (owner) {
+    emitSync(owner.farmer_id, { resource: "soil", action: "updated", fieldId });
+  }
+
+  return { soil, locked: !unlocked };
 }
 
 export async function getDocuments(
@@ -217,13 +276,24 @@ export interface AssessmentComparisonResult {
 
 export async function getAssessmentComparison(
   fieldId: string,
-  actor: Actor
+  actor: Actor,
+  programId?: string | null
 ): Promise<AssessmentComparisonResult> {
   const field = await assertFieldAccess(fieldId, actor);
 
-  const rows = await getComparisonRowsForField(fieldId);
-  const farmerSub = await findFieldAssessment(fieldId, "farmer");
-  const assessorSub = await findFieldAssessment(fieldId, "assessor");
+  const scopedProgramId = programId ?? (await resolveProgramForField(fieldId));
+  if (!scopedProgramId) {
+    return {
+      field: { id: field.id, name: field.name },
+      farmer: { submitted: false, submittedAt: null, percentage: null },
+      assessor: { submitted: false, submittedAt: null, percentage: null },
+      categories: [],
+    };
+  }
+
+  const rows = await getComparisonRowsForField(fieldId, scopedProgramId);
+  const farmerSub = await findFieldAssessment(fieldId, scopedProgramId, "farmer");
+  const assessorSub = await findFieldAssessment(fieldId, scopedProgramId, "assessor");
 
   const byCat = new Map<string, AssessmentComparisonResult["categories"][number]>();
   for (const r of rows) {

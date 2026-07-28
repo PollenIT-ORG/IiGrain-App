@@ -20,8 +20,10 @@ import {
   listUsersQuerySchema,
   assignAssessorToUserSchema,
 } from "../validators/user.schema.js";
+import { idParamSchema } from "../validators/common.schema.js";
 
 const router = Router();
+const withId = validate(idParamSchema, "params");
 
 router.use(
   authenticate,
@@ -31,12 +33,17 @@ router.use(
 router.post("/", validate(createUserSchema), createUser);
 router.get("/", validate(listUsersQuerySchema, "query"), listUsers);
 router.get("/assessors", listAssessors);
-router.get("/:id", getUser);
-router.patch("/:id", validate(updateUserSchema), updateUser);
-router.delete("/:id", deleteUser);
-router.post("/:id/restore", restoreUser);
-router.patch("/:id/status", validate(setStatusSchema), setUserStatus);
-router.put("/:id/assessor", validate(assignAssessorToUserSchema), assignAssessor);
-router.delete("/:id/assessor", unassignAssessor);
+router.get("/:id", withId, getUser);
+router.patch("/:id", withId, validate(updateUserSchema), updateUser);
+router.delete("/:id", withId, deleteUser);
+router.post("/:id/restore", withId, restoreUser);
+router.patch("/:id/status", withId, validate(setStatusSchema), setUserStatus);
+router.put(
+  "/:id/assessor",
+  withId,
+  validate(assignAssessorToUserSchema),
+  assignAssessor
+);
+router.delete("/:id/assessor", withId, unassignAssessor);
 
 export default router;

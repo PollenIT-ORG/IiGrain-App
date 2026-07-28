@@ -9,9 +9,16 @@ import {
   forgotPassword,
   resetPassword,
   me,
+  checkEmail,
 } from "../controllers/auth.controller.js";
 import { authenticate } from "../middlewares/authenticate.js";
-import { forgotPasswordLimiter } from "../middlewares/rateLimiters.js";
+import {
+  forgotPasswordLimiter,
+  emailCheckLimiter,
+  loginLimiter,
+  codeAttemptLimiter,
+  requestCodeLimiter,
+} from "../middlewares/rateLimiters.js";
 import { validate } from "../middlewares/validate.js";
 import {
   registerSchema,
@@ -22,15 +29,37 @@ import {
   logoutSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  checkEmailQuerySchema,
 } from "../validators/auth.schema.js";
 
 const router = Router();
 
-router.post("/register", validate(registerSchema), register);
-router.post("/login", validate(loginSchema), login);
+router.get(
+  "/check-email",
+  emailCheckLimiter,
+  validate(checkEmailQuerySchema, "query"),
+  checkEmail
+);
+router.post(
+  "/register",
+  requestCodeLimiter,
+  validate(registerSchema),
+  register
+);
+router.post("/login", loginLimiter, validate(loginSchema), login);
 
-router.post("/request-otp", validate(requestOtpSchema), requestOtp);
-router.post("/verify-otp", validate(verifyOtpSchema), verifyOtp);
+router.post(
+  "/request-otp",
+  requestCodeLimiter,
+  validate(requestOtpSchema),
+  requestOtp
+);
+router.post(
+  "/verify-otp",
+  codeAttemptLimiter,
+  validate(verifyOtpSchema),
+  verifyOtp
+);
 
 router.post("/refresh-token", validate(refreshTokenSchema), refreshToken);
 router.post("/logout", validate(logoutSchema), logout);
@@ -41,7 +70,12 @@ router.post(
   validate(forgotPasswordSchema),
   forgotPassword
 );
-router.post("/reset-password", validate(resetPasswordSchema), resetPassword);
+router.post(
+  "/reset-password",
+  codeAttemptLimiter,
+  validate(resetPasswordSchema),
+  resetPassword
+);
 
 router.get("/me", authenticate, me);
 

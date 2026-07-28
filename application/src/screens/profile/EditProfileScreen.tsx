@@ -19,7 +19,6 @@ import type { ValidatorMap } from '../../hooks';
 import { nameValidator, phoneFieldMessage } from '../../utils/fieldValidators';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
-  fetchProfileThunk,
   selectProfile,
   selectProfileUpdating,
   updateProfileThunk,
@@ -41,7 +40,7 @@ const humanizeRole = (role?: string): string =>
         .filter(Boolean)
         .map(capitalize)
         .join(' ')
-    : '-';
+    : '—';
 
 const seedPhone = (
   e164?: string,
@@ -68,7 +67,6 @@ const seedPhone = (
       };
     }
   } catch {
-    // fall through to the digit-only fallback
   }
   return { national: e164.replace(/\D/g, ''), country: DEFAULT_COUNTRY, data: null };
 };
@@ -106,12 +104,6 @@ const EditProfileScreen: React.FC = () => {
     setPhoneData(seed.data);
   }, [profile]);
 
-  useEffect(() => {
-    if (!profile) {
-      dispatch(fetchProfileThunk());
-    }
-  }, [profile, dispatch]);
-
   const onChangePhoneData = useCallback(
     (data: PhoneNumberValue) => {
       setPhoneData(data);
@@ -140,8 +132,9 @@ const EditProfileScreen: React.FC = () => {
     );
 
     if (updateProfileThunk.fulfilled.match(action)) {
+      // No refetch: updateProfileThunk.fulfilled already stores the updated
+      // profile, and authSlice mirrors it onto the auth user.
       showSuccess('Profile updated successfully');
-      dispatch(fetchProfileThunk());
       navigation.goBack();
     }
   }, [updating, validateForm, phone, phoneData, setFieldError, dispatch, fullName, navigation]);
@@ -193,7 +186,7 @@ const EditProfileScreen: React.FC = () => {
           <AppText style={styles.readonlyLabel}>Email</AppText>
           <View style={styles.readonlyField}>
             <AppText style={styles.readonlyValue} numberOfLines={1}>
-              {profile?.email ?? '-'}
+              {profile?.email ?? '—'}
             </AppText>
             <AppIcon name={ICONS.LOCK} size={moderateScale(18)} color={COLORS.gray500} />
           </View>

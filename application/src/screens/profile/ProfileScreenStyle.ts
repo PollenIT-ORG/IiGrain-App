@@ -35,6 +35,11 @@ export const styles = StyleSheet.create({
     marginBottom: spacing[4],
     ...shadows.sm,
   },
+  avatarImage: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+  },
   avatarText: {
     ...presets.displaySmall,
     color: COLORS.white,

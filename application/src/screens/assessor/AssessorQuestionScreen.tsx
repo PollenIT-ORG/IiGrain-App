@@ -22,10 +22,12 @@ import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
   fetchAssessorCategoryQuestionsThunk,
   fetchAssessorQuestionDetailThunk,
+  fetchAssessorSummaryThunk,
   saveAssessorAnswerThunk,
   selectAssessorCategories,
   selectAssessorCategoryQuestionList,
   selectAssessorError,
+  selectAssessorLoadedSummaryScope,
   selectAssessorQuestionDetail,
   selectAssessorQuestionList,
   selectAssessorQuestionLoading,
@@ -34,6 +36,7 @@ import {
 import { uploadEvidenceFile } from '../../api/assessmentApi';
 import { showSuccess, showToast } from '../../services/toastService';
 import type { QuestionScore } from '../../types/assessment';
+import { buildAnswerPayload } from '../../utils/answerPayload';
 import type { AssessorScreenProps } from '../../navigation/navigationTypes';
 
 const COMMENT_MAX = 500;
@@ -43,7 +46,7 @@ const AssessorQuestionScreen: React.FC<AssessorScreenProps<'AssessorQuestion'>> 
   route,
   navigation,
 }) => {
-  const { fieldId, categoryId, questionId } = route.params;
+  const { programId, fieldId, categoryId, questionId } = route.params;
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
 
@@ -54,6 +57,7 @@ const AssessorQuestionScreen: React.FC<AssessorScreenProps<'AssessorQuestion'>> 
   const saving = useAppSelector(selectAssessorSaving);
   const error = useAppSelector(selectAssessorError);
   const categories = useAppSelector(selectAssessorCategories);
+  const loadedSummaryScope = useAppSelector(selectAssessorLoadedSummaryScope);
 
   const [score, setScore] = useState<QuestionScore | null>(null);
   const [comment, setComment] = useState('');
@@ -62,14 +66,22 @@ const AssessorQuestionScreen: React.FC<AssessorScreenProps<'AssessorQuestion'>> 
   const [savingAction, setSavingAction] = useState<SavingAction>(null);
 
   useEffect(() => {
-    dispatch(fetchAssessorQuestionDetailThunk({ fieldId, categoryId, questionId }));
-  }, [dispatch, fieldId, categoryId, questionId]);
+    dispatch(fetchAssessorQuestionDetailThunk({ programId, fieldId, categoryId, questionId }));
+  }, [dispatch, programId, fieldId, categoryId, questionId]);
 
   useEffect(() => {
     if (!categoryList || categoryList.category.id !== categoryId) {
-      dispatch(fetchAssessorCategoryQuestionsThunk({ fieldId, categoryId }));
+      dispatch(fetchAssessorCategoryQuestionsThunk({ programId, fieldId, categoryId }));
     }
-  }, [dispatch, fieldId, categoryId, categoryList]);
+  }, [dispatch, programId, fieldId, categoryId, categoryList]);
+
+  // Ensure the summary (per-category answered counts) is for THIS field, so the
+  // "next unanswered category" + Review-vs-Next decision is accurate.
+  useEffect(() => {
+    if (loadedSummaryScope !== `${programId}:${fieldId}`) {
+      dispatch(fetchAssessorSummaryThunk({ programId, fieldId }));
+    }
+  }, [dispatch, programId, fieldId, loadedSummaryScope]);
 
   const detailReady = !!questionDetail && questionDetail.id === questionId;
 
@@ -90,20 +102,55 @@ const AssessorQuestionScreen: React.FC<AssessorScreenProps<'AssessorQuestion'>> 
   const categoryName = categoryList?.category.name ?? '';
   const locked = !!questionDetail?.locked;
 
-  const nextCategory = useMemo(() => {
-    const idx = categories.findIndex(c => c.id === categoryId);
-    return (
-      categories.slice(idx + 1).find(c => c.answered < c.totalQuestions) ??
-      categories.find(c => c.id !== categoryId && c.answered < c.totalQuestions) ??
-      null
-    );
-  }, [categories, categoryId]);
+  // Completion-driven "what's next" — always route to the next UNANSWERED
+  // question (this category first, then the next incomplete category), and only
+  // offer Review when the whole field is answered.
+  type NextTarget =
+    | { type: 'question'; questionId: string }
+    | { type: 'category'; categoryId: string; categoryName: string }
+    | { type: 'review' };
 
-  const primaryLabel = !isLast
-    ? 'Next'
-    : nextCategory
-      ? `Next: ${nextCategory.name}`
-      : 'Review';
+  const computeNextTarget = useCallback(
+    (currentAnswered: boolean): NextTarget => {
+      const answeredIds = new Set(questions.filter(q => q.answered).map(q => q.id));
+      if (currentAnswered) {
+        answeredIds.add(questionId);
+      }
+      const curIdx = questions.findIndex(q => q.id === questionId);
+      const after =
+        curIdx >= 0
+          ? questions.slice(curIdx + 1).find(q => !answeredIds.has(q.id))
+          : undefined;
+      const before =
+        curIdx > 0 ? questions.slice(0, curIdx).find(q => !answeredIds.has(q.id)) : undefined;
+      const nextInCategory = after ?? before;
+      if (nextInCategory) {
+        return { type: 'question', questionId: nextInCategory.id };
+      }
+      const catIdx = categories.findIndex(c => c.id === categoryId);
+      const nextCat =
+        categories.slice(catIdx + 1).find(c => c.id !== categoryId && c.answered < c.totalQuestions) ??
+        categories.find(c => c.id !== categoryId && c.answered < c.totalQuestions) ??
+        null;
+      if (nextCat) {
+        return { type: 'category', categoryId: nextCat.id, categoryName: nextCat.name };
+      }
+      return { type: 'review' };
+    },
+    [questions, questionId, categoryId, categories],
+  );
+
+  const primaryLabel = useMemo(() => {
+    const willBeAnswered = (score !== null && !locked) || !!questionDetail?.answered;
+    const target = computeNextTarget(willBeAnswered);
+    if (target.type === 'review') {
+      return 'Review';
+    }
+    if (target.type === 'category') {
+      return `Next: ${target.categoryName}`;
+    }
+    return 'Next';
+  }, [score, locked, questionDetail, computeNextTarget]);
 
   const handleEvidence = useCallback((urls: string[], uploading: boolean) => {
     setEvidenceUrls(urls);
@@ -129,11 +176,42 @@ const AssessorQuestionScreen: React.FC<AssessorScreenProps<'AssessorQuestion'>> 
       showToast('Please wait for evidence to finish uploading.', { type: 'error' });
       return false;
     }
+    // Only send what actually changed — see buildAnswerPayload. An absent key
+    // keeps the stored value, so a score-only save must not echo the comment or
+    // photos back and revert what the farmer saved in the meantime.
+    const input = buildAnswerPayload(
+      score,
+      comment,
+      evidenceUrls,
+      detailReady && questionDetail
+        ? {
+            comment: questionDetail.answerComment,
+            evidenceUrls: questionDetail.answerEvidenceUrls,
+          }
+        : null,
+    );
     const action = await dispatch(
-      saveAssessorAnswerThunk({ fieldId, questionId, input: { score, comment: comment.trim(), evidenceUrls } }),
+      saveAssessorAnswerThunk({
+        programId,
+        fieldId,
+        questionId,
+        input,
+      }),
     );
     return saveAssessorAnswerThunk.fulfilled.match(action);
-  }, [locked, score, evidenceUrls, evidenceUploading, dispatch, fieldId, questionId, comment]);
+  }, [
+    detailReady,
+    locked,
+    score,
+    evidenceUrls,
+    evidenceUploading,
+    dispatch,
+    programId,
+    fieldId,
+    questionId,
+    comment,
+    questionDetail,
+  ]);
 
   const handleSaveDraft = useCallback(async () => {
     setSavingAction('draft');
@@ -145,6 +223,7 @@ const AssessorQuestionScreen: React.FC<AssessorScreenProps<'AssessorQuestion'>> 
   }, [persist]);
 
   const handleNext = useCallback(async () => {
+    let savedNow = false;
     if (score !== null && !locked) {
       if (evidenceUploading) {
         showToast('Please wait for evidence to finish uploading.', { type: 'error' });
@@ -152,35 +231,62 @@ const AssessorQuestionScreen: React.FC<AssessorScreenProps<'AssessorQuestion'>> 
       }
       setSavingAction('next');
       const ok = await persist();
-      setSavingAction(null);
       if (!ok) {
+        setSavingAction(null);
         return;
       }
+      savedNow = true;
       showSuccess('Answer saved');
     }
 
-    if (!isLast && nextId) {
-      navigation.setParams({ questionId: nextId });
+    const currentAnswered = savedNow || !!questionDetail?.answered;
+    const target = computeNextTarget(currentAnswered);
+
+    if (target.type === 'question') {
+      setSavingAction(null);
+      navigation.setParams({ questionId: target.questionId });
       return;
     }
-    if (nextCategory) {
+
+    if (target.type === 'category') {
+      setSavingAction('next');
+      const action = await dispatch(
+        fetchAssessorCategoryQuestionsThunk({ programId, fieldId, categoryId: target.categoryId }),
+      );
+      setSavingAction(null);
+      if (fetchAssessorCategoryQuestionsThunk.fulfilled.match(action)) {
+        const firstUnanswered = action.payload.questions.find(q => !q.answered);
+        if (firstUnanswered) {
+          navigation.replace('AssessorQuestion', {
+            programId,
+            fieldId,
+            categoryId: target.categoryId,
+            questionId: firstUnanswered.id,
+          });
+          return;
+        }
+      }
       navigation.replace('AssessorCategory', {
+        programId,
         fieldId,
-        categoryId: nextCategory.id,
-        categoryName: nextCategory.name,
+        categoryId: target.categoryId,
+        categoryName: target.categoryName,
       });
       return;
     }
-    navigation.navigate('AssessorReview', { fieldId });
+
+    setSavingAction(null);
+    navigation.navigate('AssessorReview', { programId, fieldId });
   }, [
     score,
     locked,
     evidenceUploading,
     persist,
-    isLast,
-    nextId,
+    questionDetail,
+    computeNextTarget,
+    dispatch,
     navigation,
-    nextCategory,
+    programId,
     fieldId,
   ]);
 
@@ -257,7 +363,7 @@ const AssessorQuestionScreen: React.FC<AssessorScreenProps<'AssessorQuestion'>> 
         {locked ? (
           <View style={styles.lockBanner}>
             <AppIcon name={ICONS.LOCK_CHECK} size={moderateScale(16)} color={COLORS.primary} />
-            <AppText style={styles.lockText}>Submitted - read-only.</AppText>
+            <AppText style={styles.lockText}>Submitted — read-only.</AppText>
           </View>
         ) : null}
 

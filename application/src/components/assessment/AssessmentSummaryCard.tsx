@@ -12,7 +12,7 @@ import { formatDate } from '../../utils';
 import AppText from '../AppText/AppText';
 import Button from '../Button/Button';
 import type { AssessmentSummary } from '../../types/assessment';
-import AssessmentProgressBar from './AssessmentProgressBar';
+import AssessmentProgressMeter from './AssessmentProgressMeter';
 import AssessmentStatusBadge from './AssessmentStatusBadge';
 
 export interface AssessmentSummaryCardProps {
@@ -30,6 +30,8 @@ const AssessmentSummaryCard: React.FC<AssessmentSummaryCardProps> = ({
     onContinue?.();
   }, [onContinue]);
 
+  const isComplete = summary.status === 'COMPLETED';
+
   return (
     <View
       style={styles.card}
@@ -46,6 +48,14 @@ const AssessmentSummaryCard: React.FC<AssessmentSummaryCardProps> = ({
         Started on {formatDate(summary.startedDateISO)}
       </AppText>
 
+      <AppText style={styles.progressLabel}>Assessment Progress</AppText>
+
+      <AssessmentProgressMeter
+        progress={summary.progress}
+        isComplete={isComplete}
+        backgroundColor={COLORS.gray300}
+      />
+
       <View style={styles.fractionRow}>
         <AppText style={styles.fractionCount} color={COLORS.gray900}>
           {summary.completedQuestions}
@@ -54,14 +64,9 @@ const AssessmentSummaryCard: React.FC<AssessmentSummaryCardProps> = ({
           {' '}/{' '}
         </AppText>
         <AppText style={styles.fractionTotal} color={COLORS.gray700}>
-          {summary.totalQuestions} Completed
+          {summary.totalQuestions} Questions Completed
         </AppText>
       </View>
-
-      <AssessmentProgressBar
-        progress={summary.progress}
-        backgroundColor={COLORS.gray300}
-      />
 
       <Button
         title={summary.buttonTitle}
@@ -100,6 +105,10 @@ const styles = StyleSheet.create({
     ...presets.bodyXS,
     color: COLORS.gray500,
     marginTop: -spacing[1],
+  },
+  progressLabel: {
+    ...presets.labelSM,
+    color: COLORS.gray700,
   },
   fractionRow: {
     flexDirection: 'row',

@@ -176,14 +176,14 @@ export default function MapPicker({
           <input
             type="text"
             className="input-field text-sm"
-            placeholder="Search a place, address or city…"
+            placeholder="Search a place, address or city..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => results.length && setShowResults(true)}
           />
           {searching && (
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-              Searching…
+              Searching...
             </span>
           )}
           {showResults && results.length > 0 && (
@@ -217,7 +217,7 @@ export default function MapPicker({
           disabled={locating}
           className="btn-secondary shrink-0 text-sm"
         >
-          {locating ? "Locating…" : "Use my current location"}
+          {locating ? "Locating..." : "Use my current location"}
         </button>
       </div>
 

@@ -1,6 +1,7 @@
 import { isAxiosError } from 'axios';
 import http from '../services/http';
 import { Endpoints } from '../config/endpoints';
+import { accountRevocationFor } from '../utils/sessionGuards';
 
 interface Envelope<T> {
   data: T;
@@ -13,6 +14,7 @@ export interface AuthUser {
   phone?: string;
   role: string;
   emailVerified?: boolean;
+  avatarUrl?: string | null;
 }
 
 export interface Role {
@@ -68,6 +70,34 @@ interface MeData {
   user: AuthUser;
 }
 
+interface RawAuthUser {
+  id: string;
+  full_name?: string;
+  fullName?: string;
+  email: string;
+  phone?: string | null;
+  role: string;
+  is_email_verified?: boolean;
+  emailVerified?: boolean;
+  avatar_url?: string | null;
+  avatarUrl?: string | null;
+}
+
+const cleanAvatarUrl = (value: string | null | undefined): string | null => {
+  const trimmed = value?.trim();
+  return trimmed || null;
+};
+
+export const normalizeAuthUser = (raw: RawAuthUser): AuthUser => ({
+  id: raw.id,
+  fullName: raw.fullName ?? raw.full_name ?? '',
+  email: raw.email,
+  phone: raw.phone ?? undefined,
+  role: raw.role,
+  emailVerified: raw.emailVerified ?? raw.is_email_verified,
+  avatarUrl: cleanAvatarUrl(raw.avatarUrl) ?? cleanAvatarUrl(raw.avatar_url),
+});
+
 const humanize = (value: string): string =>
   value
     .split(/[_\s-]+/)
@@ -110,7 +140,8 @@ export const register = async (payload: RegisterPayload): Promise<RegisterData> 
 
 export const login = async (payload: LoginPayload): Promise<AuthData> => {
   const res = await http.post<Envelope<AuthData>>(Endpoints.auth.login, payload);
-  return res.data.data;
+  const data = res.data.data;
+  return data.user ? { ...data, user: normalizeAuthUser(data.user) } : data;
 };
 
 export const requestOtp = async (email: string): Promise<RequestOtpData> => {
@@ -122,7 +153,8 @@ export const requestOtp = async (email: string): Promise<RequestOtpData> => {
 
 export const verifyOtp = async (payload: VerifyOtpPayload): Promise<AuthData> => {
   const res = await http.post<Envelope<AuthData>>(Endpoints.auth.verifyOtp, payload);
-  return res.data.data;
+  const data = res.data.data;
+  return data.user ? { ...data, user: normalizeAuthUser(data.user) } : data;
 };
 
 export const forgotPassword = async (email: string): Promise<RequestOtpData> => {
@@ -149,7 +181,7 @@ export const logout = async (refreshToken: string): Promise<void> => {
 
 export const me = async (): Promise<AuthUser> => {
   const res = await http.get<Envelope<MeData>>(Endpoints.auth.me);
-  return res.data.data.user;
+  return normalizeAuthUser(res.data.data.user);
 };
 
 const asRoleArray = (value: unknown): unknown[] | null => {
@@ -189,9 +221,44 @@ export const isUnverifiedEmailError = (error: unknown): boolean => {
     return false;
   }
   const status = error.response?.status ?? null;
+  const message = error.message ?? '';
+  // A deactivated account also logs in with 403. Sending it down the
+  // "unverified email" path would mail an OTP and strand the user on the
+  // verification screen instead of showing why they cannot sign in.
+  if (accountRevocationFor(status, message)) {
+    return false;
+  }
   if (status === 403) {
     return true;
   }
-  const message = (error.message ?? '').toLowerCase();
-  return message.includes('verif');
+  return message.toLowerCase().includes('verif');
+};
+
+export interface EmailAvailability {
+  email: string;
+  exists: boolean;
+  /**
+   * The only field to gate signup on. It is NOT simply `!exists`: an existing
+   * but unverified email is still available, because register re-sends an OTP
+   * for it. Blocking on `exists` would lock those users out.
+   */
+  available: boolean;
+}
+
+/** Public (pre-register) check. Rate limited server-side, so callers should
+ *  debounce rather than fire per keystroke. */
+export const checkEmailAvailability = async (
+  email: string,
+): Promise<EmailAvailability> => {
+  const res = await http.get<Envelope<EmailAvailability>>(Endpoints.auth.checkEmail, {
+    params: { email },
+    // Surfaced inline on the signup field, not through the global error modal.
+    silent: true,
+  });
+  const data = res.data?.data;
+  return {
+    email: data?.email ?? email,
+    exists: data?.exists ?? false,
+    available: data?.available ?? true,
+  };
 };

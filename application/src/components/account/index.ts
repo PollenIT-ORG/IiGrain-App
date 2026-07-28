@@ -19,4 +19,7 @@ export type { DangerZoneCardProps } from './DangerZoneCard';
 export { default as DeleteAccountBottomSheet } from './DeleteAccountBottomSheet';
 export type { DeleteAccountBottomSheetProps } from './DeleteAccountBottomSheet';
 
+export { default as ProfileAvatar } from './ProfileAvatar';
+export type { ProfileAvatarProps } from './ProfileAvatar';
+
 export type { AccountInfoItem } from './types';

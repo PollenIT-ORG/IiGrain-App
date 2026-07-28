@@ -173,7 +173,7 @@ const OtpScreen: React.FC<AuthScreenProps<'Otp'>> = ({ route, navigation }) => {
         {inlineError ? <AppText style={styles.errorInline}>{inlineError}</AppText> : null}
 
         <AppText style={[styles.expiry, expired && styles.expiryExpired]}>
-          {expired ? 'Code expired - request a new one' : `Code expires in ${formatMmSs(expiresIn)}`}
+          {expired ? 'Code expired — request a new one' : `Code expires in ${formatMmSs(expiresIn)}`}
         </AppText>
 
         <Button

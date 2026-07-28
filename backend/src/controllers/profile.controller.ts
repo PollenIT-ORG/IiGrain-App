@@ -25,6 +25,17 @@ export const updateMyProfile = asyncHandler(async (req, res) => {
   return ApiResponse.send(res, 200, "Profile updated successfully.", { user });
 });
 
+export const uploadMyAvatar = asyncHandler(async (req, res) => {
+  const file = (req as { file?: { buffer: Buffer; size?: number } }).file;
+  const user = await userService.uploadOwnAvatar(currentUserId(req), file);
+  return ApiResponse.send(res, 200, "Profile picture updated.", { user });
+});
+
+export const removeMyAvatar = asyncHandler(async (req, res) => {
+  const user = await userService.removeOwnAvatar(currentUserId(req));
+  return ApiResponse.send(res, 200, "Profile picture removed.", { user });
+});
+
 export const getMyOrganization = asyncHandler(async (req, res) => {
   const orgId = await getUserOrgId(currentUserId(req));
   const organization = orgId ? await findOrgById(orgId) : null;

@@ -1,8 +1,19 @@
 import { useNavigate, useParams } from "react-router-dom";
-import { useGetFarmQuery } from "../store/endpoints/farmsApi";
+import {
+  useGetFarmQuery,
+  useResetFarmMutation,
+  useDeleteFarmMutation,
+} from "../store/endpoints/farmsApi";
 import { useListFieldsQuery } from "../store/endpoints/fieldsApi";
+import { showSuccess, showError } from "../lib/toast";
+import { useDialog } from "../components/ui/DialogProvider";
 import Loader from "../components/Loader";
-import { ChevronLeftIcon, EditIcon } from "../components/icons";
+import {
+  ChevronLeftIcon,
+  EditIcon,
+  RefreshIcon,
+  TrashIcon,
+} from "../components/icons";
 
 function errMsg(err: unknown): string {
   return (
@@ -19,6 +30,7 @@ function formatArea(area: string | null): string {
 
 export default function FarmDetail() {
   const navigate = useNavigate();
+  const { confirm } = useDialog();
   const { id = "" } = useParams();
 
   const { data: farm, isLoading, isError, error } = useGetFarmQuery(id, {
@@ -30,6 +42,44 @@ export default function FarmDetail() {
     { skip: !id }
   );
   const fields = fieldsData?.fields ?? [];
+
+  const [resetFarm, { isLoading: resetting }] = useResetFarmMutation();
+  const [deleteFarm, { isLoading: deleting }] = useDeleteFarmMutation();
+
+  async function handleReset() {
+    if (!farm) return;
+    const ok = await confirm({
+      title: "Reset farm?",
+      message: `This clears "${farm.name}"'s editable data. This cannot be undone.`,
+      confirmLabel: "Reset",
+      tone: "danger",
+    });
+    if (!ok) return;
+    try {
+      await resetFarm(farm.id).unwrap();
+      showSuccess("Farm reset.");
+    } catch (err) {
+      showError(errMsg(err));
+    }
+  }
+
+  async function handleDelete() {
+    if (!farm) return;
+    const ok = await confirm({
+      title: "Delete farm?",
+      message: `"${farm.name}" and all its fields will be removed.`,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
+    try {
+      await deleteFarm(farm.id).unwrap();
+      showSuccess("Farm deleted.");
+      navigate("/farms");
+    } catch (err) {
+      showError(errMsg(err));
+    }
+  }
 
   if (isLoading) {
     return <Loader variant="fullPage" message="Loading farm..." />;
@@ -83,13 +133,31 @@ export default function FarmDetail() {
               )}
             </div>
           </div>
-          <button
-            onClick={() => navigate(`/farms/${farm.id}/edit`)}
-            className="btn-secondary"
-          >
-            <EditIcon width={16} height={16} />
-            Edit farm
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate(`/farms/${farm.id}/edit`)}
+              className="btn-secondary"
+            >
+              <EditIcon width={16} height={16} />
+              Edit farm
+            </button>
+            <button
+              onClick={handleReset}
+              disabled={resetting}
+              className="btn-secondary"
+            >
+              <RefreshIcon width={16} height={16} />
+              Reset
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="btn-danger"
+            >
+              <TrashIcon width={16} height={16} />
+              Delete
+            </button>
+          </div>
         </div>
       </div>
 
@@ -101,6 +169,7 @@ export default function FarmDetail() {
           <Detail label="Owner" value={farm.owner_name || farm.owner_email} />
           <Detail label="Owner email" value={farm.owner_email} />
           <Detail label="Organization" value={farm.org_name} />
+          <Detail label="Business Entity" value={farm.business_entity} />
           <Detail label="Area" value={formatArea(farm.area_acres)} />
           <Detail label="Location" value={farm.location} />
         </dl>
@@ -126,7 +195,6 @@ export default function FarmDetail() {
                   <th className="px-5 py-3 font-semibold">Field</th>
                   <th className="px-5 py-3 font-semibold">Crop</th>
                   <th className="px-5 py-3 font-semibold">Area</th>
-                  <th className="px-5 py-3 font-semibold">Health</th>
                   <th className="px-5 py-3 text-right font-semibold">View</th>
                 </tr>
               </thead>
@@ -144,9 +212,6 @@ export default function FarmDetail() {
                     </td>
                     <td className="px-5 py-3.5 whitespace-nowrap text-gray-700">
                       {formatArea(f.area_acres)}
-                    </td>
-                    <td className="px-5 py-3.5 capitalize text-gray-700">
-                      {f.status}
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <button

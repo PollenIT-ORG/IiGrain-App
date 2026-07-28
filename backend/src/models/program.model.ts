@@ -101,6 +101,26 @@ export async function createProgram(
   return toPublicProgram(row);
 }
 
+// Program codes are unique per organization (case-insensitive), ignoring
+// soft-deleted rows. An empty code is not checked - only real codes must be
+// unique.
+export async function programCodeExists(
+  orgId: string,
+  code: string,
+  excludeId?: string
+): Promise<boolean> {
+  const found = await prisma.programs.findFirst({
+    where: {
+      org_id: orgId,
+      code: { equals: code, mode: "insensitive" },
+      deleted_at: null,
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    select: { id: true },
+  });
+  return found !== null;
+}
+
 export interface ListProgramsFilters {
   orgId?: string;
   isActive?: boolean;
@@ -189,6 +209,47 @@ export async function updateProgram(
 export async function softDeleteProgram(id: string): Promise<boolean> {
   const affected = await softDelete("programs", id);
   return affected > 0;
+}
+
+export async function programHasSubmittedAssessment(
+  programId: string
+): Promise<boolean> {
+  const r = await prisma.field_assessments.findFirst({
+    where: { program_id: programId, status: "submitted" },
+    select: { id: true },
+  });
+  return r !== null;
+}
+
+// Soft-deletes a program together with its enrollments and enrollment-fields, so
+// no field is left attached to a removed program. Callers must first confirm the
+// program has no submitted assessment (those are preserved by deactivating, not
+// deleting). One transaction.
+export async function softDeleteProgramCascade(id: string): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const now = new Date();
+    const { count } = await tx.programs.updateMany({
+      where: { id, deleted_at: null },
+      data: { deleted_at: now },
+    });
+    if (count === 0) return false;
+    const enrollments = await tx.program_enrollments.findMany({
+      where: { program_id: id, deleted_at: null },
+      select: { id: true },
+    });
+    const enrollmentIds = enrollments.map((e) => e.id);
+    if (enrollmentIds.length > 0) {
+      await tx.program_enrollments.updateMany({
+        where: { id: { in: enrollmentIds } },
+        data: { deleted_at: now, updated_at: now },
+      });
+      await tx.program_enrollment_fields.updateMany({
+        where: { enrollment_id: { in: enrollmentIds }, deleted_at: null },
+        data: { deleted_at: now, updated_at: now },
+      });
+    }
+    return true;
+  });
 }
 
 export async function countEnrollments(programId: string): Promise<number> {
@@ -408,6 +469,14 @@ export async function setEnrollmentFields(
   return findEnrollmentById(enrollmentId);
 }
 
+export interface AvailableProgramField {
+  id: string;
+  name: string;
+  crop: string | null;
+  farm_name: string;
+  enrolled: boolean;
+}
+
 export interface AvailableProgram {
   id: string;
   name: string;
@@ -419,11 +488,16 @@ export interface AvailableProgram {
   user_limit: number | null;
   enrolled_count: number;
   is_full: boolean;
+  already_enrolled: boolean;
+  fields: AvailableProgramField[];
 }
 
 export async function listAvailableProgramsForFarmer(
   farmerId: string
 ): Promise<AvailableProgram[]> {
+  // Programs the farmer can enroll in: STARTED and not yet ended. Programs the
+  // farmer is already enrolled in stay in the list (so more fields can be added
+  // while the program runs); each program carries per-field enrollment status.
   const rows = await prisma.$queryRaw<
     Array<{
       id: string;
@@ -435,11 +509,18 @@ export async function listAvailableProgramsForFarmer(
       end_date: Date | null;
       user_limit: number | null;
       enrolled_count: number;
+      already_enrolled: boolean;
     }>
   >(Prisma.sql`
     SELECT p.id, p.name, p.code, p.description, p.type,
            p.start_date, p.end_date, p.user_limit,
-           COALESCE(cnt.c, 0)::int AS enrolled_count
+           COALESCE(cnt.c, 0)::int AS enrolled_count,
+           EXISTS (
+             SELECT 1 FROM program_enrollments pe2
+              WHERE pe2.program_id = p.id
+                AND pe2.farmer_id = ${farmerId}::uuid
+                AND pe2.deleted_at IS NULL
+           ) AS already_enrolled
       FROM programs p
       LEFT JOIN LATERAL (
         SELECT COUNT(*)::int AS c
@@ -448,30 +529,63 @@ export async function listAvailableProgramsForFarmer(
       ) cnt ON true
      WHERE p.deleted_at IS NULL
        AND p.is_active = true
-       -- Only programs that have STARTED (and not ended). Future-start programs
-       -- are "upcoming" and can't be enrolled into yet.
        AND (p.start_date IS NULL OR p.start_date <= CURRENT_DATE)
        AND (p.end_date IS NULL OR p.end_date >= CURRENT_DATE)
-       AND NOT EXISTS (
-         SELECT 1 FROM program_enrollments pe2
-          WHERE pe2.program_id = p.id
-            AND pe2.farmer_id = ${farmerId}::uuid
-            AND pe2.deleted_at IS NULL
-       )
      ORDER BY p.created_at DESC;`);
 
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    code: r.code,
-    description: r.description,
-    type: r.type,
-    start_date: dateOnly(r.start_date),
-    end_date: dateOnly(r.end_date),
-    user_limit: r.user_limit,
-    enrolled_count: r.enrolled_count,
-    is_full: r.user_limit !== null && r.enrolled_count >= r.user_limit,
-  }));
+  const fields = await prisma.fields.findMany({
+    where: {
+      deleted_at: null,
+      is_active: true,
+      farms: { deleted_at: null, owner_id: farmerId, is_active: true },
+    },
+    orderBy: { created_at: "desc" },
+    select: { id: true, name: true, crop: true, farms: { select: { name: true } } },
+  });
+
+  // (program_id, field_id) pairs this farmer currently has enrolled.
+  const pairs = await prisma.$queryRaw<
+    Array<{ program_id: string; field_id: string }>
+  >(Prisma.sql`
+    SELECT pe.program_id, pef.field_id
+      FROM program_enrollments pe
+      JOIN program_enrollment_fields pef
+             ON pef.enrollment_id = pe.id AND pef.deleted_at IS NULL
+     WHERE pe.farmer_id = ${farmerId}::uuid AND pe.deleted_at IS NULL;`);
+
+  const enrolledByProgram = new Map<string, Set<string>>();
+  for (const pr of pairs) {
+    let set = enrolledByProgram.get(pr.program_id);
+    if (!set) {
+      set = new Set<string>();
+      enrolledByProgram.set(pr.program_id, set);
+    }
+    set.add(pr.field_id);
+  }
+
+  return rows.map((r) => {
+    const enrolledSet = enrolledByProgram.get(r.id) ?? new Set<string>();
+    return {
+      id: r.id,
+      name: r.name,
+      code: r.code,
+      description: r.description,
+      type: r.type,
+      start_date: dateOnly(r.start_date),
+      end_date: dateOnly(r.end_date),
+      user_limit: r.user_limit,
+      enrolled_count: r.enrolled_count,
+      is_full: r.user_limit !== null && r.enrolled_count >= r.user_limit,
+      already_enrolled: r.already_enrolled,
+      fields: fields.map((f) => ({
+        id: f.id,
+        name: f.name,
+        crop: f.crop,
+        farm_name: f.farms.name,
+        enrolled: enrolledSet.has(f.id),
+      })),
+    };
+  });
 }
 
 export interface EnrollableField {
@@ -481,28 +595,56 @@ export interface EnrollableField {
   farm_name: string;
 }
 
+export interface EnrollableFieldsFilters {
+  farmerId: string;
+  search?: string;
+  limit: number;
+  offset: number;
+}
+
 export async function listEnrollableFieldsForFarmer(
-  farmerId: string
-): Promise<EnrollableField[]> {
-  const rows = await prisma.fields.findMany({
-    where: {
-      deleted_at: null,
-      farms: { deleted_at: null, owner_id: farmerId },
-    },
-    orderBy: { created_at: "desc" },
-    select: {
-      id: true,
-      name: true,
-      crop: true,
-      farms: { select: { name: true } },
-    },
-  });
-  return rows.map((f) => ({
-    id: f.id,
-    name: f.name,
-    crop: f.crop,
-    farm_name: f.farms.name,
-  }));
+  filters: EnrollableFieldsFilters
+): Promise<{ rows: EnrollableField[]; total: number }> {
+  // Only enrollable fields: an inactive field, or a field on an inactive farm,
+  // cannot be taken into a program.
+  const where: Prisma.fieldsWhereInput = {
+    deleted_at: null,
+    is_active: true,
+    farms: { deleted_at: null, owner_id: filters.farmerId, is_active: true },
+  };
+  if (filters.search) {
+    const s = filters.search;
+    where.OR = [
+      { name: { contains: s, mode: "insensitive" } },
+      { crop: { contains: s, mode: "insensitive" } },
+    ];
+  }
+
+  const [rows, total] = await Promise.all([
+    prisma.fields.findMany({
+      where,
+      orderBy: { created_at: "desc" },
+      take: filters.limit,
+      skip: filters.offset,
+      select: {
+        id: true,
+        name: true,
+        crop: true,
+        farms: { select: { name: true } },
+      },
+    }),
+    prisma.fields.count({ where }),
+  ]);
+
+  return {
+    rows: rows.map((f) => ({
+      id: f.id,
+      name: f.name,
+      crop: f.crop,
+      farm_name: f.farms.name,
+    })),
+    total,
+  };
 }
 
 export interface SubmissionRow {
@@ -568,6 +710,43 @@ export async function listSubmissions(
   const total = Number(countRows[0]?.count ?? 0);
 
   return { rows, total };
+}
+
+export interface ProgramAssessmentProgress {
+  total_fields: number;
+  farmer_submitted: number;
+  assessor_submitted: number;
+}
+
+// Per-program rollup: of the fields enrolled in this program, how many have a
+// submitted farmer assessment and how many a submitted assessor assessment.
+export async function getProgramAssessmentProgress(
+  programId: string
+): Promise<ProgramAssessmentProgress> {
+  const rows = await prisma.$queryRaw<ProgramAssessmentProgress[]>(Prisma.sql`
+    WITH enrolled AS (
+      SELECT DISTINCT pef.field_id
+        FROM program_enrollments pe
+        JOIN program_enrollment_fields pef
+               ON pef.enrollment_id = pe.id AND pef.deleted_at IS NULL
+       WHERE pe.program_id = ${programId}::uuid
+         AND pe.deleted_at IS NULL
+    )
+    SELECT
+      (SELECT COUNT(*)::int FROM enrolled) AS total_fields,
+      COUNT(*) FILTER (
+        WHERE fa.author_role = 'farmer' AND fa.status = 'submitted'
+      )::int AS farmer_submitted,
+      COUNT(*) FILTER (
+        WHERE fa.author_role = 'assessor' AND fa.status = 'submitted'
+      )::int AS assessor_submitted
+      FROM enrolled e
+      LEFT JOIN field_assessments fa
+             ON fa.field_id = e.field_id
+            AND fa.program_id = ${programId}::uuid;`);
+  return (
+    rows[0] ?? { total_fields: 0, farmer_submitted: 0, assessor_submitted: 0 }
+  );
 }
 
 export async function setEnrollmentAssessor(

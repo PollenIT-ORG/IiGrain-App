@@ -1,22 +1,32 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon, ICONS } from '../../components/AppIcon';
 import { AppHeader, AppText, Button } from '../../components';
 import { AppShimmer, AppShimmerText } from '../../components/Shimmer';
 import AssessmentProgressBar from '../../components/assessment/AssessmentProgressBar';
 import AssessmentSubmitSuccess from '../../components/assessment/AssessmentSubmitSuccess';
+import FieldRegenIndexCard from '../../components/assessment/FieldRegenIndexCard';
 import { COLORS, spacing } from '../../constants';
 import { moderateScale, scale } from '../../utils';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
+import { useSyncedFetch } from '../../hooks/useSyncedFetch';
+import { Tags } from '../../redux/syncTags';
 import {
   clearSubmitResult,
   fetchAssessmentReviewThunk,
   fetchAssessmentSummaryThunk,
+  fetchFieldRegenIndexThunk,
+  selectAnswerVersion,
   selectAssessmentError,
   selectAssessmentReview,
   selectAssessmentSubmitResult,
   selectAssessmentSubmitting,
+  selectFieldRegenIndex,
+  selectRegenIndexLoading,
+  selectLoadedReviewScope,
+  selectLoadedRegenScope,
   selectReviewLoading,
   submitAssessmentThunk,
 } from '../../redux/slices/assessmentSlice';
@@ -26,6 +36,7 @@ import type {
   QuestionScore,
 } from '../../types/assessment';
 import type { AppScreenProps } from '../../navigation/navigationTypes';
+import { resetToAssessmentTab } from './assessmentNavigation';
 import { styles } from './AssessmentReviewScreenStyle';
 
 const pct = (value: number): string => `${Math.round(value)}%`;
@@ -53,7 +64,7 @@ const QuestionCard: React.FC<{
 
       <View style={styles.qScoreBox}>
         <AppText style={[styles.qScore, { color: meta ? meta.color : COLORS.gray500 }]}>
-          {meta ? question.score : '-'}
+          {meta ? question.score : '—'}
         </AppText>
         <AppText style={styles.qScoreLabel}>{meta ? meta.label : 'Pending'}</AppText>
       </View>
@@ -83,7 +94,8 @@ const AssessmentReviewScreen: React.FC<AppScreenProps<'AssessmentReview'>> = ({
   route,
   navigation,
 }) => {
-  const { fieldId, locked: forcedLock } = route.params;
+  const { programId, fieldId, locked: forcedLock } = route.params;
+  const scope = `${programId}:${fieldId}`;
   const dispatch = useAppDispatch();
   const insets = useSafeAreaInsets();
 
@@ -93,13 +105,60 @@ const AssessmentReviewScreen: React.FC<AppScreenProps<'AssessmentReview'>> = ({
   const submitResult = useAppSelector(selectAssessmentSubmitResult);
   const error = useAppSelector(selectAssessmentError);
 
-  const ready = !!review && review.field.id === fieldId;
+  const regenIndex = useAppSelector(selectFieldRegenIndex);
+  const regenIndexLoading = useAppSelector(selectRegenIndexLoading);
+  const loadedReviewScope = useAppSelector(selectLoadedReviewScope);
+  const loadedRegenScope = useAppSelector(selectLoadedRegenScope);
+  const answerVersion = useAppSelector(selectAnswerVersion);
+
+  const ready = !!review && loadedReviewScope === scope;
 
   useEffect(() => {
     if (!ready) {
-      dispatch(fetchAssessmentReviewThunk(fieldId));
+      dispatch(fetchAssessmentReviewThunk({ programId, fieldId }));
     }
-  }, [dispatch, fieldId, ready]);
+  }, [dispatch, programId, fieldId, ready]);
+
+  const regenReady = !!regenIndex && loadedRegenScope === scope;
+  // FOCUS-GATED on purpose. `regenIndex` is a single shared slot, so this screen
+  // and AssessmentFieldSummary (which stays mounted underneath) used to fight
+  // over it: each fulfilled fetch flipped the other's `regenReady` to false,
+  // which re-dispatched, which flipped this one back — an endless refetch that
+  // showed up as the RHI card flickering. Only the focused screen may fetch.
+  useSyncedFetch({
+    tags: [Tags.regen(fieldId)],
+    run: useCallback(
+      () => dispatch(fetchFieldRegenIndexThunk({ programId, fieldId })),
+      [dispatch, programId, fieldId],
+    ),
+    hasData: regenReady,
+    enabled: !!programId && !!fieldId,
+  });
+
+  const isFirstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstFocus.current) {
+        isFirstFocus.current = false;
+        return;
+      }
+      dispatch(fetchAssessmentReviewThunk({ programId, fieldId }));
+      dispatch(fetchFieldRegenIndexThunk({ programId, fieldId }));
+    }, [dispatch, programId, fieldId]),
+  );
+
+  // Redux-driven safety net: fires the moment an answer is saved anywhere in the
+  // app (not gated on navigation focus events), so data is already fresh by the
+  // time the user navigates back here.
+  const lastSyncedAnswerVersion = useRef(answerVersion);
+  useEffect(() => {
+    if (answerVersion === lastSyncedAnswerVersion.current) {
+      return;
+    }
+    lastSyncedAnswerVersion.current = answerVersion;
+    dispatch(fetchAssessmentReviewThunk({ programId, fieldId }));
+    dispatch(fetchFieldRegenIndexThunk({ programId, fieldId }));
+  }, [answerVersion, dispatch, programId, fieldId]);
 
   const submission = review?.submission;
   const allAnswered =
@@ -112,14 +171,19 @@ const AssessmentReviewScreen: React.FC<AppScreenProps<'AssessmentReview'>> = ({
   const showSuccess = !!submitResult && submitResult.field.id === fieldId;
 
   const onRetry = useCallback(() => {
-    dispatch(fetchAssessmentReviewThunk(fieldId));
-  }, [dispatch, fieldId]);
+    dispatch(fetchAssessmentReviewThunk({ programId, fieldId }));
+  }, [dispatch, programId, fieldId]);
 
   const openQuestion = useCallback(
     (categoryId: string, questionId: string) => {
-      navigation.navigate('AssessmentQuestionDetail', { fieldId, categoryId, questionId });
+      navigation.navigate('AssessmentQuestionDetail', {
+        programId,
+        fieldId,
+        categoryId,
+        questionId,
+      });
     },
-    [navigation, fieldId],
+    [navigation, programId, fieldId],
   );
 
   const onSubmit = useCallback(async () => {
@@ -127,17 +191,17 @@ const AssessmentReviewScreen: React.FC<AppScreenProps<'AssessmentReview'>> = ({
       showToast('Answer every question before submitting.', { type: 'error' });
       return;
     }
-    await dispatch(submitAssessmentThunk(fieldId));
-  }, [allAnswered, dispatch, fieldId]);
+    await dispatch(submitAssessmentThunk({ programId, fieldId }));
+  }, [allAnswered, dispatch, programId, fieldId]);
 
   const onDone = useCallback(() => {
     dispatch(clearSubmitResult());
-    dispatch(fetchAssessmentSummaryThunk(fieldId));
-    navigation.navigate('Shell', {
-      screen: 'MainTabs',
-      params: { screen: 'Assessment', params: { fieldId } },
-    });
-  }, [dispatch, fieldId, navigation]);
+    dispatch(fetchAssessmentSummaryThunk({ programId, fieldId }));
+    // Submitted — the whole run is done, so go straight to the Assessment tab
+    // with a clean stack. It refetches on focus, moving this field out of the
+    // pending list and into History.
+    resetToAssessmentTab(navigation);
+  }, [dispatch, programId, fieldId, navigation]);
 
   const successScore = useMemo(
     () => (submitResult ? `${submitResult.totalScore} / ${submitResult.maxScore}` : undefined),
@@ -198,11 +262,18 @@ const AssessmentReviewScreen: React.FC<AppScreenProps<'AssessmentReview'>> = ({
       <AppHeader
         variant="back"
         title={headerTitle}
-        rightActions={['filter']}
+        // rightActions={['filter']}
+        rightActions={null}
         onBack={() => navigation.goBack()}
       />
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+       <View style={styles.regenSection}>
+          <FieldRegenIndexCard
+            data={regenReady ? regenIndex : null}
+            loading={regenIndexLoading}
+          />
+        </View>
         {review.categories.map(category => (
           <View key={category.id}>
             <AppText style={styles.sectionHeader}>Section: {category.name}</AppText>
@@ -217,6 +288,18 @@ const AssessmentReviewScreen: React.FC<AppScreenProps<'AssessmentReview'>> = ({
             ))}
           </View>
         ))}
+
+
+ <AssessmentSubmitSuccess
+        visible={showSuccess}
+        title="Assessment Submitted"
+        message={`${review.field.name} is now locked for review.`}
+        scoreLabel={successScore}
+        percentLabel={submitResult ? pct(submitResult.percentage) : undefined}
+        onDone={onDone}
+      />
+
+       
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + moderateScale(12) }]}>
@@ -244,14 +327,7 @@ const AssessmentReviewScreen: React.FC<AppScreenProps<'AssessmentReview'>> = ({
         )}
       </View>
 
-      <AssessmentSubmitSuccess
-        visible={showSuccess}
-        title="Assessment Submitted"
-        message={`${review.field.name} is now locked for review.`}
-        scoreLabel={successScore}
-        percentLabel={submitResult ? pct(submitResult.percentage) : undefined}
-        onDone={onDone}
-      />
+     
     </View>
   );
 };

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { pageField, limitField } from "./pagination.schema.js";
 
 export const assignAssessorSchema = z.object({
   assessorId: z.string({ error: "An assessor is required." }).uuid("Invalid assessor id."),
@@ -7,8 +8,8 @@ export const assignAssessorSchema = z.object({
 });
 
 export const listAssignmentsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(10),
+  page: pageField(1),
+  limit: limitField(10, 100),
   assessorId: z.string().uuid("Invalid assessor id.").optional(),
   farmerId: z.string().uuid("Invalid farmer id.").optional(),
 });

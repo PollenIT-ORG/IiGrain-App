@@ -2,6 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import {
   Animated,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   View,
@@ -11,12 +12,23 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, type NavigationProp } from '@react-navigation/native';
 import { AppIcon, ICONS } from '../../components/AppIcon';
-import { AppHeader, AppText, AppTextInput, Button } from '../../components';
+import {
+  AppHeader,
+  AppText,
+  Button,
+  ListFooterLoader,
+  SearchBar,
+} from '../../components';
+import { useDebouncedValue } from '../../hooks';
 import { COLORS, spacing } from '../../constants';
+import { GENERIC_ERROR_MESSAGE } from '../../config/errorMessages';
 import { moderateScale, scale } from '../../utils';
 import { EmptyState, FarmCard, FARM_CARD_TOTAL_HEIGHT } from '../../components/farms';
 import { AppShimmerList, FarmCardShimmer } from '../../components/Shimmer';
-import LocationPicker from '../../components/location/LocationPicker';
+// NOTE: the `LocationPicker` import was removed with the Leaflet→Google Maps
+// migration. Its only reference was inside the commented-out tab experiment
+// below, so it was a dead import. If that experiment is revived, import the
+// picker from '../../maps'.
 import { showToast } from '../../services/toastService';
 import type { Farm } from '../../types/farm';
 import type { AppStackParamList } from '../../navigation/navigationTypes';
@@ -29,8 +41,12 @@ import {
   selectFarms,
   selectFarmFieldCounts,
   selectFarmsError,
+  selectFarmsHasMore,
   selectFarmsLoading,
+  selectFarmsLoadingMore,
+  selectFarmsMeta,
   selectFarmsRefreshing,
+  selectFarmsTotal,
 } from '../../redux/slices/farmSlice';
 
 const HEADER_ACTIONS = ['notification'] as const;
@@ -41,13 +57,13 @@ type SortKey = 'default' | 'name_asc' | 'name_desc';
 const SORT_ORDER: SortKey[] = ['default', 'name_asc', 'name_desc'];
 const SORT_LABEL: Record<SortKey, string> = {
   default: 'Default',
-  name_asc: 'Name A-Z',
-  name_desc: 'Name Z-A',
+  name_asc: 'Name A–Z',
+  name_desc: 'Name Z–A',
 };
 
 const TABS: { key: FarmsView; label: string }[] = [
   { key: 'farms', label: 'Farms' },
-  { key: 'map', label: 'Map' },
+  // { key: 'map', label: 'Map' },
 ];
 
 type TabButtonProps = {
@@ -102,8 +118,12 @@ const FarmsScreen: React.FC = () => {
   const farms = useAppSelector(selectFarms);
   const fieldCounts = useAppSelector(selectFarmFieldCounts);
   const loading = useAppSelector(selectFarmsLoading);
+  const loadingMore = useAppSelector(selectFarmsLoadingMore);
   const refreshing = useAppSelector(selectFarmsRefreshing);
   const error = useAppSelector(selectFarmsError);
+  const meta = useAppSelector(selectFarmsMeta);
+  const hasMore = useAppSelector(selectFarmsHasMore);
+  const total = useAppSelector(selectFarmsTotal);
 
   const [view, setView] = useState<FarmsView>('farms');
   const [query, setQuery] = useState('');
@@ -111,11 +131,18 @@ const FarmsScreen: React.FC = () => {
   const [tabBarWidth, setTabBarWidth] = useState(0);
   const indicatorProgress = useRef(new Animated.Value(0)).current;
 
+  const search = useDebouncedValue(query.trim());
+
   useEffect(() => {
-    if (farms.length === 0) {
-      dispatch(fetchFarmsThunk());
+    dispatch(fetchFarmsThunk({ page: 1, search }));
+  }, [dispatch, search]);
+
+  const handleEndReached = useCallback(() => {
+    if (loading || loadingMore || refreshing || !hasMore) {
+      return;
     }
-  }, [dispatch, farms.length]);
+    dispatch(fetchFarmsThunk({ page: (meta?.page ?? 1) + 1, search }));
+  }, [dispatch, loading, loadingMore, refreshing, hasMore, meta, search]);
 
   useEffect(() => {
     const missing = farms
@@ -127,13 +154,13 @@ const FarmsScreen: React.FC = () => {
   }, [dispatch, farms, fieldCounts]);
 
   const onRefresh = useCallback(() => {
-    dispatch(refreshFarmsThunk());
+    dispatch(refreshFarmsThunk({ search }));
     if (farms.length > 0) {
       dispatch(
         fetchFarmFieldCountsThunk({ farmIds: farms.map(farm => farm.id), overwrite: true }),
       );
     }
-  }, [dispatch, farms]);
+  }, [dispatch, farms, search]);
 
   const goToFarm = useCallback(
     (farmId: string) => navigation.navigate('FarmDetails', { farmId }),
@@ -146,18 +173,15 @@ const FarmsScreen: React.FC = () => {
     () => setSort(s => SORT_ORDER[(SORT_ORDER.indexOf(s) + 1) % SORT_ORDER.length]),
     [],
   );
-  const clearQuery = useCallback(() => setQuery(''), []);
 
   const visibleFarms = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const filtered = q ? farms.filter(farm => farm.name.toLowerCase().includes(q)) : farms;
     if (sort === 'default') {
-      return filtered;
+      return farms;
     }
-    return [...filtered].sort((a, b) =>
+    return [...farms].sort((a, b) =>
       sort === 'name_asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name),
     );
-  }, [farms, query, sort]);
+  }, [farms, sort]);
 
   const renderItem = useCallback<ListRenderItem<Farm>>(
     ({ item }) => (
@@ -187,11 +211,13 @@ const FarmsScreen: React.FC = () => {
   );
 
   const listContentStyle = useMemo(
-    () => [styles.listContent, { paddingBottom: insets.bottom + scale(140) }],
+    () => [styles.listContent, { paddingBottom: insets.bottom + scale(160) }],
     [insets.bottom],
   );
   const floatingStyle = useMemo(
-    () => [styles.floating, { bottom: insets.bottom + scale(22) }],
+    () => [styles.floating, { bottom: insets.bottom + 
+      scale(Platform.OS === "ios" ? 8 : 24) 
+    }],
     [insets.bottom],
   );
 
@@ -234,6 +260,8 @@ const FarmsScreen: React.FC = () => {
 
   const isInitialLoading = loading && farms.length === 0;
   const hasError = !loading && !refreshing && error !== null && farms.length === 0;
+  const isSearching = query.trim().length > 0 || search.length > 0;
+  const showControls = farms.length > 0 || isSearching;
 
   const renderFarmsContent = () => {
     if (isInitialLoading) {
@@ -250,11 +278,11 @@ const FarmsScreen: React.FC = () => {
           <AppIcon name={ICONS.ERROR} size={moderateScale(48)} color={COLORS.gray500} />
           <AppText style={styles.stateTitle}>Couldn't load farms</AppText>
           <AppText style={styles.stateMessage}>
-            {error ?? 'Something went wrong. Please try again.'}
+            {error ?? GENERIC_ERROR_MESSAGE}
           </AppText>
           <Button
             title="Retry"
-            onPress={() => dispatch(fetchFarmsThunk())}
+            onPress={() => dispatch(fetchFarmsThunk({ page: 1, search }))}
             fullWidth={false}
             style={styles.retryBtn}
           />
@@ -272,6 +300,8 @@ const FarmsScreen: React.FC = () => {
         contentContainerStyle={listContentStyle}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.4}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -280,12 +310,21 @@ const FarmsScreen: React.FC = () => {
             tintColor={COLORS.primary}
           />
         }
+        ListFooterComponent={
+          <ListFooterLoader
+            loading={loadingMore}
+            hasMore={hasMore}
+            loadedCount={farms.length}
+            total={total}
+            endLabel="farms"
+          />
+        }
         ListEmptyComponent={
-          query.trim() ? (
+          search ? (
             <EmptyState
               icon="magnify"
               title="No matching farms"
-              message={`No farms match "${query.trim()}". Try a different name.`}
+              message={`No farms match "${search}". Try a different name or location.`}
             />
           ) : (
             <EmptyState
@@ -303,27 +342,11 @@ const FarmsScreen: React.FC = () => {
 
   const renderControls = () => (
     <View style={styles.controlsRow}>
-      <View style={styles.searchBox}>
-        <AppIcon name="magnify" size={moderateScale(18)} color={COLORS.gray500} />
-        <AppTextInput
-          style={styles.searchInput}
-          placeholder="Search farms by name"
-          value={query}
-          onChangeText={setQuery}
-          returnKeyType="search"
-          autoCorrect={false}
-          autoCapitalize="none"
-        />
-        {query.length > 0 ? (
-          <Pressable
-            onPress={clearQuery}
-            hitSlop={TAB_HIT_SLOP}
-            accessibilityRole="button"
-            accessibilityLabel="Clear search">
-            <AppIcon name="close-circle" size={moderateScale(18)} color={COLORS.gray500} />
-          </Pressable>
-        ) : null}
-      </View>
+      <SearchBar
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Search farms by name or location"
+      />
       <Pressable
         onPress={cycleSort}
         style={styles.sortChip}
@@ -341,12 +364,13 @@ const FarmsScreen: React.FC = () => {
     <View style={styles.safe}>
       <AppHeader
         variant="title"
-        title="Farms & Fields"
+        title="Farms"
         showDrawer
         rightActions={[...HEADER_ACTIONS]}
       />
 
-      <View style={styles.tabBar} onLayout={handleTabBarLayout}>
+      {/* <View style={styles.tabBar} onLayout={handleTabBarLayout}>
+
         <View style={styles.tabRow}>
           {TABS.map((tab, index) => {
             const active = tab.key === view;
@@ -376,11 +400,12 @@ const FarmsScreen: React.FC = () => {
         </View>
         <View style={styles.tabDivider} />
         <Animated.View pointerEvents="none" style={indicatorStyle} />
-      </View>
+      </View> */}
 
-      {isFarms ? (
+      {/* {isFarms ? (
+        
         <View style={styles.farmsWrap}>
-          {farms.length > 0 ? renderControls() : null}
+          {showControls ? renderControls() : null}
           {renderFarmsContent()}
         </View>
       ) : (
@@ -392,7 +417,13 @@ const FarmsScreen: React.FC = () => {
             )
           }
         />
-      )}
+      )} */}
+
+
+  <View style={styles.farmsWrap}>
+          {showControls ? renderControls() : null}
+          {renderFarmsContent()}
+        </View>
 
       {isFarms && farms.length > 0 ? (
         <View style={floatingStyle} pointerEvents="box-none">

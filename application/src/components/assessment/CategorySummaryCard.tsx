@@ -59,7 +59,10 @@ const CategorySummaryCard: React.FC<CategorySummaryCardProps> = ({
       </AppText>
     </View>
 
-    <AssessmentProgressBar progress={progress.percentage} />
+    <AssessmentProgressBar
+      progress={progress.percentage}
+      colorByPercent={deriveStatus(progress) !== 'COMPLETED'}
+    />
 
     <CategoryProgress progress={progress} />
   </View>

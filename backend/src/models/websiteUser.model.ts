@@ -1,0 +1,94 @@
+import prisma from "../db/prisma.js";
+
+// Accounts created on the public website to take the eligibility survey. Kept
+// separate from `users` so a lead who never qualifies is not an app user.
+
+export interface PublicWebsiteUser {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  is_email_verified: boolean;
+  created_at: Date;
+}
+
+const SELECT = {
+  id: true,
+  full_name: true,
+  email: true,
+  phone: true,
+  is_email_verified: true,
+  created_at: true,
+};
+
+export interface CreateWebsiteUserParams {
+  fullName: string;
+  email: string;
+  passwordHash: string;
+  phone: string | null;
+}
+
+export async function createWebsiteUser(
+  p: CreateWebsiteUserParams
+): Promise<PublicWebsiteUser> {
+  return prisma.website_users.create({
+    data: {
+      full_name: p.fullName,
+      email: p.email,
+      password_hash: p.passwordHash,
+      phone: p.phone,
+    },
+    select: SELECT,
+  });
+}
+
+export async function websiteEmailExists(email: string): Promise<boolean> {
+  const found = await prisma.website_users.findFirst({
+    where: { email: { equals: email, mode: "insensitive" }, deleted_at: null },
+    select: { id: true },
+  });
+  return found !== null;
+}
+
+/** Includes the password hash - only for the login check. */
+export async function findWebsiteUserByEmail(email: string) {
+  return prisma.website_users.findFirst({
+    where: { email: { equals: email, mode: "insensitive" }, deleted_at: null },
+  });
+}
+
+export async function findWebsiteUserById(
+  id: string
+): Promise<PublicWebsiteUser | null> {
+  return prisma.website_users.findFirst({
+    where: { id, deleted_at: null },
+    select: SELECT,
+  });
+}
+
+export async function findWebsiteUserByEmailPublic(
+  email: string
+): Promise<PublicWebsiteUser | null> {
+  return prisma.website_users.findFirst({
+    where: { email: { equals: email, mode: "insensitive" }, deleted_at: null },
+    select: SELECT,
+  });
+}
+
+export async function touchWebsiteLogin(id: string): Promise<void> {
+  await prisma.website_users.updateMany({
+    where: { id, deleted_at: null },
+    data: { last_login_at: new Date(), updated_at: new Date() },
+  });
+}
+
+export async function updateWebsitePassword(
+  id: string,
+  passwordHash: string
+): Promise<boolean> {
+  const { count } = await prisma.website_users.updateMany({
+    where: { id, deleted_at: null },
+    data: { password_hash: passwordHash, updated_at: new Date() },
+  });
+  return count > 0;
+}

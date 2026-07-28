@@ -6,6 +6,19 @@ buildscript {
         targetSdkVersion = 36
         ndkVersion = "27.1.12297006"
         kotlinVersion = "2.1.20"
+
+        // Google Play Services, read by react-native-maps/android/build.gradle
+        // via its safeExtGet() helper.
+        // react-native-maps declares these with its own defaults, but leaving
+        // them implicit means a library bump silently changes the Maps SDK in
+        // our APK. Pinning them here makes the map stack an explicit, reviewable
+        // part of THIS project's dependency graph.
+        //   - maps     : the MapView / tile renderer itself
+        //   - base     : GoogleApiAvailability, the "update Play services" dialog
+        //   - location : FusedLocationProvider, used by showsUserLocation
+        googlePlayServicesMapsVersion = "19.1.0"
+        googlePlayServicesBaseVersion = "18.5.0"
+        googlePlayServicesLocationVersion = "21.3.0"
     }
     repositories {
         google()

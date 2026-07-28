@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = join(__dirname, "migrations");
 
 export async function runMigrations(): Promise<void> {
-  logger.info("DB_SYNC enabled - checking for pending migrations...");
+  logger.info("🔧 DB_SYNC enabled - checking for pending migrations...");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS _migrations (
@@ -30,7 +30,7 @@ export async function runMigrations(): Promise<void> {
   const pending = allFiles.filter((f) => !applied.has(f));
 
   if (pending.length === 0) {
-    logger.info("No pending migrations - schema is up to date.");
+    logger.info("✅ No pending migrations - schema is up to date.");
     return;
   }
 
@@ -47,15 +47,15 @@ export async function runMigrations(): Promise<void> {
         [file]
       );
       await client.query("COMMIT");
-      logger.info(`   Applied: ${file}`);
+      logger.info(`   ✅ Applied: ${file}`);
     } catch (err) {
       await client.query("ROLLBACK");
-      logger.error(`   Failed: ${file} - rolled back.`, err);
+      logger.error(`   ❌ Failed: ${file} - rolled back.`, err);
       throw err;
     } finally {
       client.release();
     }
   }
 
-  logger.info("All pending migrations applied.");
+  logger.info("✅ All pending migrations applied.");
 }

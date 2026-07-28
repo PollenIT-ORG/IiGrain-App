@@ -101,6 +101,13 @@ export const EVIDENCE_SIZE = {
   videoMax: EVIDENCE_VIDEO_MAX,
 } as const;
 
+export const avatarUpload = makeUploader({
+  allowedExtensions: ["jpg", "jpeg", "png", "webp", "heic"],
+  typeLabel: "JPG, PNG, WEBP or HEIC image",
+  maxFileSize: 5 * MB,
+  maxFiles: 1,
+});
+
 export const documentUpload = makeUploader({
   allowedExtensions: ["pdf", "jpg", "jpeg", "png", "webp", "heic", "doc", "docx"],
   typeLabel: "PDF, image or Word document",

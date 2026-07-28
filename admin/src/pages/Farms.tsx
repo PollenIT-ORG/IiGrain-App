@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useUrlSearchSync } from "../lib/useUrlSearchSync";
+import { useLiveData } from "../lib/useLiveData";
 import {
   useListFarmsQuery,
   useDeleteFarmMutation,
@@ -41,6 +43,20 @@ function formatArea(area: string | null): string {
   return `${n.toLocaleString()} acres`;
 }
 
+function SortArrow({
+  active,
+  order,
+}: {
+  active: boolean;
+  order: "asc" | "desc";
+}) {
+  return (
+    <span className={active ? "text-primary" : "text-gray-300"}>
+      {active ? (order === "asc" ? "↑" : "↓") : "↕"}
+    </span>
+  );
+}
+
 export default function Farms() {
   const navigate = useNavigate();
   const { confirm } = useDialog();
@@ -50,14 +66,35 @@ export default function Farms() {
   const [searchInput, setSearchInput] = useState("");
   const [status, setStatus] = useState<"" | "active" | "inactive">("");
   const [orgId, setOrgId] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "created_at" | "area_acres">(
+    "created_at"
+  );
+  const [order, setOrder] = useState<"asc" | "desc">("desc");
+  useUrlSearchSync(setSearchInput);
 
-  const { data, isLoading, isError, error } = useListFarmsQuery({
-    page,
-    limit: PAGE_SIZE,
-    status: status || undefined,
-    orgId: orgId || undefined,
-    search: search || undefined,
-  });
+  // Click a sortable header: same column flips the direction, a new column
+  // starts ascending.
+  function toggleSort(col: "name" | "area_acres") {
+    if (sortBy === col) {
+      setOrder((o) => (o === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(col);
+      setOrder("asc");
+    }
+    setPage(1);
+  }
+
+  const { data, isLoading, isFetching, isError, error, refetch } =
+    useListFarmsQuery({
+      page,
+      limit: PAGE_SIZE,
+      status: status || undefined,
+      orgId: orgId || undefined,
+      search: search || undefined,
+      sortBy,
+      order,
+    });
+  useLiveData(["farms"], refetch);
   const farms = data?.farms ?? [];
   const meta = data?.meta ?? null;
 
@@ -84,7 +121,7 @@ export default function Farms() {
   async function handleDelete(farm: Farm) {
     const ok = await confirm({
       title: "Delete farm?",
-      message: `"${farm.name}" will be removed. This can be restored later if needed.`,
+      message: `"${farm.name}" and all its fields will be removed.`,
       confirmLabel: "Delete",
       tone: "danger",
     });
@@ -152,7 +189,7 @@ export default function Farms() {
       </div>
 
       <div className="card overflow-hidden">
-        {isLoading ? (
+        {isLoading || isFetching ? (
           <Loader message="Loading farms..." />
         ) : isError ? (
           <div className="px-5 py-16 text-center text-sm text-gray-500">
@@ -168,10 +205,31 @@ export default function Farms() {
               <table className="w-full min-w-[820px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-gray-300 text-xs uppercase tracking-wider text-gray-500">
-                    <th className="px-5 py-3 font-semibold">Farm</th>
+                    <th className="px-5 py-3 font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => toggleSort("name")}
+                        className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-gray-900"
+                      >
+                        Farm
+                        <SortArrow active={sortBy === "name"} order={order} />
+                      </button>
+                    </th>
                     <th className="px-5 py-3 font-semibold">Owner</th>
                     <th className="px-5 py-3 font-semibold">Organization</th>
-                    <th className="px-5 py-3 font-semibold">Area</th>
+                    <th className="px-5 py-3 font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => toggleSort("area_acres")}
+                        className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-gray-900"
+                      >
+                        Area
+                        <SortArrow
+                          active={sortBy === "area_acres"}
+                          order={order}
+                        />
+                      </button>
+                    </th>
                     <th className="px-5 py-3 font-semibold">Status</th>
                     <th className="px-5 py-3 text-right font-semibold">
                       Actions

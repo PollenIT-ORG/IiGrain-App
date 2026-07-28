@@ -4,13 +4,15 @@ import { softDelete } from "../db/softDelete.js";
 
 type Tx = Prisma.TransactionClient | typeof prisma;
 
+// Returns how many rows were actually updated, so the caller can tell whether
+// every id in the request matched a live row (and reject the request otherwise).
 async function applyReorder(
   table: "assessment_categories" | "assessment_questions",
   items: { id: string; sortOrder: number }[]
-): Promise<void> {
-  if (items.length === 0) return;
+): Promise<number> {
+  if (items.length === 0) return 0;
 
-  await prisma.$transaction(
+  const results = await prisma.$transaction(
     items.map((item) =>
       table === "assessment_categories"
         ? prisma.assessment_categories.updateMany({
@@ -23,6 +25,7 @@ async function applyReorder(
           })
     )
   );
+  return results.reduce((sum, r) => sum + r.count, 0);
 }
 
 export interface PublicCategory {
@@ -165,8 +168,8 @@ export async function upsertCategoryByName(
 
 export async function reorderCategories(
   items: { id: string; sortOrder: number }[]
-): Promise<void> {
-  await applyReorder("assessment_categories", items);
+): Promise<number> {
+  return applyReorder("assessment_categories", items);
 }
 
 export interface PublicQuestion {
@@ -366,8 +369,8 @@ export async function softDeleteQuestion(id: string): Promise<boolean> {
 
 export async function reorderQuestions(
   items: { id: string; sortOrder: number }[]
-): Promise<void> {
-  await applyReorder("assessment_questions", items);
+): Promise<number> {
+  return applyReorder("assessment_questions", items);
 }
 
 export async function maxSortOrderInCategory(

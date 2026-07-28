@@ -14,11 +14,15 @@ import {
   DeleteAccountBottomSheet,
 } from '../../components/account';
 import { ENTRANCE_TIMING } from '../../components/account/animations';
-import { getInitials } from '../../utils';
 import { showSuccess } from '../../services/toastService';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import { deleteAccountThunk, selectAuthUser } from '../../redux/slices/authSlice';
-import { APP_VERSION, DELETE_REMOVES, buildAccountInfoItems } from './accountData';
+import { selectProfile } from '../../redux/slices/userSlice';
+import {
+  APP_VERSION_LABEL,
+  DELETE_REMOVES,
+  buildAccountInfoItems,
+} from './accountData';
 import { styles } from './AccountScreenStyle';
 import { IMAGES } from '../../assets/images';
 
@@ -26,16 +30,19 @@ const AccountScreen: React.FC = () => {
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
   const user = useAppSelector(selectAuthUser);
+  const profile = useAppSelector(selectProfile);
 
   const [sheetVisible, setSheetVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const items = useMemo(() => buildAccountInfoItems(user), [user]);
+  const items = useMemo(
+    () => buildAccountInfoItems(user, undefined, profile?.createdAt),
+    [user, profile?.createdAt],
+  );
   const displayName = user?.fullName?.trim() || 'iiGrain User';
   const roleLabel =
     (user?.role ?? '').trim().toLowerCase() === 'assessor' ? 'Assessor' : 'Farmer';
-  const initials = getInitials(displayName) || 'U';
 
   const opacity = useSharedValue(0);
   const rise = useSharedValue(16);
@@ -110,7 +117,7 @@ const AccountScreen: React.FC = () => {
 
           <View style={styles.footer}>
             <AppText style={styles.footerText} align="center">
-              iiGrain • Version {APP_VERSION}
+              iiGrain • Version {APP_VERSION_LABEL}
             </AppText>
             <AppText style={styles.footerText} align="center">
               © 2026 iiGrain. All rights reserved.

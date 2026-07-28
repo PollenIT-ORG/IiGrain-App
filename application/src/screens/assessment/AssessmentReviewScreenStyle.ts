@@ -87,6 +87,10 @@ export const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
+  regenSection: {
+    marginTop: spacing[2],
+  },
+
   footer: {
     borderTopWidth: borderWidth.thin,
     borderTopColor: COLORS.gray200,

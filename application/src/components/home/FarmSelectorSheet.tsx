@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -32,6 +32,8 @@ import {
   spacing,
 } from '../../constants';
 import { scale } from '../../utils';
+import SearchBar from '../list/SearchBar';
+import ListFooterLoader from '../list/ListFooterLoader';
 import {
   BACKDROP_IN_TIMING,
   BACKDROP_OUT_TIMING,
@@ -46,7 +48,15 @@ export interface FarmSelectorSheetProps {
   visible: boolean;
   farms: DashboardFarm[];
   selectedFarmId: string | null;
+  /** The farmer's most-recent farm; badged so the default is recognisable. */
+  defaultFarmId?: string | null;
   loading?: boolean;
+  /** True while an extra page of farms is being appended. */
+  loadingMore?: boolean;
+  /** True when the backend reports pages beyond the loaded farms. */
+  hasMore?: boolean;
+  total?: number;
+  onLoadMore?: () => void;
   onSelect: (farmId: string) => void;
   onClose: () => void;
 }
@@ -59,7 +69,12 @@ const FarmSelectorSheet: React.FC<FarmSelectorSheetProps> = ({
   visible,
   farms,
   selectedFarmId,
+  defaultFarmId,
   loading = false,
+  loadingMore = false,
+  hasMore = false,
+  total,
+  onLoadMore,
   onSelect,
   onClose,
 }) => {
@@ -68,6 +83,7 @@ const FarmSelectorSheet: React.FC<FarmSelectorSheetProps> = ({
   const sheetHeight = Math.round(height * 0.5);
 
   const [mounted, setMounted] = useState(visible);
+  const [query, setQuery] = useState('');
   const translateY = useSharedValue(height);
   const backdrop = useSharedValue(0);
 
@@ -77,6 +93,7 @@ const FarmSelectorSheet: React.FC<FarmSelectorSheetProps> = ({
       backdrop.value = 0;
       setMounted(true);
     } else if (mounted) {
+      setQuery('');
       backdrop.value = withTiming(0, BACKDROP_OUT_TIMING);
       translateY.value = withTiming(height, SHEET_CLOSE_TIMING, finished => {
         if (finished) {
@@ -128,11 +145,18 @@ const FarmSelectorSheet: React.FC<FarmSelectorSheetProps> = ({
             <AppIcon name={ICONS.FARM} size={ICON_SIZE.sm} color={COLORS.primary} />
           </View>
           <View style={styles.rowTexts}>
-            <AppText
-              style={[styles.rowName, selected && styles.rowNameSelected]}
-              numberOfLines={1}>
-              {item.name}
-            </AppText>
+            <View style={styles.rowNameLine}>
+              <AppText
+                style={[styles.rowName, selected && styles.rowNameSelected]}
+                numberOfLines={1}>
+                {item.name}
+              </AppText>
+              {/* {item.id === defaultFarmId ? (
+                <View style={styles.defaultChip}>
+                  <AppText style={styles.defaultChipText}>Default</AppText>
+                </View>
+              ) : null} */}
+            </View>
             <AppText style={styles.rowMeta} numberOfLines={1}>
               {item.fieldCount} {item.fieldCount === 1 ? 'field' : 'fields'}
             </AppText>
@@ -143,8 +167,15 @@ const FarmSelectorSheet: React.FC<FarmSelectorSheetProps> = ({
         </Pressable>
       );
     },
-    [onSelect, selectedFarmId],
+    [onSelect, selectedFarmId, defaultFarmId],
   );
+
+  // The loaded list is the canonical, unfiltered one (the dashboard header reads
+  // it too), so filtering stays local to the sheet.
+  const visibleFarms = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? farms.filter(f => f.name.toLowerCase().includes(q)) : farms;
+  }, [farms, query]);
 
   if (!mounted) {
     return null;
@@ -152,6 +183,7 @@ const FarmSelectorSheet: React.FC<FarmSelectorSheetProps> = ({
 
   const showSpinner = loading && farms.length === 0;
   const showEmpty = !loading && farms.length === 0;
+  const showSearch = farms.length > 8 || hasMore;
 
   return (
     <Modal
@@ -177,12 +209,22 @@ const FarmSelectorSheet: React.FC<FarmSelectorSheetProps> = ({
                   <AppText style={styles.title}>Select Farm</AppText>
                   {farms.length > 0 ? (
                     <AppText style={styles.subtitle}>
-                      {farms.length} {farms.length === 1 ? 'farm' : 'farms'}
+                      {total ?? farms.length} {(total ?? farms.length) === 1 ? 'farm' : 'farms'}
                     </AppText>
                   ) : null}
                 </View>
               </View>
             </GestureDetector>
+
+            {showSearch ? (
+              <View style={styles.searchWrap}>
+                <SearchBar
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Search farms"
+                />
+              </View>
+            ) : null}
 
             {showSpinner ? (
               <View style={styles.center}>
@@ -195,16 +237,36 @@ const FarmSelectorSheet: React.FC<FarmSelectorSheetProps> = ({
               </View>
             ) : (
               <FlatList
-                data={farms}
+                data={visibleFarms}
                 keyExtractor={f => f.id}
                 renderItem={renderItem}
                 style={styles.list}
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
                 ItemSeparatorComponent={Separator}
+                onEndReached={onLoadMore}
+                onEndReachedThreshold={0.4}
                 contentContainerStyle={[
                   styles.listContent,
                   { paddingBottom: insets.bottom + spacing[20] },
                 ]}
+                ListFooterComponent={
+                  <ListFooterLoader
+                    loading={loadingMore}
+                    hasMore={hasMore}
+                    loadedCount={visibleFarms.length}
+                    total={total}
+                    endLabel="farms"
+                  />
+                }
+                ListEmptyComponent={
+                  <View style={styles.center}>
+                    <AppIcon name="magnify" size={scale(40)} color={COLORS.gray500} />
+                    <AppText style={styles.stateText}>
+                      {`No farms match "${query.trim()}"`}
+                    </AppText>
+                  </View>
+                }
               />
             )}
           </Animated.View>
@@ -225,6 +287,7 @@ const styles = StyleSheet.create({
   anchor: {
     flex: 1,
     justifyContent: 'flex-end',
+
   },
   sheet: {
     backgroundColor: COLORS.white,
@@ -264,6 +327,12 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
     paddingBottom:190,
+
+  },
+  searchWrap: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing[4],
+    paddingTop: spacing[3],
   },
   listContent: {
     paddingHorizontal: spacing[4],
@@ -292,6 +361,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.lightPrimary,
     alignItems: 'center',
     justifyContent: 'center',
+ 
   },
   rowIconSelected: {
     backgroundColor: COLORS.white,
@@ -303,13 +373,31 @@ const styles = StyleSheet.create({
   rowName: {
     ...presets.labelLG,
     color: COLORS.gray900,
+    width:"92%",
   },
   rowNameSelected: {
     color: COLORS.primaryDark,
+    width:"98%",
+
   },
   rowMeta: {
     ...presets.bodyXS,
     color: COLORS.gray500,
+  },
+  rowNameLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  defaultChip: {
+    paddingHorizontal: spacing[2],
+    paddingVertical: spacing[0.5],
+    borderRadius: borderRadius.full,
+    backgroundColor: COLORS.gray100,
+  },
+  defaultChipText: {
+    ...presets.caption,
+    color: COLORS.gray600,
   },
   center: {
     flex: 1,

@@ -380,7 +380,7 @@
           "v": "1",
           "name": "Field assessment summary (header + per-category progress)",
           "method": "GET",
-          "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/summary",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/summary",
           "headers": [],
           "params": [],
           "body": {
@@ -400,7 +400,7 @@
           "v": "17",
           "name": "GET Field Regen Health Index (score-based + categories)",
           "method": "GET",
-          "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/regen-index",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/regen-index",
           "headers": [],
           "params": [],
           "body": {
@@ -422,7 +422,7 @@
           "v": "1",
           "name": "Category question LIST (lightweight - name + desc + answered)",
           "method": "GET",
-          "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/categories/<<categoryId>>/questions/list",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions/list",
           "headers": [],
           "params": [],
           "body": {
@@ -441,7 +441,7 @@
           "v": "1",
           "name": "Single question detail (on click / Next - score desc + my answer + evidence)",
           "method": "GET",
-          "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/categories/<<categoryId>>/questions/<<questionId>>",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions/<<questionId>>",
           "headers": [],
           "params": [],
           "body": {
@@ -460,7 +460,7 @@
           "v": "1",
           "name": "Whole category (all questions full data - Review/offline use)",
           "method": "GET",
-          "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/categories/<<categoryId>>/questions",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/categories/<<categoryId>>/questions",
           "headers": [],
           "params": [],
           "body": {
@@ -479,7 +479,7 @@
           "v": "1",
           "name": "Save answer (create or update - score 0-3 + comment + up to 5 evidence URLs)",
           "method": "PUT",
-          "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/questions/<<questionId>>/answer",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/questions/<<questionId>>/answer",
           "headers": [
             {
               "key": "Content-Type",
@@ -506,7 +506,7 @@
           "v": "1",
           "name": "Review & Submit screen (all categories + questions + my answers)",
           "method": "GET",
-          "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/review",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/review",
           "headers": [],
           "params": [],
           "body": {
@@ -525,7 +525,7 @@
           "v": "1",
           "name": "Submit assessment (locks answers - view only after)",
           "method": "POST",
-          "endpoint": "<<baseUrl>>/assessments/my/fields/<<fieldId>>/submit",
+          "endpoint": "<<baseUrl>>/assessments/my/programs/<<programId>>/fields/<<fieldId>>/submit",
           "headers": [],
           "params": [],
           "body": {

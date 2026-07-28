@@ -1,6 +1,7 @@
 package com.iigrain
 
 import android.os.Bundle
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -10,6 +11,11 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 class MainActivity : ReactActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
+    // Install the native splash BEFORE super.onCreate(): swaps MainActivity from
+    // the launch theme (Theme.App.SplashScreen - leaf on white) to AppTheme once
+    // React Native is ready, giving a native, cross-version splash that matches
+    // the iOS LaunchScreen. Must be the first call in onCreate.
+    installSplashScreen()
     // Draw the app content behind the (transparent) system bars on EVERY Android
     // version. Android 15+ enforces edge-to-edge anyway; doing it explicitly makes
     // older versions behave identically AND, crucially, makes the window insets

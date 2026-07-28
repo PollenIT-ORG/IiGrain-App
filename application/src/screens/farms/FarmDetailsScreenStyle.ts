@@ -2,12 +2,21 @@ import { StyleSheet } from 'react-native';
 import {
   COLORS,
   borderRadius,
-  borderWidth,
   presets,
   shadows,
   spacing,
 } from '../../constants';
-import { moderateScale, scale } from '../../utils';
+import { addAlpha, moderateScale, scale } from '../../utils';
+
+/** FAB geometry and hide/show motion, kept next to the styles that use them. */
+export const FAB_METRICS = {
+  size: scale(58),
+  animMs: 200,
+  /** How far the FAB drops when hiding — its own height plus the inset. */
+  hideOffset: scale(96),
+  hideScale: 0.85,
+  ripple: { color: addAlpha(COLORS.white, 0.24), borderless: false },
+} as const;
 
 export const styles = StyleSheet.create({
   safe: {
@@ -16,111 +25,75 @@ export const styles = StyleSheet.create({
   },
   body: {
     padding: spacing[4],
-    paddingBottom: spacing[10],
+    // Clears the FAB so the last field card is never trapped underneath it.
+    paddingBottom: spacing[24],
   },
 
-  filterBar: {
-    borderRadius: borderRadius.lg,
-    padding: scale(4),
-    marginHorizontal: spacing[4],
-    marginBottom: spacing[4],
-  },
-
-  tabs: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.white,
-    borderWidth: borderWidth.thin,
-    borderColor: COLORS.gray300,
-    borderRadius: borderRadius.lg,
-    padding: spacing[1],
-    marginTop: spacing[5],
-    marginBottom: spacing[5],
-  },
-  tab: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing[2],
-    borderRadius: borderRadius.md,
-  },
-  tabActive: {
-    backgroundColor: COLORS.primary,
-  },
-  tabLabel: {
-    ...presets.labelSM,
-    color: COLORS.gray700,
-  },
-  tabLabelActive: {
-    color: COLORS.white,
-  },
-  tabContent: {
-    minHeight: scale(120),
-    marginTop:20
-  },
-
-  statRow: {
-    flexDirection: 'row',
-    gap: spacing[3],
-    marginBottom: spacing[3],
-  },
+  /** Rhythm between cards. */
   gap: {
     height: spacing[3],
   },
-
-  card: {
-    backgroundColor: COLORS.white,
-    borderWidth: borderWidth.thin,
-    borderColor: COLORS.gray200,
-    borderRadius: borderRadius.xl,
-    paddingHorizontal: spacing[4],
-    paddingVertical: spacing[1],
-    ...shadows.sm,
-  },
-  muted: {
-    ...presets.bodySM,
-    color: COLORS.gray500,
-    paddingVertical: spacing[4],
+  /** Larger break before a new section starts. */
+  sectionGap: {
+    height: spacing[6],
   },
 
-  soilGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing[3],
-  },
-  soilCell: {
-    width: '47.5%',
-    flexGrow: 1,
-  },
-
-  docRow: {
+  fieldsHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing[3],
-    paddingVertical: spacing[3],
+    gap: spacing[2.5],
+    marginBottom: spacing[3.5],
   },
-  docDivider: {
-    borderBottomWidth: borderWidth.hairline,
-    borderBottomColor: COLORS.gray300,
-  },
-  docIcon: {
-    width: scale(40),
-    height: scale(40),
-    borderRadius: borderRadius.md,
-    backgroundColor: COLORS.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  docInfo: {
-    flex: 1,
-    gap: spacing[0.5],
-  },
-  docName: {
-    ...presets.labelMD,
+  fieldsHeaderTitle: {
+    ...presets.headingSM,
     color: COLORS.gray900,
   },
-  docMeta: {
-    ...presets.bodyXS,
-    color: COLORS.gray500,
+  // Pushed to the right edge so the title and count keep their own spacing.
+  fieldsHeaderAction: {
+    marginLeft: 'auto',
+    height: scale(46),
+       paddingHorizontal: scale(12),
+
+
+  },
+  fieldsCount: {
+    ...presets.labelSM,
+    color: COLORS.gray600,
+    backgroundColor: COLORS.gray100,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing[2.5],
+    paddingVertical: spacing[0.5],
+    overflow: 'hidden',
+  },
+  fieldsLoader: {
+    paddingVertical: spacing[6],
+  },
+  fieldsEmpty: {
+    alignItems: 'center',
+    gap: spacing[2.5],
+    paddingVertical: spacing[8],
+    paddingHorizontal: spacing[6],
+  },
+  fieldsEmptyText: {
+    ...presets.bodySM,
+    color: COLORS.gray600,
+    textAlign: 'center',
+  },
+
+  fab: {
+    position: 'absolute',
+    right: spacing[5],
+    bottom: spacing[6],
+  },
+  fabButton: {
+    width: FAB_METRICS.size,
+    height: FAB_METRICS.size,
+    borderRadius: borderRadius.full,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    ...shadows.lg,
   },
 
   stateCenter: {
@@ -144,29 +117,5 @@ export const styles = StyleSheet.create({
   },
   retryBtn: {
     minWidth: moderateScale(160),
-  },
-
-  fieldsLoader: {
-    paddingVertical: spacing[6],
-  },
-
-  fieldsHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing[3],
-  },
-  fieldsHeaderTitle: {
-    ...presets.headingSM,
-    color: COLORS.gray900,
-  },
-  addFieldBtn: {
-    width: scale(32),
-    height: scale(32),
-    borderRadius: borderRadius.full,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadows.sm,
   },
 });

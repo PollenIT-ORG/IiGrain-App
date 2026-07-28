@@ -1,5 +1,12 @@
 import http from '../services/http';
 import { Endpoints } from '../config/endpoints';
+import {
+  MAX_PAGE_LIMIT,
+  normalizePageMeta,
+  toPageParams,
+  type PageQuery,
+  type RawPageMeta,
+} from '../types/pagination';
 import type { ActivityEntry } from '../types/farm';
 import type {
   DashboardCategory,
@@ -14,6 +21,7 @@ import type {
 
 interface Envelope<T> {
   data: T;
+  meta?: RawPageMeta;
 }
 
 type Num = number | string | null | undefined;
@@ -98,8 +106,17 @@ interface RawSummary {
   top_category?: string | null;
 }
 
+interface RawTrendPoint {
+  year?: Num;
+  score?: Num;
+}
+
 interface RawFarmDashboard {
   farm?: { id?: string; name?: string };
+  year?: Num;
+  availableYears?: Num[];
+  available_years?: Num[];
+  trend?: RawTrendPoint[];
   regenHealthIndex?: Num;
   regen_health_index?: Num;
   trendVsLastYear?: Num;
@@ -148,10 +165,18 @@ const mapFarm = (raw: RawDashboardFarm): DashboardFarm => ({
   fieldCount: toNumber(raw.fieldCount ?? raw.field_count),
 });
 
-const mapDashboardFarms = (raw: RawDashboardFarms): DashboardFarms => ({
-  farms: (raw.farms ?? []).map(mapFarm),
-  defaultFarmId: raw.defaultFarmId ?? raw.default_farm_id ?? null,
-});
+const mapDashboardFarms = (
+  raw: RawDashboardFarms,
+  rawMeta: RawPageMeta | undefined,
+  query: PageQuery | undefined,
+): DashboardFarms => {
+  const farms = (raw.farms ?? []).map(mapFarm);
+  return {
+    farms,
+    defaultFarmId: raw.defaultFarmId ?? raw.default_farm_id ?? null,
+    meta: normalizePageMeta(rawMeta, farms.length, query),
+  };
+};
 
 const mapCategory = (raw: RawCategory): DashboardCategory => ({
   id: raw.id,
@@ -208,6 +233,13 @@ const mapSummary = (raw: RawSummary | undefined): DashboardSummary => ({
 
 const mapFarmDashboard = (raw: RawFarmDashboard): FarmDashboard => ({
   farm: { id: raw.farm?.id ?? '', name: raw.farm?.name ?? '' },
+  year: toNumber(raw.year) || new Date().getFullYear(),
+  availableYears: (raw.availableYears ?? raw.available_years ?? [])
+    .map(toNumber)
+    .filter(y => y > 0),
+  trend: (raw.trend ?? [])
+    .map(p => ({ year: toNumber(p.year), score: toNumber(p.score) }))
+    .filter(p => p.year > 0),
   regenHealthIndex: toNumberOrNull(raw.regenHealthIndex ?? raw.regen_health_index),
   trendVsLastYear: toNumberOrNull(raw.trendVsLastYear ?? raw.trend_vs_last_year),
   categories: (raw.categories ?? []).map(mapCategory),
@@ -219,16 +251,38 @@ const mapFarmDashboard = (raw: RawFarmDashboard): FarmDashboard => ({
   ),
 });
 
-export const getDashboardFarms = async (): Promise<DashboardFarms> => {
+/** The farm selector and the reports dropdown both read this list, so it is
+ *  fetched at the backend's maximum page size: one round-trip covers every
+ *  realistic farmer, and the selector still supports search + load-more beyond
+ *  that. */
+export const getDashboardFarms = async (
+  query?: PageQuery,
+): Promise<DashboardFarms> => {
+  const effective: PageQuery = { limit: MAX_PAGE_LIMIT, ...query };
   const res = await http.get<Envelope<RawDashboardFarms>>(Endpoints.dashboard.farms, {
     silent: true,
+    params: toPageParams(effective),
   });
-  return mapDashboardFarms(res.data.data);
+  return mapDashboardFarms(res.data.data, res.data.meta, effective);
 };
 
-export const getFarmDashboard = async (farmId: string): Promise<FarmDashboard> => {
+export interface FarmDashboardQuery {
+  /** Omit to get the backend default: the latest year that has data. */
+  year?: number;
+  /** How many points the trend chart returns (1-20). Backend default is 5. */
+  trendYears?: number;
+}
+
+export const getFarmDashboard = async (
+  farmId: string,
+  query?: FarmDashboardQuery,
+): Promise<FarmDashboard> => {
   const res = await http.get<Envelope<RawFarmDashboard>>(Endpoints.dashboard.farm(farmId), {
     silent: true,
+    params: {
+      ...(query?.year ? { year: query.year } : {}),
+      ...(query?.trendYears ? { trendYears: query.trendYears } : {}),
+    },
   });
   console.log("getFarmDashboard  ___---", res);
   return mapFarmDashboard(res.data.data);

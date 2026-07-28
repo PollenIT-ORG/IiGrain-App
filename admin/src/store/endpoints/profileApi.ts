@@ -18,6 +18,22 @@ export const profileApi = apiSlice.injectEndpoints({
       invalidatesTags: ["Profile"],
     }),
 
+    uploadMyAvatar: build.mutation<User, FormData>({
+      query: (form) => ({
+        url: "/profile/me/avatar",
+        method: "POST",
+        data: form,
+      }),
+      transformResponse: (res: ApiSuccess<{ user: User }>) => res.data.user,
+      invalidatesTags: ["Profile"],
+    }),
+
+    removeMyAvatar: build.mutation<User, void>({
+      query: () => ({ url: "/profile/me/avatar", method: "DELETE" }),
+      transformResponse: (res: ApiSuccess<{ user: User }>) => res.data.user,
+      invalidatesTags: ["Profile"],
+    }),
+
     changePassword: build.mutation<
       void,
       { currentPassword: string; newPassword: string }
@@ -38,6 +54,8 @@ export const profileApi = apiSlice.injectEndpoints({
 export const {
   useGetMyProfileQuery,
   useUpdateMyProfileMutation,
+  useUploadMyAvatarMutation,
+  useRemoveMyAvatarMutation,
   useChangePasswordMutation,
   useDeleteMyAccountMutation,
 } = profileApi;

@@ -19,6 +19,14 @@ interface RawSoil {
 }
 interface SoilPayload {
   soil: RawSoil | null;
+  locked?: boolean;
+}
+
+/** `locked` is true until the field is enrolled in a started program; while it is
+ *  true the backend rejects any nutrient value with a 403. */
+export interface SoilRecordResult {
+  record: SoilRecord;
+  locked: boolean;
 }
 
 const toNum = (raw: string | number | null | undefined): number | null => {
@@ -67,22 +75,27 @@ const toSoilBody = (input: SaveSoilInput): Record<string, unknown> => {
   return body;
 };
 
-export const getFieldSoilRecord = async (fieldId: string): Promise<SoilRecord> => {
+const toResult = (payload: SoilPayload): SoilRecordResult => ({
+  record: payload.soil ? mapSoilRecord(payload.soil) : { ...EMPTY_SOIL },
+  locked: payload.locked ?? false,
+});
+
+export const getFieldSoilRecord = async (
+  fieldId: string,
+): Promise<SoilRecordResult> => {
   const res = await http.get<Envelope<SoilPayload>>(Endpoints.fields.soil(fieldId), {
     silent: true,
   });
-  const raw = res.data.data.soil;
-  return raw ? mapSoilRecord(raw) : { ...EMPTY_SOIL };
+  return toResult(res.data.data);
 };
 
 export const saveFieldSoil = async (
   fieldId: string,
   input: SaveSoilInput,
-): Promise<SoilRecord> => {
+): Promise<SoilRecordResult> => {
   const res = await http.put<Envelope<SoilPayload>>(
     Endpoints.fields.soil(fieldId),
     toSoilBody(input),
   );
-  const raw = res.data.data.soil;
-  return raw ? mapSoilRecord(raw) : { ...EMPTY_SOIL };
+  return toResult(res.data.data);
 };

@@ -31,10 +31,15 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/farms", label: "Farms", Icon: FarmIcon },
   { to: "/fields", label: "Fields", Icon: FieldsIcon },
   { to: "/programs", label: "Programs", Icon: LinkIcon },
+  { to: "/assignments", label: "Assessor Assignments", Icon: UsersIcon },
   { to: "/live-visits", label: "Live visits", Icon: MapPinIcon },
   { to: "/assessments", label: "Assessments", Icon: ChartIcon },
   { to: "/submissions", label: "Submissions", Icon: FileIcon },
+  { to: "/eligibility", label: "Survey Submissions", Icon: UsersIcon },
+  { to: "/survey-questions", label: "Survey Questions", Icon: ChartIcon },
+  { to: "/enquiries", label: "Contact Enquiries", Icon: FileIcon },
   { to: "/reports", label: "Reports", Icon: FileIcon },
+  { to: "/login-logs", label: "Login activity", Icon: FileIcon },
   { to: "/settings", label: "Settings", Icon: SettingsIcon },
 ];
 

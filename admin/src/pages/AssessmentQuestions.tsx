@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   DndContext,
@@ -90,10 +90,10 @@ function SortableRow({ question, draggable, onEdit, onToggle, onDelete }: Sortab
       </td>
       <td className="px-4 py-3">
         <div className="space-y-0.5 text-xs text-gray-600">
-          <p><span className="font-semibold text-gray-900">0:</span> {question.score0_description ? question.score0_description.slice(0, 40) + (question.score0_description.length > 40 ? "…" : "") : "-"}</p>
-          <p><span className="font-semibold text-gray-900">1:</span> {question.score1_description ? question.score1_description.slice(0, 40) + (question.score1_description.length > 40 ? "…" : "") : "-"}</p>
-          <p><span className="font-semibold text-gray-900">2:</span> {question.score2_description ? question.score2_description.slice(0, 40) + (question.score2_description.length > 40 ? "…" : "") : "-"}</p>
-          <p><span className="font-semibold text-gray-900">3:</span> {question.score3_description ? question.score3_description.slice(0, 40) + (question.score3_description.length > 40 ? "…" : "") : "-"}</p>
+          <p><span className="font-semibold text-gray-900">0:</span> {question.score0_description ? question.score0_description.slice(0, 40) + (question.score0_description.length > 40 ? "..." : "") : "-"}</p>
+          <p><span className="font-semibold text-gray-900">1:</span> {question.score1_description ? question.score1_description.slice(0, 40) + (question.score1_description.length > 40 ? "..." : "") : "-"}</p>
+          <p><span className="font-semibold text-gray-900">2:</span> {question.score2_description ? question.score2_description.slice(0, 40) + (question.score2_description.length > 40 ? "..." : "") : "-"}</p>
+          <p><span className="font-semibold text-gray-900">3:</span> {question.score3_description ? question.score3_description.slice(0, 40) + (question.score3_description.length > 40 ? "..." : "") : "-"}</p>
         </div>
       </td>
       <td className="px-4 py-3">
@@ -164,7 +164,9 @@ export default function AssessmentQuestions() {
   const [updateQuestion] = useUpdateQuestionMutation();
   const [reorderQuestions] = useReorderQuestionsMutation();
 
-  const questions = data?.questions ?? [];
+  // Memoise so an undefined response does not hand a fresh [] to the effect on
+  // every render (which would loop setOrdered endlessly).
+  const questions = useMemo(() => data?.questions ?? [], [data]);
   const [ordered, setOrdered] = useState<AssessmentQuestion[]>([]);
   useEffect(() => { setOrdered(questions); }, [questions]);
 
@@ -184,6 +186,7 @@ export default function AssessmentQuestions() {
       await reorderQuestions(
         reordered.map((q, i) => ({ id: q.id, sortOrder: i }))
       ).unwrap();
+      showSuccess("Order saved.");
     } catch (err) {
       showError(errMsg(err));
       setOrdered(prev);
@@ -202,7 +205,7 @@ export default function AssessmentQuestions() {
   async function handleDelete(q: AssessmentQuestion) {
     const ok = await confirm({
       title: "Delete question?",
-      message: `"${q.question_text.slice(0, 80)}…" will be permanently removed.`,
+      message: `"${q.question_text.slice(0, 80)}..." will be permanently removed.`,
       confirmLabel: "Delete",
       tone: "danger",
     });
@@ -263,7 +266,7 @@ export default function AssessmentQuestions() {
           <input
             type="text"
             className="input-field w-full pl-9 text-sm"
-            placeholder="Search questions…"
+            placeholder="Search questions..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />

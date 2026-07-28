@@ -23,7 +23,10 @@ import assessorReducer from './slices/assessorSlice';
 import enrollmentReducer from './slices/enrollmentSlice';
 import dashboardReducer from './slices/dashboardSlice';
 import visitReducer from './slices/visitSlice';
+import notificationReducer from './slices/notificationSlice';
+import syncReducer from './slices/syncSlice';
 import appReducer from './slices/appSlice';
+import boundaryReducer from './slices/boundarySlice';
 import { setUnauthorizedHandler } from '../services/http';
 import { PERSIST_ROOT_KEY, PERSIST_VERSION } from '../config/storageKeys';
 
@@ -31,7 +34,7 @@ const userPersistConfig = {
   key: 'user',
   version: PERSIST_VERSION,
   storage: AsyncStorage,
-  whitelist: ['profile'],
+  whitelist: ['profile', 'lastFetchedAt'],
 };
 
 const assessmentProgressPersistConfig = {
@@ -48,6 +51,16 @@ const dashboardPersistConfig = {
   whitelist: ['selectedFarmId'],
 };
 
+// Phase D of the Farm Boundary module: boundaries live only on the device, so
+// the whole slice is persisted. When the API sync layer lands (Phase E) this
+// becomes the offline cache. See docs/maps/FarmBoundary/DATA_MODEL.md §2.
+const boundaryPersistConfig = {
+  key: 'boundary',
+  version: PERSIST_VERSION,
+  storage: AsyncStorage,
+  whitelist: ['byFieldId'],
+};
+
 const rootReducer = combineReducers({
   auth: authReducer,
   user: persistReducer(userPersistConfig, userReducer),
@@ -61,7 +74,10 @@ const rootReducer = combineReducers({
   enrollment: enrollmentReducer,
   dashboard: persistReducer(dashboardPersistConfig, dashboardReducer),
   visit: visitReducer,
+  notifications: notificationReducer,
+  sync: syncReducer,
   app: appReducer,
+  boundary: persistReducer(boundaryPersistConfig, boundaryReducer),
 });
 
 const rootPersistConfig = {

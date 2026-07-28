@@ -12,13 +12,14 @@ import {
   updateQuestionSchema,
   listQuestionsQuerySchema,
   idParamSchema,
-  fieldIdParamSchema,
-  fieldCategoryParamsSchema,
-  fieldCategoryQuestionParamsSchema,
-  fieldQuestionParamsSchema,
   saveAnswerSchema,
   historyQuerySchema,
+  programFieldParamsSchema,
+  programFieldCategoryParamsSchema,
+  programFieldCategoryQuestionParamsSchema,
+  programFieldQuestionParamsSchema,
 } from "../validators/assessment.schema.js";
+import { paginationQuerySchema } from "../validators/pagination.schema.js";
 import {
   listCategories,
   getCategory,
@@ -46,6 +47,7 @@ import {
   myFieldReview,
   myFieldAssessmentHistory,
   submitMyFieldAssessment,
+  discardMyFieldAssessment,
   uploadEvidence,
 } from "../controllers/assessmentMobile.controller.js";
 
@@ -59,7 +61,12 @@ router.post(
   handleUpload(evidenceUpload.array("files", 5)),
   uploadEvidence
 );
-router.get("/my/fields", authenticate, myFieldsAssessmentList);
+router.get(
+  "/my/fields",
+  authenticate,
+  validate(paginationQuerySchema, "query"),
+  myFieldsAssessmentList
+);
 router.get(
   "/my/history",
   authenticate,
@@ -67,59 +74,65 @@ router.get(
   myAssessmentHistory
 );
 router.get(
-  "/my/fields/:fieldId/summary",
+  "/my/programs/:programId/fields/:fieldId/summary",
   authenticate,
-  validate(fieldIdParamSchema, "params"),
+  validate(programFieldParamsSchema, "params"),
   myFieldAssessmentSummary
 );
 router.get(
-  "/my/fields/:fieldId/regen-index",
+  "/my/programs/:programId/fields/:fieldId/regen-index",
   authenticate,
-  validate(fieldIdParamSchema, "params"),
+  validate(programFieldParamsSchema, "params"),
   myFieldRegenIndex
 );
 router.get(
-  "/my/fields/:fieldId/categories/:categoryId/questions/list",
+  "/my/programs/:programId/fields/:fieldId/categories/:categoryId/questions/list",
   authenticate,
-  validate(fieldCategoryParamsSchema, "params"),
+  validate(programFieldCategoryParamsSchema, "params"),
   myFieldCategoryQuestionList
 );
 router.get(
-  "/my/fields/:fieldId/categories/:categoryId/questions/:questionId",
+  "/my/programs/:programId/fields/:fieldId/categories/:categoryId/questions/:questionId",
   authenticate,
-  validate(fieldCategoryQuestionParamsSchema, "params"),
+  validate(programFieldCategoryQuestionParamsSchema, "params"),
   myFieldQuestionDetail
 );
 router.get(
-  "/my/fields/:fieldId/categories/:categoryId/questions",
+  "/my/programs/:programId/fields/:fieldId/categories/:categoryId/questions",
   authenticate,
-  validate(fieldCategoryParamsSchema, "params"),
+  validate(programFieldCategoryParamsSchema, "params"),
   myFieldCategoryQuestions
 );
 router.put(
-  "/my/fields/:fieldId/questions/:questionId/answer",
+  "/my/programs/:programId/fields/:fieldId/questions/:questionId/answer",
   authenticate,
-  validate(fieldQuestionParamsSchema, "params"),
+  validate(programFieldQuestionParamsSchema, "params"),
   validate(saveAnswerSchema),
   saveMyFieldAnswer
 );
 router.get(
-  "/my/fields/:fieldId/review",
+  "/my/programs/:programId/fields/:fieldId/review",
   authenticate,
-  validate(fieldIdParamSchema, "params"),
+  validate(programFieldParamsSchema, "params"),
   myFieldReview
 );
 router.get(
-  "/my/fields/:fieldId/history",
+  "/my/programs/:programId/fields/:fieldId/history",
   authenticate,
-  validate(fieldIdParamSchema, "params"),
+  validate(programFieldParamsSchema, "params"),
   myFieldAssessmentHistory
 );
 router.post(
-  "/my/fields/:fieldId/submit",
+  "/my/programs/:programId/fields/:fieldId/submit",
   authenticate,
-  validate(fieldIdParamSchema, "params"),
+  validate(programFieldParamsSchema, "params"),
   submitMyFieldAssessment
+);
+router.delete(
+  "/my/programs/:programId/fields/:fieldId/discard",
+  authenticate,
+  validate(programFieldParamsSchema, "params"),
+  discardMyFieldAssessment
 );
 
 router.get("/categories", ...adminAuth, listCategories);

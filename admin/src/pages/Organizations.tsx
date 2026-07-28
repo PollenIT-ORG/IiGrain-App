@@ -5,6 +5,7 @@ import {
   useDeleteOrganizationMutation,
 } from "../store/endpoints/organizationsApi";
 import { showSuccess, showError } from "../lib/toast";
+import { useLiveData } from "../lib/useLiveData";
 import { useDialog } from "../components/ui/DialogProvider";
 import Select from "../components/ui/Select";
 import Loader from "../components/Loader";
@@ -42,12 +43,13 @@ export default function Organizations() {
   const [searchInput, setSearchInput] = useState("");
   const [status, setStatus] = useState<"" | "active" | "inactive">("");
 
-  const { data, isLoading, isError, error } = useListOrganizationsQuery({
+  const { data, isLoading, isError, error, refetch } = useListOrganizationsQuery({
     page,
     limit: PAGE_SIZE,
     status: status || undefined,
     search: search || undefined,
   });
+  useLiveData(["organizations"], refetch);
   const organizations = data?.organizations ?? [];
   const meta = data?.meta ?? null;
 
@@ -65,7 +67,7 @@ export default function Organizations() {
   async function handleDelete(org: Organization) {
     const ok = await confirm({
       title: "Delete organization?",
-      message: `"${org.name}" will be removed and its members will be unlinked. This can be restored later if needed.`,
+      message: `"${org.name}" will be removed and its members will be unlinked.`,
       confirmLabel: "Delete",
       tone: "danger",
     });

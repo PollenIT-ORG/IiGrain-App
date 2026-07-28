@@ -7,6 +7,8 @@ const EVIDENCE_FOLDER = "farmer_evidence";
 
 const DOCUMENTS_FOLDER = "farmer_documents";
 
+const AVATAR_FOLDER = "farmer_avatars";
+
 const VIDEO_EXTS = new Set(["mp4", "mov", "webm", "m4v", "3gp"]);
 
 function isVideoName(name: string | undefined): boolean {
@@ -66,6 +68,107 @@ export async function uploadEvidenceImages(
   }
 
   return Promise.all(files.map((f) => uploadBuffer(f.buffer)));
+}
+
+const AVATAR_MAX = 5 * 1024 * 1024;
+
+export function uploadAvatarImage(file: {
+  buffer: Buffer;
+  size?: number;
+}): Promise<string> {
+  const bytes = file.size ?? file.buffer.length;
+  if (bytes > AVATAR_MAX) {
+    throw ApiError.badRequest("The profile picture must be 5 MB or smaller.");
+  }
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: AVATAR_FOLDER,
+        resource_type: "image",
+        transformation: [
+          { width: 512, height: 512, crop: "fill", gravity: "face" },
+        ],
+      },
+      (error, result?: UploadApiResponse) => {
+        if (error || !result) {
+          return reject(
+            ApiError.badRequest(
+              "Profile picture upload failed. Please try again with a valid image."
+            )
+          );
+        }
+        resolve(result.secure_url);
+      }
+    );
+    stream.end(file.buffer);
+  });
+}
+
+const BRANDING_FOLDER = "farmer_branding";
+const BRANDING_MAX = 5 * 1024 * 1024;
+
+// Uploads an organization logo or favicon. The logo keeps its aspect ratio
+// (bounded); the favicon is squared small.
+export function uploadBrandingImage(
+  file: { buffer: Buffer; size?: number },
+  kind: "logo" | "favicon"
+): Promise<string> {
+  const bytes = file.size ?? file.buffer.length;
+  if (bytes > BRANDING_MAX) {
+    throw ApiError.badRequest("The image must be 5 MB or smaller.");
+  }
+  const transformation =
+    kind === "favicon"
+      ? [{ width: 64, height: 64, crop: "fill" }]
+      : [{ width: 512, height: 256, crop: "limit" }];
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: BRANDING_FOLDER, resource_type: "image", transformation },
+      (error, result?: UploadApiResponse) => {
+        if (error || !result) {
+          return reject(
+            ApiError.badRequest(
+              "Image upload failed. Please try again with a valid image."
+            )
+          );
+        }
+        resolve(result.secure_url);
+      }
+    );
+    stream.end(file.buffer);
+  });
+}
+
+const SIGNATURE_FOLDER = "farmer_signatures";
+const SIGNATURE_MAX = 2 * 1024 * 1024;
+
+// Stores a drawn contract signature. The client sends a PNG data URL from its
+// canvas; we decode it here rather than trusting a client-side upload.
+export function uploadSignatureDataUrl(dataUrl: string): Promise<string> {
+  const match = /^data:image\/(png|jpe?g);base64,([A-Za-z0-9+/=]+)$/.exec(
+    dataUrl.trim()
+  );
+  if (!match) {
+    throw ApiError.badRequest("The signature image is not a valid PNG or JPEG.");
+  }
+  const buffer = Buffer.from(match[2], "base64");
+  if (buffer.length > SIGNATURE_MAX) {
+    throw ApiError.badRequest("The signature image is too large.");
+  }
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: SIGNATURE_FOLDER, resource_type: "image" },
+      (error, result?: UploadApiResponse) => {
+        if (error || !result) {
+          return reject(
+            ApiError.badRequest("Could not save the signature. Please try again.")
+          );
+        }
+        resolve(result.secure_url);
+      }
+    );
+    stream.end(buffer);
+  });
 }
 
 export interface UploadedDocument {

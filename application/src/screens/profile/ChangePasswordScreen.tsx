@@ -38,7 +38,7 @@ const ChangePasswordScreen: React.FC = () => {
           return 'New password is required';
         }
         if (!isStrongPassword(value)) {
-          return 'Use 8-64 characters with a letter and a number';
+          return 'Use 8–64 characters with a letter and a number';
         }
         if (value === values.currentPassword) {
           return 'New password must differ from the current one';

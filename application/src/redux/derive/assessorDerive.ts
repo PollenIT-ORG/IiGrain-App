@@ -82,6 +82,7 @@ const toHistoryItem = (
   year: number,
 ): AssessorHistoryItem => ({
   fieldId: entry.field.id,
+  programId: entry.program.id,
   fieldName: entry.field.name,
   farmName: entry.farm.name,
   year,

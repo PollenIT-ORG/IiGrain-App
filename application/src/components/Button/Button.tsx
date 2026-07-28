@@ -11,7 +11,7 @@ import AppText from '../AppText/AppText';
 import AppGradient from '../AppGradient/AppGradient';
 import { styles } from './ButtonStyle';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'outline';
+export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger';
 export type ButtonSize = 'lg' | 'sm';
 
 export interface ButtonProps {

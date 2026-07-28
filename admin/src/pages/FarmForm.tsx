@@ -18,6 +18,7 @@ import Loader from "../components/Loader";
 import Select from "../components/ui/Select";
 import MapPicker, { type LatLng } from "../components/ui/MapPicker";
 import { ChevronLeftIcon } from "../components/icons";
+import { applyServerFieldErrors } from "../lib/serverErrors";
 
 function errMsg(err: unknown): string {
   return (
@@ -39,6 +40,7 @@ export default function FarmForm() {
   const [name, setName] = useState("");
   const [areaAcres, setAreaAcres] = useState("");
   const [location, setLocation] = useState("");
+  const [businessEntity, setBusinessEntity] = useState("");
   const [coords, setCoords] = useState<LatLng | null>(null);
   const [ownerId, setOwnerId] = useState("");
   const [orgId, setOrgId] = useState("");
@@ -78,11 +80,21 @@ export default function FarmForm() {
   const [updateFarm, { isLoading: updating }] = useUpdateFarmMutation();
   const saving = creating || updating;
 
+  // On edit, the saved owner may have been deleted or deactivated, so it is not
+  // in the active-farmer list and the Select silently falls back to the
+  // placeholder. Detect that to warn the user instead of failing on save.
+  const ownerMissing =
+    isEdit &&
+    !!farm?.owner_id &&
+    ownerId === farm.owner_id &&
+    (farmersData?.users ?? []).every((u) => u.id !== farm.owner_id);
+
   useEffect(() => {
     if (farm) {
       setName(farm.name);
       setAreaAcres(farm.area_acres ?? "");
       setLocation(farm.location ?? "");
+      setBusinessEntity(farm.business_entity ?? "");
       setCoords(
         farm.latitude != null && farm.longitude != null
           ? { lat: farm.latitude, lng: farm.longitude }
@@ -121,6 +133,7 @@ export default function FarmForm() {
       name: name.trim(),
       areaAcres: areaNum,
       location: location.trim(),
+      businessEntity: businessEntity.trim(),
       latitude: coords?.lat ?? null,
       longitude: coords?.lng ?? null,
       ownerId,
@@ -138,7 +151,13 @@ export default function FarmForm() {
       }
       navigate("/farms");
     } catch (err) {
-      showError(errMsg(err));
+      // Land server conflicts on the right field: a farm-shrink rejection is an
+      // area problem, a missing owner is an owner problem. Otherwise toast.
+      const placed = applyServerFieldErrors(err, setErrors, [
+        { field: "area", test: /acre|farm size|area/i },
+        { field: "owner", test: /owner|farmer/i },
+      ]);
+      if (!placed) showError(errMsg(err));
     }
   }
 
@@ -239,6 +258,20 @@ export default function FarmForm() {
           </div>
 
           <div>
+            <label htmlFor="businessEntity" className="label">
+              Business Entity
+            </label>
+            <input
+              id="businessEntity"
+              className="input-field"
+              placeholder="Business name (optional)"
+              value={businessEntity}
+              onChange={(e) => setBusinessEntity(e.target.value)}
+              maxLength={255}
+            />
+          </div>
+
+          <div>
             <label className="label">Map location</label>
             <MapPicker value={coords} onChange={setCoords} />
           </div>
@@ -256,6 +289,11 @@ export default function FarmForm() {
             />
             {errors.owner ? (
               <p className="field-error">{errors.owner}</p>
+            ) : ownerMissing ? (
+              <p className="field-error">
+                The current owner ({farm?.owner_name || farm?.owner_email}) is no
+                longer available. Please choose a new owner before saving.
+              </p>
             ) : (
               <p className="mt-1.5 text-xs text-gray-500">
                 Only users with the farmer role can own a farm.

@@ -2,11 +2,11 @@ import { Router } from "express";
 import { authenticate, authorize } from "../middlewares/authenticate.js";
 import { validate } from "../middlewares/validate.js";
 import {
-  fieldIdParamSchema,
-  fieldCategoryParamsSchema,
-  fieldCategoryQuestionParamsSchema,
-  fieldQuestionParamsSchema,
   saveAnswerSchema,
+  programFieldParamsSchema,
+  programFieldCategoryParamsSchema,
+  programFieldCategoryQuestionParamsSchema,
+  programFieldQuestionParamsSchema,
 } from "../validators/assessment.schema.js";
 import {
   myAssessorFields,
@@ -28,59 +28,59 @@ const assessorOnly = [authenticate, authorize("assessor")];
 router.get("/fields", ...assessorOnly, myAssessorFields);
 
 router.get(
-  "/fields/:fieldId/summary",
+  "/programs/:programId/fields/:fieldId/summary",
   ...assessorOnly,
-  validate(fieldIdParamSchema, "params"),
+  validate(programFieldParamsSchema, "params"),
   assessorSummary
 );
 router.get(
-  "/fields/:fieldId/categories/:categoryId/questions/list",
+  "/programs/:programId/fields/:fieldId/categories/:categoryId/questions/list",
   ...assessorOnly,
-  validate(fieldCategoryParamsSchema, "params"),
+  validate(programFieldCategoryParamsSchema, "params"),
   assessorCategoryQuestionList
 );
 router.get(
-  "/fields/:fieldId/categories/:categoryId/questions/:questionId",
+  "/programs/:programId/fields/:fieldId/categories/:categoryId/questions/:questionId",
   ...assessorOnly,
-  validate(fieldCategoryQuestionParamsSchema, "params"),
+  validate(programFieldCategoryQuestionParamsSchema, "params"),
   assessorQuestionDetail
 );
 router.get(
-  "/fields/:fieldId/categories/:categoryId/questions",
+  "/programs/:programId/fields/:fieldId/categories/:categoryId/questions",
   ...assessorOnly,
-  validate(fieldCategoryParamsSchema, "params"),
+  validate(programFieldCategoryParamsSchema, "params"),
   assessorCategoryQuestions
 );
 router.put(
-  "/fields/:fieldId/questions/:questionId/answer",
+  "/programs/:programId/fields/:fieldId/questions/:questionId/answer",
   ...assessorOnly,
-  validate(fieldQuestionParamsSchema, "params"),
+  validate(programFieldQuestionParamsSchema, "params"),
   validate(saveAnswerSchema),
   saveAssessorAnswer
 );
 router.get(
-  "/fields/:fieldId/review",
+  "/programs/:programId/fields/:fieldId/review",
   ...assessorOnly,
-  validate(fieldIdParamSchema, "params"),
+  validate(programFieldParamsSchema, "params"),
   assessorReview
 );
 router.post(
-  "/fields/:fieldId/submit",
+  "/programs/:programId/fields/:fieldId/submit",
   ...assessorOnly,
-  validate(fieldIdParamSchema, "params"),
+  validate(programFieldParamsSchema, "params"),
   submitAssessorAssessment
 );
 
 router.get(
-  "/fields/:fieldId/farmer-assessment",
+  "/programs/:programId/fields/:fieldId/farmer-assessment",
   ...assessorOnly,
-  validate(fieldIdParamSchema, "params"),
+  validate(programFieldParamsSchema, "params"),
   farmerAssessment
 );
 router.get(
-  "/fields/:fieldId/comparison",
+  "/programs/:programId/fields/:fieldId/comparison",
   ...assessorOnly,
-  validate(fieldIdParamSchema, "params"),
+  validate(programFieldParamsSchema, "params"),
   comparison
 );
 

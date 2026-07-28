@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { COLORS, borderWidth, presets, shadows, spacing } from '../../constants';
+import { COLORS, borderWidth, fonts, presets, shadows, spacing } from '../../constants';
 import { scale } from '../../utils';
 import { styles as commonStyles } from '../../styles/index';
 
@@ -37,6 +37,27 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[4],
+  },
+  badge: {
+    position: 'absolute',
+    top: -scale(5),
+    right: -scale(7),
+    minWidth: scale(16),
+    height: scale(16),
+    borderRadius: scale(8),
+    backgroundColor: COLORS.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: scale(3),
+    borderWidth: scale(1.5),
+    borderColor: COLORS.white,
+  },
+  badgeText: {
+    ...presets.caption,
+    fontSize: scale(9),
+    lineHeight: scale(11),
+    color: COLORS.white,
+    fontFamily: fonts.semibold,
   },
   center: {
     flex: 1,

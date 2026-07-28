@@ -1,13 +1,14 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import * as soilApi from '../../api/soilApi';
+import type { SoilRecordResult } from '../../api/soilApi';
 import type { SaveSoilInput, SoilRecord } from '../../types/fieldDetails';
 import { handleApiError, StandardizedError } from '../../utils/handleApiError';
 
 type ThunkConfig = { rejectValue: StandardizedError };
 
 export const fetchFieldSoilRecordThunk = createAsyncThunk<
-  SoilRecord,
+  SoilRecordResult,
   string,
   ThunkConfig
 >('soil/fetch', async (fieldId, { rejectWithValue }) => {
@@ -24,7 +25,7 @@ export interface SaveSoilArg {
 }
 
 export const saveFieldSoilThunk = createAsyncThunk<
-  SoilRecord,
+  SoilRecordResult,
   SaveSoilArg,
   ThunkConfig
 >('soil/save', async ({ fieldId, input }, { rejectWithValue }) => {
@@ -38,6 +39,8 @@ export const saveFieldSoilThunk = createAsyncThunk<
 interface SoilState {
   fieldId: string | null;
   record: SoilRecord | null;
+  /** Nutrient inputs stay hidden/disabled until the field is enrolled. */
+  locked: boolean;
   loading: boolean;
   error: string | null;
   saving: boolean;
@@ -47,6 +50,7 @@ interface SoilState {
 const initialState: SoilState = {
   fieldId: null,
   record: null,
+  locked: true,
   loading: false,
   error: null,
   saving: false,
@@ -77,7 +81,8 @@ const soilSlice = createSlice({
       })
       .addCase(fetchFieldSoilRecordThunk.fulfilled, (state, action) => {
         state.loading = false;
-        state.record = action.payload;
+        state.record = action.payload.record;
+        state.locked = action.payload.locked;
       })
       .addCase(fetchFieldSoilRecordThunk.rejected, (state, action) => {
         state.loading = false;
@@ -89,7 +94,8 @@ const soilSlice = createSlice({
       })
       .addCase(saveFieldSoilThunk.fulfilled, (state, action) => {
         state.saving = false;
-        state.record = action.payload;
+        state.record = action.payload.record;
+        state.locked = action.payload.locked;
       })
       .addCase(saveFieldSoilThunk.rejected, (state, action) => {
         state.saving = false;
@@ -107,6 +113,7 @@ interface HasSoil {
 
 export const selectSoilFieldId = (s: HasSoil): string | null => s.soil.fieldId;
 export const selectSoilRecord = (s: HasSoil): SoilRecord | null => s.soil.record;
+export const selectSoilLocked = (s: HasSoil): boolean => s.soil.locked;
 export const selectSoilLoading = (s: HasSoil): boolean => s.soil.loading;
 export const selectSoilError = (s: HasSoil): string | null => s.soil.error;
 export const selectSoilSaving = (s: HasSoil): boolean => s.soil.saving;

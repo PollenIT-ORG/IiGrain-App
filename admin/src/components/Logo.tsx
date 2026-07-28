@@ -1,4 +1,5 @@
-import { LeafIcon } from "./icons";
+import { useGetConfigQuery } from "../store/endpoints/configApi";
+import { readCachedBranding } from "../lib/brandingCache";
 
 interface LogoProps {
   size?: "sm" | "md" | "lg";
@@ -6,35 +7,22 @@ interface LogoProps {
   light?: boolean;
 }
 
-const badgeSizes = {
-  sm: "h-8 w-8 rounded-lg",
-  md: "h-10 w-10 rounded-xl",
-  lg: "h-12 w-12 rounded-xl",
-};
-const iconSizes = { sm: 18, md: 22, lg: 26 };
-const textSizes = { sm: "text-base", md: "text-lg", lg: "text-xl" };
+const imgSizes = { sm: "h-8", md: "h-10", lg: "h-12" };
 
-export default function Logo({
-  size = "md",
-  withText = true,
-  light = false,
-}: LogoProps) {
+export default function Logo({ size = "md" }: LogoProps) {
+  const { data: config } = useGetConfigQuery();
+  // While /config loads, use the cached branding so the custom logo shows with
+  // no flash of the default. Once loaded, the fresh value is authoritative.
+  const branding = config?.branding ?? readCachedBranding();
+  // A custom uploaded logo wins; otherwise fall back to the bundled iiGrain mark.
+  const logoUrl = branding?.logoUrl ?? "/logo.png";
+  const appName = branding?.appName ?? "iiGrain";
+
   return (
-    <div className="flex items-center gap-2.5">
-      <span
-        className={`grid place-items-center bg-primary text-white shadow-card ${badgeSizes[size]}`}
-      >
-        <LeafIcon width={iconSizes[size]} height={iconSizes[size]} />
-      </span>
-      {withText && (
-        <span
-          className={`font-extrabold tracking-tight ${textSizes[size]} ${
-            light ? "text-white" : "text-gray-900"
-          }`}
-        >
-          Farmer<span className="text-secondary">App</span>
-        </span>
-      )}
-    </div>
+    <img
+      src={logoUrl}
+      alt={appName}
+      className={`${imgSizes[size]} w-auto max-w-[160px] object-contain`}
+    />
   );
 }

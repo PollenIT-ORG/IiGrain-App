@@ -15,6 +15,7 @@ import {
   refreshAssessorSummaryThunk,
   selectAssessorCategories,
   selectAssessorError,
+  selectAssessorLoadedSummaryScope,
   selectAssessorLocked,
   selectAssessorRefreshing,
   selectAssessorSubmittedBy,
@@ -38,7 +39,8 @@ const AssessorAssessmentSummaryScreen: React.FC<AssessorScreenProps<'AssessorAss
   route,
   navigation,
 }) => {
-  const { fieldId, fieldName } = route.params;
+  const { programId, fieldId, fieldName } = route.params;
+  const scope = `${programId}:${fieldId}`;
   const dispatch = useAppDispatch();
 
   const summary = useAppSelector(selectAssessorSummary);
@@ -48,40 +50,50 @@ const AssessorAssessmentSummaryScreen: React.FC<AssessorScreenProps<'AssessorAss
   const loading = useAppSelector(selectAssessorSummaryLoading);
   const refreshing = useAppSelector(selectAssessorRefreshing);
   const error = useAppSelector(selectAssessorError);
+  const loadedSummaryScope = useAppSelector(selectAssessorLoadedSummaryScope);
 
-  const ready = !!summary && summary.field.id === fieldId;
+  const ready = !!summary && loadedSummaryScope === scope;
 
   useEffect(() => {
-    dispatch(fetchAssessorSummaryThunk(fieldId));
-  }, [dispatch, fieldId]);
+    dispatch(fetchAssessorSummaryThunk({ programId, fieldId }));
+  }, [dispatch, programId, fieldId]);
 
-  const onRefresh = useCallback(() => dispatch(refreshAssessorSummaryThunk(fieldId)), [dispatch, fieldId]);
+  const onRefresh = useCallback(
+    () => dispatch(refreshAssessorSummaryThunk({ programId, fieldId })),
+    [dispatch, programId, fieldId],
+  );
 
   const summaryCard = useMemo(() => (ready && summary ? toSummaryCardModel(summary) : null), [ready, summary]);
   const categoryItems = useMemo(() => toCategoryItems(categories), [categories]);
 
   const openCategory = useCallback(
     (category: AssessmentCategory) =>
-      navigation.navigate('AssessorCategory', { fieldId, categoryId: category.id, categoryName: category.title }),
-    [navigation, fieldId],
+      navigation.navigate('AssessorCategory', {
+        programId,
+        fieldId,
+        categoryId: category.id,
+        categoryName: category.title,
+      }),
+    [navigation, programId, fieldId],
   );
   const allAnswered =
     !!summary && summary.assessment.totalQuestions > 0 && summary.assessment.answered >= summary.assessment.totalQuestions;
 
   const handlePrimaryCta = useCallback(() => {
     if (allAnswered) {
-      navigation.navigate('AssessorReview', { fieldId });
+      navigation.navigate('AssessorReview', { programId, fieldId });
       return;
     }
     const target = categories.find(c => c.answered < c.totalQuestions) ?? categories[0];
     if (target) {
       navigation.navigate('AssessorCategory', {
+        programId,
         fieldId,
         categoryId: target.id,
         categoryName: target.name,
       });
     }
-  }, [allAnswered, categories, navigation, fieldId]);
+  }, [allAnswered, categories, navigation, programId, fieldId]);
 
   const loadingSkeleton = (
     <View style={styles.safe}>
@@ -111,7 +123,7 @@ const AssessorAssessmentSummaryScreen: React.FC<AssessorScreenProps<'AssessorAss
           <AppIcon name={ICONS.ERROR} size={moderateScale(48)} color={COLORS.gray500} />
           <AppText style={styles.stateTitle}>Couldn't load assessment</AppText>
           <AppText style={styles.muted}>{error}</AppText>
-          <Button title="Retry" onPress={() => dispatch(fetchAssessorSummaryThunk(fieldId))} fullWidth={false} style={styles.retry} />
+          <Button title="Retry" onPress={() => dispatch(fetchAssessorSummaryThunk({ programId, fieldId }))} fullWidth={false} style={styles.retry} />
         </View>
       </View>
     );
@@ -136,7 +148,7 @@ const AssessorAssessmentSummaryScreen: React.FC<AssessorScreenProps<'AssessorAss
           <View style={styles.lockBanner}>
             <AppIcon name={ICONS.LOCK_CHECK} size={moderateScale(18)} color={COLORS.primary} />
             <AppText style={styles.lockText}>
-              Submitted by {submittedBy?.role === 'assessor' ? 'Assessor' : 'Farmer'} - read-only.
+              Submitted by {submittedBy?.role === 'assessor' ? 'Assessor' : 'Farmer'} — read-only.
             </AppText>
           </View>
         ) : null}
@@ -162,7 +174,11 @@ const AssessorAssessmentSummaryScreen: React.FC<AssessorScreenProps<'AssessorAss
             variant="outline"
             fullWidth={false}
             onPress={() =>
-              navigation.navigate('AssessorFarmerAssessment', { fieldId, fieldName: summary.field.name })
+              navigation.navigate('AssessorFarmerAssessment', {
+                programId,
+                fieldId,
+                fieldName: summary.field.name,
+              })
             }
             leftIcon={<AppIcon name={ICONS.REVIEWER} size={moderateScale(18)} color={COLORS.primary} />}
             style={styles.compareBtn}
@@ -172,7 +188,11 @@ const AssessorAssessmentSummaryScreen: React.FC<AssessorScreenProps<'AssessorAss
             variant="outline"
             fullWidth={false}
             onPress={() =>
-              navigation.navigate('AssessorComparison', { fieldId, fieldName: summary.field.name })
+              navigation.navigate('AssessorComparison', {
+                programId,
+                fieldId,
+                fieldName: summary.field.name,
+              })
             }
             leftIcon={<AppIcon name={ICONS.BALANCE} size={moderateScale(18)} color={COLORS.primary} />}
             style={styles.compareBtn}
@@ -182,7 +202,7 @@ const AssessorAssessmentSummaryScreen: React.FC<AssessorScreenProps<'AssessorAss
         {!locked && allAnswered ? (
           <Button
             title="Review"
-            onPress={() => navigation.navigate('AssessorReview', { fieldId })}
+            onPress={() => navigation.navigate('AssessorReview', { programId, fieldId })}
             leftIcon={<AppIcon name={ICONS.REVIEW} size={moderateScale(20)} color={COLORS.white} />}
             style={styles.reviewBtn}
           />

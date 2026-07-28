@@ -39,6 +39,7 @@ export interface AssessorState {
 
   summary: FieldAssessmentSummary | null;
   requestedSummaryFieldId: string | null;
+  loadedSummaryScope: string | null;
   locked: boolean;
   submittedBy: SubmittedBy | null;
   categoryQuestions: CategoryQuestionList | null;
@@ -67,6 +68,7 @@ const initialState: AssessorState = {
   fieldsRequestId: null,
   summary: null,
   requestedSummaryFieldId: null,
+  loadedSummaryScope: null,
   locked: false,
   submittedBy: null,
   categoryQuestions: null,
@@ -90,6 +92,9 @@ const initialState: AssessorState = {
 
 const pct = (answered: number, total: number): number =>
   total > 0 ? Math.round((answered / total) * 100) : 0;
+
+const scopeKey = (arg: { programId: string; fieldId: string }): string =>
+  `${arg.programId}:${arg.fieldId}`;
 
 const assessorSlice = createSlice({
   name: 'assessor',
@@ -126,19 +131,20 @@ const assessorSlice = createSlice({
       .addCase(fetchAssessorSummaryThunk.pending, (state, action) => {
         state.loadingSummary = true;
         state.error = null;
-        state.requestedSummaryFieldId = action.meta.arg;
+        state.requestedSummaryFieldId = scopeKey(action.meta.arg);
       })
       .addCase(fetchAssessorSummaryThunk.fulfilled, (state, action) => {
-        if (action.meta.arg !== state.requestedSummaryFieldId) {
+        if (scopeKey(action.meta.arg) !== state.requestedSummaryFieldId) {
           return;
         }
         state.loadingSummary = false;
         state.summary = action.payload.summary;
         state.locked = action.payload.locked;
         state.submittedBy = action.payload.submittedBy;
+        state.loadedSummaryScope = scopeKey(action.meta.arg);
       })
       .addCase(fetchAssessorSummaryThunk.rejected, (state, action) => {
-        if (action.meta.arg !== state.requestedSummaryFieldId) {
+        if (scopeKey(action.meta.arg) !== state.requestedSummaryFieldId) {
           return;
         }
         state.loadingSummary = false;
@@ -147,19 +153,20 @@ const assessorSlice = createSlice({
       .addCase(refreshAssessorSummaryThunk.pending, (state, action) => {
         state.refreshing = true;
         state.error = null;
-        state.requestedSummaryFieldId = action.meta.arg;
+        state.requestedSummaryFieldId = scopeKey(action.meta.arg);
       })
       .addCase(refreshAssessorSummaryThunk.fulfilled, (state, action) => {
-        if (action.meta.arg !== state.requestedSummaryFieldId) {
+        if (scopeKey(action.meta.arg) !== state.requestedSummaryFieldId) {
           return;
         }
         state.refreshing = false;
         state.summary = action.payload.summary;
         state.locked = action.payload.locked;
         state.submittedBy = action.payload.submittedBy;
+        state.loadedSummaryScope = scopeKey(action.meta.arg);
       })
       .addCase(refreshAssessorSummaryThunk.rejected, (state, action) => {
-        if (action.meta.arg !== state.requestedSummaryFieldId) {
+        if (scopeKey(action.meta.arg) !== state.requestedSummaryFieldId) {
           return;
         }
         state.refreshing = false;
@@ -249,7 +256,10 @@ const assessorSlice = createSlice({
           }
         }
         if (state.fieldsOverview) {
-          const entry = state.fieldsOverview.fields.find(e => e.field.id === saved.fieldId);
+          const { programId, fieldId } = action.meta.arg;
+          const entry = state.fieldsOverview.fields.find(
+            e => e.field.id === fieldId && e.program.id === programId,
+          );
           if (entry && !entry.assessment.completed) {
             const a = entry.assessment;
             a.answered = Math.min(a.answered + 1, a.totalQuestions);
@@ -276,8 +286,10 @@ const assessorSlice = createSlice({
           state.questionDetail.locked = true;
         }
         if (state.fieldsOverview) {
-          const fid = action.payload.summary.field.id;
-          const entry = state.fieldsOverview.fields.find(e => e.field.id === fid);
+          const { programId, fieldId } = action.meta.arg;
+          const entry = state.fieldsOverview.fields.find(
+            e => e.field.id === fieldId && e.program.id === programId,
+          );
           if (entry) {
             const a = entry.assessment;
             a.completed = true;
@@ -384,6 +396,8 @@ export const selectAssessorHistoryLoading = (s: HasAssessor): boolean =>
   s.assessor.loadingFieldsOverview;
 
 export const selectAssessorSummary = (s: HasAssessor): FieldAssessmentSummary | null => s.assessor.summary;
+export const selectAssessorLoadedSummaryScope = (s: HasAssessor): string | null =>
+  s.assessor.loadedSummaryScope;
 export const selectAssessorCategories = (s: HasAssessor): AssessmentCategorySummary[] => s.assessor.summary?.categories ?? EMPTY_CATEGORIES;
 export const selectAssessorLocked = (s: HasAssessor): boolean => s.assessor.locked;
 export const selectAssessorSubmittedBy = (s: HasAssessor): SubmittedBy | null => s.assessor.submittedBy;

@@ -79,6 +79,5 @@ export const openAppSettings = async (): Promise<void> => {
   try {
     await Linking.openSettings();
   } catch {
-    // no-op: nothing actionable if the settings deep-link fails.
   }
 };

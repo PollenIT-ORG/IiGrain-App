@@ -7,7 +7,7 @@ import {
   shadows,
   spacing,
 } from '../../constants';
-import { moderateScale } from '../../utils';
+import { moderateScale, scale } from '../../utils';
 
 export const styles = StyleSheet.create({
   safe: {
@@ -20,8 +20,28 @@ export const styles = StyleSheet.create({
   },
   body: {
     padding: spacing[4],
-    paddingBottom: spacing[20],
+    /**
+     * Clears the bottom tab bar AND the centre "Enroll" button, which
+     * CustomTabBar positions absolutely at `top: -22` — i.e. it floats ABOVE the
+     * bar and overlapped the last card once the list was scrolled to the end.
+     * The tab-bar height alone was not enough; this adds ~60px on top of it.
+     */
+    paddingBottom: spacing[24] + scale(60),
     gap: spacing[4],
+  },
+  searchWrap: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing[4],
+    paddingTop: spacing[3],
+    paddingBottom: spacing[1],
+  },
+  listHeader: {
+    gap: spacing[4],
+    paddingBottom: spacing[4],
+  },
+  listFlex: {
+    flex: 1,
+    paddingBottom: spacing[5],
   },
   section: {
     gap: spacing[3],

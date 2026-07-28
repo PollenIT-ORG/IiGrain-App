@@ -5,10 +5,13 @@ import {
   getFarm,
   updateFarm,
   deleteFarm,
+  resetFarm,
   myFarms,
   myFarm,
   createMyFarm,
   updateMyFarm,
+  deleteMyFarm,
+  resetMyFarm,
 } from "../controllers/farm.controller.js";
 import { authenticate, authorize } from "../middlewares/authenticate.js";
 import { validate } from "../middlewares/validate.js";
@@ -18,26 +21,39 @@ import {
   updateFarmSchema,
   updateMyFarmSchema,
   listFarmsQuerySchema,
+  myFarmsQuerySchema,
 } from "../validators/farm.schema.js";
 import { mobileFieldRouter } from "./field.routes.js";
+import { idParamSchema } from "../validators/common.schema.js";
 
 const router = Router();
+const withId = validate(idParamSchema, "params");
 
-router.get("/me/farms", authenticate, myFarms);
+router.get(
+  "/me/farms",
+  authenticate,
+  validate(myFarmsQuerySchema, "query"),
+  myFarms
+);
 router.post(
   "/me/farms",
   authenticate,
   validate(createMyFarmSchema),
   createMyFarm
 );
-router.get("/me/farms/:id", authenticate, myFarm);
+router.get("/me/farms/:id", authenticate, withId, myFarm);
 router.patch(
   "/me/farms/:id",
   authenticate,
+  withId,
   validate(updateMyFarmSchema),
   updateMyFarm
 );
+router.delete("/me/farms/:id", authenticate, withId, deleteMyFarm);
+router.post("/me/farms/:id/reset", authenticate, withId, resetMyFarm);
 
+// farmId is validated inside mobileFieldRouter, where mergeParams exposes it
+// together with the field id.
 router.use("/:farmId/fields", mobileFieldRouter);
 
 const orgManagers = authorize("super_admin", "admin", "program_administrator");
@@ -50,14 +66,16 @@ router.get(
   validate(listFarmsQuerySchema, "query"),
   listFarms
 );
-router.get("/:id", authenticate, orgManagers, getFarm);
+router.get("/:id", authenticate, orgManagers, withId, getFarm);
 router.patch(
   "/:id",
   authenticate,
   orgManagers,
+  withId,
   validate(updateFarmSchema),
   updateFarm
 );
-router.delete("/:id", authenticate, orgManagers, deleteFarm);
+router.delete("/:id", authenticate, orgManagers, withId, deleteFarm);
+router.post("/:id/reset", authenticate, orgManagers, withId, resetFarm);
 
 export default router;

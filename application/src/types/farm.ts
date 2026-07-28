@@ -6,9 +6,12 @@ export type FieldHealth = 'healthy' | 'monitor' | 'critical';
 export interface Farm {
   id: string;
   name: string;
+  businessEntity?: string;
   ownerName: string;
   location: string;
   areaAcres: number;
+  usedAcres?: number;
+  availableAcres?: number;
   fieldsCount: number;
   status: FarmStatus;
   lastUpdatedISO: string;

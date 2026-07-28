@@ -183,6 +183,15 @@ export const TrashIcon = (p: IconProps) => (
   </svg>
 );
 
+export const ShareIcon = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <circle cx="18" cy="5" r="3" />
+    <circle cx="6" cy="12" r="3" />
+    <circle cx="18" cy="19" r="3" />
+    <path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" />
+  </svg>
+);
+
 export const RefreshIcon = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />

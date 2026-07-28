@@ -2,4 +2,9 @@
 <resources>
     <!-- Adaptive launcher icon background (leaf mark sits on white). -->
     <color name="ic_launcher_background">#FFFFFF</color>
+
+    <!-- Native splash background. WHITE to match the iOS LaunchScreen and the JS
+         SplashVideo (SPLASH.backgroundColor), so the whole startup chain
+         native splash -> JS video splash never flashes a different colour. -->
+    <color name="splash_background">#FFFFFF</color>
 </resources>

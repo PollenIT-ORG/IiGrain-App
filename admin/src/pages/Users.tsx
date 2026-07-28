@@ -7,6 +7,8 @@ import {
   useSetUserStatusMutation,
 } from "../store/endpoints/usersApi";
 import { showSuccess, showError } from "../lib/toast";
+import { useUrlSearchSync } from "../lib/useUrlSearchSync";
+import { useLiveData } from "../lib/useLiveData";
 import { useDialog } from "../components/ui/DialogProvider";
 import Select from "../components/ui/Select";
 import Loader from "../components/Loader";
@@ -65,20 +67,25 @@ export default function Users() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  useUrlSearchSync(setSearchInput);
   const [status, setStatus] = useState<"" | "active" | "inactive">("");
 
   const isAllUsersView = !roleFromUrl;
 
-  const { data, isLoading, isError, error } = useListUsersQuery({
-    page,
-    limit: PAGE_SIZE,
-    role: roleFromUrl || undefined,
-    status: status || undefined,
-    search: search || undefined,
-  });
+  const { data, isLoading, isFetching, isError, error, refetch } =
+    useListUsersQuery({
+      page,
+      limit: PAGE_SIZE,
+      role: roleFromUrl || undefined,
+      status: status || undefined,
+      search: search || undefined,
+    });
+  useLiveData(["users", "assignments"], refetch);
   const users = data?.users ?? [];
   const meta = data?.meta ?? null;
-  const loading = isLoading;
+  // isFetching (not isLoading) so the spinner also shows while a filter/search
+  // refetch is in flight, instead of leaving stale rows on screen.
+  const loading = isLoading || isFetching;
 
   const [deleteUser] = useDeleteUserMutation();
   const [setUserStatus] = useSetUserStatusMutation();
@@ -104,7 +111,7 @@ export default function Users() {
   async function handleDelete(user: User) {
     const ok = await confirm({
       title: "Delete user?",
-      message: `"${user.full_name || user.email}" will be removed. You can restore them later if needed.`,
+      message: `"${user.full_name || user.email}" will be removed from the panel.`,
       confirmLabel: "Delete",
       tone: "danger",
     });

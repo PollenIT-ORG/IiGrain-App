@@ -1,3 +1,5 @@
+import type { PageMeta } from './pagination';
+
 export type AssessmentStatus =
   | 'IN_PROGRESS'
   | 'COMPLETED'
@@ -91,6 +93,13 @@ export interface AssessmentInfo {
   totalQuestions: number;
   answered: number;
   percentage: number;
+  /**
+   * True only once the assessment has actually been SUBMITTED. `status` cannot
+   * answer this: the backend's `completed` and `submitted` both map to
+   * COMPLETED, and the slice also sets COMPLETED locally the moment the last
+   * answer is saved.
+   */
+  submitted: boolean;
 }
 
 export interface AssessmentCategorySummary {
@@ -156,10 +165,22 @@ export interface AssessmentQuestionDetail {
   locked: boolean;
 }
 
+/**
+ * Save-answer body. `comment` and `evidenceUrls` are independently optional and
+ * the backend distinguishes all three states, so the keys are optional AND
+ * nullable on purpose:
+ *
+ *   key absent -> the stored value is kept
+ *   null       -> the stored value is cleared
+ *   a value    -> the stored value is overwritten
+ *
+ * Always build this with `buildAnswerPayload` so a score-only save omits the
+ * keys it did not change instead of echoing them back.
+ */
 export interface SaveAnswerInput {
   score: QuestionScore;
-  comment: string;
-  evidenceUrls: string[];
+  comment?: string | null;
+  evidenceUrls?: string[] | null;
 }
 
 export interface SavedAnswer {
@@ -213,6 +234,8 @@ export interface MyAssessmentField {
   fieldStatus: string;
   farmId: string;
   farmName: string;
+  programId: string;
+  programName: string;
   status: AssessmentStatus;
   totalQuestions: number;
   answered: number;
@@ -232,6 +255,22 @@ export interface MyAssessmentsOverview {
   title: string;
   counts: MyAssessmentCounts;
   fields: MyAssessmentField[];
+  meta?: PageMeta;
+}
+
+export interface FieldRegenCategory {
+  id: string;
+  name: string;
+  score: number | null;
+  answered: number;
+}
+
+export interface FieldRegenIndex {
+  field: AssessmentField;
+  regenHealthIndex: number | null;
+  rating: string | null;
+  categories: FieldRegenCategory[];
+  topCategory: string | null;
 }
 
 export interface AssessmentSubmitResult {

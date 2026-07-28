@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '../../components/AppIcon';
 import { AppHeader, AppText, Button } from '../../components';
-import VisitMap from '../../components/location/VisitMap';
+import { VisitMap } from '../../maps';
 import {
   COLORS,
   borderRadius,
@@ -128,7 +128,7 @@ const FarmerVisitTrackingScreen: React.FC<AppScreenProps<'FarmerVisitTracking'>>
       ? { latitude: visit.assessorLat, longitude: visit.assessorLng }
       : null;
   const arrived = visit.status === 'arrived';
-  const subtitle = [visit.farmName, visit.fieldName].filter(Boolean).join(' · ');
+  const subtitle = [visit.farmName, visit.fieldName].filter(Boolean).join(' - ');
   const completed = ended === 'completed';
 
   return (
@@ -184,7 +184,7 @@ const FarmerVisitTrackingScreen: React.FC<AppScreenProps<'FarmerVisitTracking'>>
             <AppText style={styles.hint} numberOfLines={2}>
               {arrived
                 ? 'Your assessor has reached your farm.'
-                : 'Your assessor is on the way - the map updates live.'}
+                : 'Your assessor is on the way — the map updates live.'}
             </AppText>
           </>
         )}

@@ -11,6 +11,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useListActiveVisitsQuery, type Visit } from "../store/endpoints/visitsApi";
 import { getSocket } from "../lib/socket";
+import { useLiveData } from "../lib/useLiveData";
 import Loader from "../components/Loader";
 
 type LatLng = [number, number];
@@ -116,6 +117,9 @@ function FitBounds({ visit }: { visit: Visit | null }) {
 
 export default function LiveVisits() {
   const { data: initial, isLoading, refetch } = useListActiveVisitsQuery();
+  // Refetch the active-visits list when a visit starts or ends (the backend
+  // broadcasts a "visits" change to all admins).
+  useLiveData(["visits"], refetch);
   const [visits, setVisits] = useState<Record<string, Visit>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const joined = useRef<Set<string>>(new Set());
@@ -229,7 +233,7 @@ export default function LiveVisits() {
                     ? `Updated ${new Date(
                         v.last_location_at
                       ).toLocaleTimeString()}`
-                    : "Awaiting first location…"}
+                    : "Awaiting first location..."}
                 </p>
               </button>
             ))}
@@ -313,7 +317,7 @@ export default function LiveVisits() {
             {selected && !assessorPos && (
               <p className="border-t border-gray-200 px-5 py-3 text-sm text-gray-500">
                 Waiting for {selected.assessor_name ?? "the assessor"}'s first
-                location update…
+                location update...
               </p>
             )}
           </div>

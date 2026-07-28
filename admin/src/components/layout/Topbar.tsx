@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../store/useAuth";
+import { useGetMyProfileQuery } from "../../store/endpoints/profileApi";
 import { showSuccess } from "../../lib/toast";
-import { MenuIcon, SearchIcon, LogoutIcon, UsersIcon } from "../icons";
+import { MenuIcon, LogoutIcon, UsersIcon } from "../icons";
 import NotificationBell from "./NotificationBell";
 
 interface TopbarProps {
@@ -11,6 +12,8 @@ interface TopbarProps {
 
 export default function Topbar({ onMenuClick }: TopbarProps) {
   const { user, logout } = useAuth();
+  const { data: profile } = useGetMyProfileQuery();
+  const avatarUrl = profile?.avatar_url ?? null;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -41,19 +44,6 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
         <MenuIcon width={22} height={22} />
       </button>
 
-      <div className="relative hidden w-full max-w-md md:block">
-        <SearchIcon
-          width={18}
-          height={18}
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
-        />
-        <input
-          type="text"
-          placeholder="Search farms, users, reports…"
-          className="input-field pl-10"
-        />
-      </div>
-
       <div className="ml-auto flex items-center gap-2 sm:gap-3">
         <NotificationBell />
 
@@ -62,9 +52,17 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
             onClick={() => setMenuOpen((o) => !o)}
             className="flex items-center gap-2.5 rounded-lg p-1 pr-1.5 hover:bg-gray-100 sm:pr-2"
           >
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-primary text-sm font-semibold text-white">
-              {initials}
-            </span>
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt="Profile"
+                className="h-9 w-9 rounded-full object-cover"
+              />
+            ) : (
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-primary text-sm font-semibold text-white">
+                {initials}
+              </span>
+            )}
             <span className="hidden text-left sm:block">
               <span className="block text-sm font-semibold leading-tight text-gray-900">
                 {user?.fullName || "Administrator"}

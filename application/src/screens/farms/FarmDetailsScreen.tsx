@@ -1,72 +1,70 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { AppIcon, ICONS } from '../../components/AppIcon';
-import { AppHeader, AppText, Button } from '../../components';
-import type { HeaderAction } from '../../components';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Animated,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  ScrollView,
+  View,
+} from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { AppIcon, ICONS } from '../../components/AppIcon';
+import {
+  AppHeader,
+  AppOverflowMenu,
+  AppText,
+  Button,
+  ConfirmationModal,
+} from '../../components';
+import type { OverflowMenuItem } from '../../components';
+import {
+  AreaSummaryCard,
   EmptyState,
   FarmSummaryCard,
   FieldCard,
-  InfoRow,
-  SectionHeader,
-  StatCard,
-  Timeline,
+  QuickStatsCard,
 } from '../../components/farms';
 import { COLORS, spacing } from '../../constants';
-import { formatDate, formatNumber, moderateScale, scale } from '../../utils';
+import { GENERIC_ERROR_MESSAGE } from '../../config/errorMessages';
+import { formatDate, moderateScale, scale } from '../../utils';
 import {
-  AppShimmer,
   AppShimmerCard,
-  AppShimmerCircle,
   AppShimmerList,
   AppShimmerRow,
-  AppShimmerSection,
   AppShimmerText,
   FieldCardShimmer,
-  SHIMMER_RADIUS,
 } from '../../components/Shimmer';
-import {
-  getFarmActivity,
-  getFarmDocuments,
-  getFarmSoil,
-} from '../../data/dummyFarms';
-import { FARM_STATUS_META } from '../../types/farm';
 import type { AppScreenProps } from '../../navigation/navigationTypes';
-import { styles } from './FarmDetailsScreenStyle';
-import { AnimatedTabBar } from '../../components';
+import { styles, FAB_METRICS } from './FarmDetailsScreenStyle';
+import { showSuccess } from '../../services/toastService';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
   fetchFarmDetailThunk,
+  refreshFarmDetailThunk,
   selectFarmDetailError,
   selectFarmDetailLoading,
+  selectFarmDeleting,
   selectFarmFieldCounts,
+  selectFarmResetting,
   selectSelectedFarm,
+  resetFarmThunk,
+  deleteFarmThunk,
 } from '../../redux/slices/farmSlice';
 import {
   fetchFarmFieldsThunk,
+  refreshFarmFieldsThunk,
   selectFields,
   selectFieldsFarmId,
   selectFieldsLoading,
 } from '../../redux/slices/fieldSlice';
 
-type FarmTab = 'overview' | 'history' | 'soil' | 'documents';
+/** Which destructive dialog is open, if any. */
+type PendingAction = 'reset' | 'delete' | null;
 
-const TABS: { key: FarmTab; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'history', label: 'History' },
-  { key: 'soil', label: 'Soil' },
-  { key: 'documents', label: 'Docs' },
-];
-
-const FIELDS_ADD_HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 } as const;
-
-const StatTileShimmer: React.FC = () => (
-  <AppShimmerCard style={skStyles.statTile}>
-    <AppShimmerCircle size={scale(36)} />
-    <AppShimmer width="55%" height={moderateScale(16)} radius={SHIMMER_RADIUS.sm} />
-    <AppShimmer width="42%" height={moderateScale(11)} radius={SHIMMER_RADIUS.sm} />
-  </AppShimmerCard>
-);
+/** Scroll delta that must accumulate before the FAB reacts — stops it
+ *  flickering on the tiny jitters of a finger resting on the list. */
+const FAB_SCROLL_THRESHOLD = 12;
 
 const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
   route,
@@ -78,15 +76,26 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
   const farm = useAppSelector(selectSelectedFarm);
   const loading = useAppSelector(selectFarmDetailLoading);
   const error = useAppSelector(selectFarmDetailError);
+  const resetting = useAppSelector(selectFarmResetting);
+  const deleting = useAppSelector(selectFarmDeleting);
 
   const fields = useAppSelector(selectFields);
   const fieldsLoading = useAppSelector(selectFieldsLoading);
   const fieldsFarmId = useAppSelector(selectFieldsFarmId);
   const fieldCounts = useAppSelector(selectFarmFieldCounts);
 
-  const [activeTab, setActiveTab] = useState<FarmTab>('overview');
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+
+  // Deleting the farm clears `selectedFarm`, which re-runs the effect below with
+  // `farm === null`. Without this guard it would immediately re-fetch the farm
+  // we just deleted and surface the resulting 404 as a "Not Found" error while
+  // the screen is still animating away. Once deleted, never re-fetch.
+  const deletedRef = useRef(false);
 
   useEffect(() => {
+    if (deletedRef.current) {
+      return;
+    }
     if (farm?.id !== farmId) {
       dispatch(fetchFarmDetailThunk(farmId));
     }
@@ -95,18 +104,79 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
     }
   }, [dispatch, farmId, farm, fieldsFarmId]);
 
-  const handleHeaderAction = useCallback(
-    (action: HeaderAction) => {
-      if (action === 'edit') {
-        navigation.navigate('AddFarm', { farmId });
+  const isFirstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstFocus.current) {
+        isFirstFocus.current = false;
+        return;
       }
-    },
+      dispatch(refreshFarmDetailThunk(farmId));
+      dispatch(refreshFarmFieldsThunk(farmId));
+    }, [dispatch, farmId]),
+  );
+
+  // ---------------------------------------------------------------- actions
+
+  const goToEditFarm = useCallback(
+    () => navigation.navigate('AddFarm', { farmId }),
     [navigation, farmId],
   );
 
-  const activity = useMemo(() => getFarmActivity(farmId), [farmId]);
-  const soil = useMemo(() => getFarmSoil(farmId), [farmId]);
-  const documents = useMemo(() => getFarmDocuments(farmId), [farmId]);
+  const askReset = useCallback(() => setPendingAction('reset'), []);
+  const askDelete = useCallback(() => setPendingAction('delete'), []);
+  const dismissDialog = useCallback(() => setPendingAction(null), []);
+
+  const runResetFarm = useCallback(async () => {
+    const action = await dispatch(resetFarmThunk(farmId));
+    if (resetFarmThunk.fulfilled.match(action)) {
+      // Close before the toast: a root-level toast renders behind an open modal.
+      setPendingAction(null);
+      showSuccess('Farm reset');
+      dispatch(refreshFarmFieldsThunk(farmId));
+      return;
+    }
+    setPendingAction(null);
+  }, [dispatch, farmId]);
+
+  const runDeleteFarm = useCallback(async () => {
+    // Set before dispatch: the fulfilled thunk nulls `selectedFarm` synchronously,
+    // and the guard must already be up when the fetch effect re-runs.
+    deletedRef.current = true;
+    // A 409 (submitted assessment / still enrolled) surfaces through the global
+    // error modal with the message the backend returned.
+    const action = await dispatch(deleteFarmThunk(farmId));
+    setPendingAction(null);
+    if (deleteFarmThunk.fulfilled.match(action)) {
+      showSuccess('Farm deleted');
+      navigation.goBack();
+    } else {
+      // Delete failed — the farm still exists, so let the screen behave normally.
+      deletedRef.current = false;
+    }
+  }, [dispatch, farmId, navigation]);
+
+  const menuItems = useMemo<OverflowMenuItem[]>(
+    () => [
+      { key: 'edit', icon: 'pencil-outline', title: 'Edit Farm', onPress: goToEditFarm },
+      {
+        key: 'reset',
+        icon: 'backup-restore',
+        title: 'Reset Farm',
+        onPress: askReset,
+        loading: resetting,
+      },
+      {
+        key: 'delete',
+        icon: 'trash-can-outline',
+        title: 'Delete Farm',
+        onPress: askDelete,
+        destructive: true,
+        loading: deleting,
+      },
+    ],
+    [goToEditFarm, askReset, askDelete, resetting, deleting],
+  );
 
   const goToField = useCallback(
     (fieldId: string) => navigation.navigate('FieldDetails', { farmId, fieldId }),
@@ -118,35 +188,81 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
     [navigation, farmId, farm?.name],
   );
 
+  // ------------------------------------------------------------- scroll FAB
+
+  // Held in a ref so scrolling never triggers a React render.
+  const fabAnim = useRef(new Animated.Value(0)).current;
+  const lastOffset = useRef(0);
+  const fabHidden = useRef(false);
+
+  const setFabVisible = useCallback(
+    (visible: boolean) => {
+      if (fabHidden.current !== visible) {
+        return;
+      }
+      fabHidden.current = !visible;
+      Animated.timing(fabAnim, {
+        toValue: visible ? 0 : 1,
+        duration: FAB_METRICS.animMs,
+        useNativeDriver: true,
+      }).start();
+    },
+    [fabAnim],
+  );
+
+  const handleScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const offset = event.nativeEvent.contentOffset.y;
+      const delta = offset - lastOffset.current;
+      if (Math.abs(delta) < FAB_SCROLL_THRESHOLD) {
+        return;
+      }
+      lastOffset.current = offset;
+      // Always reveal near the top, regardless of direction.
+      setFabVisible(delta < 0 || offset <= 0);
+    },
+    [setFabVisible],
+  );
+
+  const fabStyle = useMemo(
+    () => ({
+      transform: [
+        {
+          translateY: fabAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, FAB_METRICS.hideOffset],
+          }),
+        },
+        {
+          scale: fabAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [1, FAB_METRICS.hideScale],
+          }),
+        },
+      ],
+      opacity: fabAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+    }),
+    [fabAnim],
+  );
+
+  // ------------------------------------------------------------ early exits
+
   if (loading) {
     return (
       <View style={styles.safe}>
         <AppHeader variant="back" title="Farm" onBack={() => navigation.goBack()} />
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
           <AppShimmerCard>
-            <AppShimmerRow showLeading leadingSize={scale(52)} lines={2} showTrailing />
+            <AppShimmerRow showLeading leadingSize={scale(56)} lines={2} />
             <View style={styles.gap} />
             <AppShimmerText count={4} spacing={spacing[3]} lastLineWidth="70%" />
           </AppShimmerCard>
-
-          <View style={styles.tabContent}>
-            <AppShimmerSection titleWidth={scale(96)}>
-              <View style={styles.statRow}>
-                <StatTileShimmer />
-                <StatTileShimmer />
-              </View>
-              <View style={styles.statRow}>
-                <StatTileShimmer />
-                <StatTileShimmer />
-              </View>
-            </AppShimmerSection>
-
-            <View style={styles.gap} />
-
-            <AppShimmerSection titleWidth={scale(120)}>
-              <AppShimmerList count={2} ItemComponent={FieldCardShimmer} />
-            </AppShimmerSection>
-          </View>
+          <View style={styles.gap} />
+          <AppShimmerCard>
+            <AppShimmerRow showLeading leadingSize={scale(40)} lines={2} />
+          </AppShimmerCard>
+          <View style={styles.gap} />
+          <AppShimmerList count={2} ItemComponent={FieldCardShimmer} />
         </ScrollView>
       </View>
     );
@@ -160,7 +276,7 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
           <AppIcon name={ICONS.ERROR} size={moderateScale(48)} color={COLORS.gray500} />
           <AppText style={styles.stateTitle}>Couldn't load farm</AppText>
           <AppText style={styles.stateMessage}>
-            {error ?? 'Something went wrong. Please try again.'}
+            {error ?? GENERIC_ERROR_MESSAGE}
           </AppText>
           <Button
             title="Retry"
@@ -186,117 +302,12 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
     );
   }
 
-  const statusMeta = FARM_STATUS_META[farm.status];
+  // ----------------------------------------------------------------- render
 
   const farmFields = fieldsFarmId === farmId ? fields : [];
   const liveCount = fieldsFarmId === farmId && !fieldsLoading ? fields.length : undefined;
   const fieldCount = liveCount ?? fieldCounts[farmId] ?? (farm.fieldsCount || undefined);
-  const fieldCountLabel = fieldCount === undefined ? '-' : `${fieldCount}`;
-
-  const renderOverview = () => (
-    <>
-      <SectionHeader title="Quick Stats" />
-      <View style={styles.statRow}>
-        <StatCard icon="view-grid-outline" label="Fields" value={fieldCountLabel} tone="info" />
-        <StatCard icon="vector-square" label="Total Area" value={`${formatNumber(farm.areaAcres)} ac`} tone="neutral" />
-      </View>
-      <View style={styles.statRow}>
-        <StatCard icon="leaf" label="Regen Index" value={`${farm.regenScore}`} tone="success" />
-        <StatCard icon="calendar-outline" label="Updated" value={formatDate(farm.lastUpdatedISO)} tone="neutral" />
-      </View>
-
-      <View style={styles.gap} />
-      <SectionHeader title="Farm Information" />
-      <View style={styles.card}>
-        <InfoRow icon="account-outline" label="Owner" value={farm.ownerName} />
-        <InfoRow icon="check-decagram-outline" label="Status" value={statusMeta.label} />
-        <InfoRow icon="view-grid-outline" label="Fields" value={fieldCountLabel} />
-        {farm.orgName ? (
-          <InfoRow icon="office-building-outline" label="Organization" value={farm.orgName} />
-        ) : null}
-      </View>
-
-      <View style={styles.gap} />
-      <View style={styles.fieldsHeaderRow}>
-        <AppText style={styles.fieldsHeaderTitle}>{`Fields (${farmFields.length})`}</AppText>
-        <Pressable
-          onPress={goToAddField}
-          accessibilityRole="button"
-          accessibilityLabel="Add field"
-          hitSlop={FIELDS_ADD_HIT_SLOP}
-          style={styles.addFieldBtn}>
-          <AppIcon name={ICONS.PLUS} size={moderateScale(20)} color={COLORS.white} />
-        </Pressable>
-      </View>
-      {fieldsLoading && farmFields.length === 0 ? (
-        <ActivityIndicator
-          color={COLORS.primary}
-          style={styles.fieldsLoader}
-        />
-      ) : farmFields.length > 0 ? (
-        farmFields.map(field => (
-          <FieldCard key={field.id} field={field} onPress={goToField} />
-        ))
-      ) : (
-        <AppText style={styles.muted}>No fields added yet.</AppText>
-      )}
-    </>
-  );
-
-  const renderSoil = () =>
-    soil.length > 0 ? (
-      <View style={styles.soilGrid}>
-        {soil.map(metric => (
-          <View key={metric.id} style={styles.soilCell}>
-            <StatCard icon={metric.icon} label={metric.label} value={metric.value} tone={metric.tone} />
-          </View>
-        ))}
-      </View>
-    ) : (
-      <AppText style={styles.muted}>No soil data available.</AppText>
-    );
-
-  const renderDocuments = () =>
-    documents.length > 0 ? (
-      <View style={styles.card}>
-        {documents.map((doc, index) => (
-          <View
-            key={doc.id}
-            style={[styles.docRow, index < documents.length - 1 && styles.docDivider]}>
-            <View style={styles.docIcon}>
-              <AppIcon name={doc.icon} size={moderateScale(22)} color={COLORS.primary} />
-            </View>
-            <View style={styles.docInfo}>
-              <AppText style={styles.docName} numberOfLines={1}>{doc.name}</AppText>
-              <AppText style={styles.docMeta}>
-                {doc.sizeLabel} · {formatDate(doc.dateISO)}
-              </AppText>
-            </View>
-            <AppIcon name={ICONS.DOWNLOAD} size={moderateScale(20)} color={COLORS.gray500} />
-          </View>
-        ))}
-      </View>
-    ) : (
-      <AppText style={styles.muted}>No documents uploaded.</AppText>
-    );
-
-  const renderHistory = () =>
-    activity.length > 0 ? (
-      <View style={styles.card}>
-        <Timeline items={activity} />
-      </View>
-    ) : (
-      <AppText style={styles.muted}>No activity recorded yet.</AppText>
-    );
-
-  const renderTab = () => {
-    switch (activeTab) {
-      case 'history': return renderHistory();
-      case 'soil': return renderSoil();
-      case 'documents': return renderDocuments();
-      default: return renderOverview();
-    }
-  };
+  const showAreaCard = farm.usedAcres != null && farm.availableAcres != null;
 
   return (
     <View style={styles.safe}>
@@ -304,24 +315,116 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
         variant="back"
         title={farm.name}
         onBack={() => navigation.goBack()}
-        rightActions={['edit']}
-        onActionPress={handleHeaderAction}
+        rightActions={null}
+        rightComponent={
+          <AppOverflowMenu items={menuItems} accessibilityLabel="Farm actions" />
+        }
       />
 
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}>
         <FarmSummaryCard farm={farm} fieldsCount={fieldCount} />
 
-        <View style={styles.tabContent}>{renderTab()}</View>
+        <View style={styles.gap} />
+        <QuickStatsCard
+          regenScore={farm.regenScore}
+          lastUpdatedLabel={formatDate(farm.lastUpdatedISO)}
+        />
+
+        {showAreaCard ? (
+          <>
+            <View style={styles.gap} />
+            <AreaSummaryCard
+              total={farm.areaAcres}
+              used={farm.usedAcres as number}
+              available={farm.availableAcres as number}
+            />
+          </>
+        ) : null}
+
+        <View style={styles.sectionGap} />
+        <View style={styles.fieldsHeaderRow}>
+          <AppText style={styles.fieldsHeaderTitle}>Fields</AppText>
+          <AppText style={styles.fieldsCount}>{farmFields.length}</AppText>
+          <Button
+            title="Add Field"
+            variant="outline"
+            size="sm"
+            fullWidth={false}
+            onPress={goToAddField}
+            style={styles.fieldsHeaderAction}
+            leftIcon={
+              <AppIcon
+                name={ICONS.PLUS}
+                size={moderateScale(16)}
+                color={COLORS.primary}
+              />
+            }
+          />
+        </View>
+
+        {fieldsLoading && farmFields.length === 0 ? (
+          <ActivityIndicator color={COLORS.primary} style={styles.fieldsLoader} />
+        ) : farmFields.length > 0 ? (
+          farmFields.map(field => (
+            <FieldCard key={field.id} field={field} onPress={goToField} />
+          ))
+        ) : (
+          <View style={styles.fieldsEmpty}>
+            <AppIcon name={ICONS.FIELD} size={moderateScale(32)} color={COLORS.gray300} />
+            <AppText style={styles.fieldsEmptyText}>
+              No fields yet. Add your first field to start tracking this farm.
+            </AppText>
+          </View>
+        )}
       </ScrollView>
+
+      {/* <Animated.View style={[styles.fab, fabStyle]} pointerEvents="box-none">
+        <Pressable
+          onPress={goToAddField}
+          android_ripple={FAB_METRICS.ripple}
+          accessibilityRole="button"
+          accessibilityLabel="Add field"
+          style={styles.fabButton}>
+          <AppIcon name={ICONS.PLUS} size={moderateScale(26)} color={COLORS.white} />
+        </Pressable>
+      </Animated.View> */}
+
+      <ConfirmationModal
+        visible={pendingAction === 'reset'}
+        icon="backup-restore"
+        title="Reset this farm?"
+        message="Resetting clears the farm's recorded details so you can start over. The farm itself stays where it is."
+        consequences={['Location, area and soil details', 'Business entity information']}
+        retains={['The farm name', 'Its fields', 'Assessments and soil records']}
+        confirmLabel="Reset Farm"
+        loading={resetting}
+        onConfirm={runResetFarm}
+        onCancel={dismissDialog}
+      />
+
+      <ConfirmationModal
+        visible={pendingAction === 'delete'}
+        tone="danger"
+        icon="trash-can-outline"
+        title="Delete this farm?"
+        message={`"${farm.name}" and everything inside it will be removed. This cannot be undone.`}
+        consequences={[
+          'The farm and all of its details',
+          `Every field it contains${farmFields.length ? ` (${farmFields.length})` : ''}`,
+          'Associated soil records and documents',
+          'Its link to any program enrolment',
+        ]}
+        confirmLabel="Delete Farm"
+        loading={deleting}
+        onConfirm={runDeleteFarm}
+        onCancel={dismissDialog}
+      />
     </View>
   );
 };
 
 export default FarmDetailsScreen;
-
-const skStyles = StyleSheet.create({
-  statTile: {
-    flex: 1,
-    gap: spacing[1],
-  },
-});

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { BellIcon } from "../icons";
 import { getSocket } from "../../lib/socket";
 import {
@@ -7,7 +8,21 @@ import {
   useMarkNotificationReadMutation,
   useMarkAllNotificationsReadMutation,
   notificationsApi,
+  type AppNotification,
 } from "../../store/endpoints/notificationsApi";
+
+// Turns a notification's redirect target into an admin route, or null if there
+// is no meaningful destination in this panel.
+function adminRouteFor(n: AppNotification): string | null {
+  const r = n.redirect;
+  if (!r) return null;
+  if (r.submissionId) return `/eligibility/${r.submissionId}`;
+  if (r.screen === "eligibility") return "/eligibility";
+  if (r.visitId) return "/live-visits";
+  if (r.fieldId) return `/fields/${r.fieldId}`;
+  if (r.programId) return `/programs/${r.programId}`;
+  return null;
+}
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -22,8 +37,18 @@ function timeAgo(iso: string): string {
 
 export default function NotificationBell() {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
+
+  function handleClick(n: AppNotification) {
+    if (!n.read) markRead(n.id);
+    const route = adminRouteFor(n);
+    if (route) {
+      setOpen(false);
+      navigate(route);
+    }
+  }
 
   const { data } = useListNotificationsQuery({ page: 1, limit: 15 });
   const [markRead] = useMarkNotificationReadMutation();
@@ -88,7 +113,7 @@ export default function NotificationBell() {
             )}
           </div>
 
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-80 overflow-y-auto">
             {notifications.length === 0 ? (
               <p className="px-4 py-10 text-center text-sm text-gray-500">
                 No notifications yet.
@@ -97,7 +122,7 @@ export default function NotificationBell() {
               notifications.map((n) => (
                 <button
                   key={n.id}
-                  onClick={() => !n.read && markRead(n.id)}
+                  onClick={() => handleClick(n)}
                   className={`flex w-full flex-col items-start gap-0.5 border-b border-gray-200 px-4 py-3 text-left last:border-0 hover:bg-gray-50 ${
                     n.read ? "" : "bg-primary/5"
                   }`}
@@ -120,6 +145,16 @@ export default function NotificationBell() {
               ))
             )}
           </div>
+
+          <button
+            onClick={() => {
+              setOpen(false);
+              navigate("/notifications");
+            }}
+            className="block w-full border-t border-gray-300 px-4 py-2.5 text-center text-sm font-semibold text-primary hover:bg-gray-50"
+          >
+            View all notifications
+          </button>
         </div>
       )}
     </div>

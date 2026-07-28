@@ -7,23 +7,58 @@ export interface DashboardFarm {
   field_count: number;
 }
 
+export interface DashboardFarmsFilters {
+  farmerId: string;
+  search?: string;
+  limit: number;
+  offset: number;
+}
+
 export async function listDashboardFarms(
-  farmerId: string
-): Promise<DashboardFarm[]> {
-  return prisma.$queryRaw<DashboardFarm[]>(Prisma.sql`
+  filters: DashboardFarmsFilters
+): Promise<{ rows: DashboardFarm[]; total: number }> {
+  const search = filters.search?.trim();
+  const searchSql = search
+    ? Prisma.sql`AND fm.name ILIKE ${"%" + search + "%"}`
+    : Prisma.empty;
+
+  // field_count is the total number of fields on the farm (all non-deleted
+  // fields), not just the ones enrolled in a program.
+  const rows = await prisma.$queryRaw<DashboardFarm[]>(Prisma.sql`
     SELECT fm.id,
            fm.name,
            COALESCE(cnt.c, 0)::int AS field_count
       FROM farms fm
       LEFT JOIN LATERAL (
-        SELECT COUNT(DISTINCT pef.field_id)::int AS c
-          FROM program_enrollment_fields pef
-          JOIN program_enrollments pe ON pe.id = pef.enrollment_id AND pe.deleted_at IS NULL
-          JOIN fields f ON f.id = pef.field_id AND f.deleted_at IS NULL AND f.farm_id = fm.id
-         WHERE pef.deleted_at IS NULL AND pe.farmer_id = ${farmerId}::uuid
+        SELECT COUNT(*)::int AS c
+          FROM fields f
+         WHERE f.farm_id = fm.id AND f.deleted_at IS NULL
       ) cnt ON true
-     WHERE fm.deleted_at IS NULL AND fm.owner_id = ${farmerId}::uuid
-     ORDER BY fm.created_at DESC;`);
+     WHERE fm.deleted_at IS NULL AND fm.owner_id = ${filters.farmerId}::uuid
+       ${searchSql}
+     ORDER BY fm.created_at DESC
+     LIMIT ${filters.limit} OFFSET ${filters.offset};`);
+
+  const countRows = await prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
+    SELECT COUNT(*)::bigint AS count
+      FROM farms fm
+     WHERE fm.deleted_at IS NULL AND fm.owner_id = ${filters.farmerId}::uuid
+       ${searchSql};`);
+
+  return { rows, total: Number(countRows[0]?.count ?? 0) };
+}
+
+// The dashboard's default selected farm stays stable regardless of paging or
+// search: the farmer's most recently created farm.
+export async function getDefaultDashboardFarmId(
+  farmerId: string
+): Promise<string | null> {
+  const rows = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+    SELECT id FROM farms
+     WHERE deleted_at IS NULL AND owner_id = ${farmerId}::uuid
+     ORDER BY created_at DESC
+     LIMIT 1;`);
+  return rows[0]?.id ?? null;
 }
 
 export async function findOwnedFarm(
@@ -83,9 +118,139 @@ export async function getFarmCategoryScores(
      ORDER BY ac.sort_order ASC, ac.created_at ASC;`);
 }
 
+// Earliest year the farm dashboard may be viewed for. Never before the farmer
+// registered; otherwise the first year they enrolled a field or submitted an
+// assessment, falling back to the year the farm was created.
+export async function getFarmStartYear(
+  farmId: string,
+  farmerId: string
+): Promise<number> {
+  const rows = await prisma.$queryRaw<{ start_year: number }[]>(Prisma.sql`
+    SELECT GREATEST(
+             EXTRACT(YEAR FROM u.created_at)::int,
+             COALESCE(
+               LEAST(
+                 (SELECT MIN(EXTRACT(YEAR FROM pe.enrolled_at))::int
+                    FROM program_enrollments pe
+                    JOIN program_enrollment_fields pef
+                           ON pef.enrollment_id = pe.id AND pef.deleted_at IS NULL
+                    JOIN fields ef ON ef.id = pef.field_id
+                           AND ef.deleted_at IS NULL AND ef.farm_id = fm.id
+                   WHERE pe.deleted_at IS NULL AND pe.farmer_id = ${farmerId}::uuid),
+                 (SELECT MIN(EXTRACT(YEAR FROM fa.submitted_at))::int
+                    FROM field_assessments fa
+                    JOIN fields af ON af.id = fa.field_id
+                           AND af.deleted_at IS NULL AND af.farm_id = fm.id
+                   WHERE fa.author_role = 'farmer' AND fa.status = 'submitted'
+                     AND fa.submitted_at IS NOT NULL)
+               ),
+               EXTRACT(YEAR FROM fm.created_at)::int
+             )
+           )::int AS start_year
+      FROM farms fm
+      JOIN users u ON u.id = fm.owner_id
+     WHERE fm.id = ${farmId}::uuid AND fm.deleted_at IS NULL;`);
+  return rows[0]?.start_year ?? new Date().getFullYear();
+}
+
+export interface RhiTrendRow {
+  year: number;
+  score: number;
+}
+
+// One Regen Health Index point per year: the average of that year's submitted
+// farmer assessments for this farm.
+export async function getFarmRhiTrend(
+  farmId: string,
+  farmerId: string
+): Promise<RhiTrendRow[]> {
+  return prisma.$queryRaw<RhiTrendRow[]>(Prisma.sql`
+    SELECT EXTRACT(YEAR FROM fa.submitted_at)::int AS year,
+           ROUND(AVG(fa.percentage))::int          AS score
+      FROM field_assessments fa
+      JOIN fields f ON f.id = fa.field_id AND f.deleted_at IS NULL
+             AND f.farm_id = ${farmId}::uuid
+      JOIN farms fm ON fm.id = f.farm_id AND fm.deleted_at IS NULL
+             AND fm.owner_id = ${farmerId}::uuid
+     WHERE fa.author_role = 'farmer' AND fa.status = 'submitted'
+       AND fa.submitted_at IS NOT NULL
+     GROUP BY 1
+     ORDER BY 1 ASC;`);
+}
+
+// Category scores for ONE year: for each category, the average of that category's
+// score across every assessment submitted in that year (each assessment counts
+// once). Categories with no data that year come back with percentage = null.
+export async function getFarmCategoryScoresByYear(
+  farmId: string,
+  farmerId: string,
+  year: number
+): Promise<CategoryScoreRow[]> {
+  return prisma.$queryRaw<CategoryScoreRow[]>(Prisma.sql`
+    WITH per_assessment AS (
+      SELECT fa.id                       AS assessment_id,
+             ac.id                       AS category_id,
+             COUNT(ar.id)::int           AS answered,
+             SUM(ar.score)::int          AS total_score,
+             (COUNT(ar.id) * 3)::int     AS max_score
+        FROM field_assessments fa
+        JOIN fields f ON f.id = fa.field_id AND f.deleted_at IS NULL
+               AND f.farm_id = ${farmId}::uuid
+        JOIN farms fm ON fm.id = f.farm_id AND fm.deleted_at IS NULL
+               AND fm.owner_id = ${farmerId}::uuid
+        JOIN assessment_responses ar
+               ON ar.field_id = fa.field_id
+              AND ar.program_id = fa.program_id
+              AND ar.author_role = fa.author_role
+              AND ar.deleted_at IS NULL
+        JOIN assessment_questions aq ON aq.id = ar.question_id
+               AND aq.deleted_at IS NULL AND aq.is_active = true
+        JOIN assessment_categories ac ON ac.id = aq.category_id
+               AND ac.deleted_at IS NULL AND ac.is_active = true
+       WHERE fa.author_role = 'farmer' AND fa.status = 'submitted'
+         AND fa.submitted_at IS NOT NULL
+         AND EXTRACT(YEAR FROM fa.submitted_at)::int = ${year}
+       GROUP BY fa.id, ac.id
+    )
+    SELECT ac.id,
+           ac.name,
+           ac.sort_order,
+           COALESCE(SUM(pa.answered), 0)::int    AS answered,
+           COALESCE(SUM(pa.total_score), 0)::int AS total_score,
+           COALESCE(SUM(pa.max_score), 0)::int   AS max_score,
+           CASE WHEN COUNT(pa.assessment_id) > 0
+                THEN ROUND(AVG(pa.total_score::numeric
+                               / NULLIF(pa.max_score, 0) * 100), 2)
+                ELSE NULL END                     AS percentage
+      FROM assessment_categories ac
+      LEFT JOIN per_assessment pa ON pa.category_id = ac.id
+     WHERE ac.deleted_at IS NULL AND ac.is_active = true
+     GROUP BY ac.id, ac.name, ac.sort_order
+     ORDER BY ac.sort_order ASC, ac.name ASC;`);
+}
+
 export interface FarmSummaryRow {
   assessments_completed: number;
   average_score: number | null;
+}
+
+export async function getFarmSummaryByYear(
+  farmId: string,
+  farmerId: string,
+  year: number
+): Promise<FarmSummaryRow> {
+  const rows = await prisma.$queryRaw<FarmSummaryRow[]>(Prisma.sql`
+    SELECT COUNT(*)::int                  AS assessments_completed,
+           ROUND(AVG(fa.percentage), 2)   AS average_score
+      FROM field_assessments fa
+      JOIN fields f ON f.id = fa.field_id AND f.deleted_at IS NULL
+             AND f.farm_id = ${farmId}::uuid
+      JOIN farms fm ON fm.id = f.farm_id AND fm.deleted_at IS NULL
+             AND fm.owner_id = ${farmerId}::uuid
+     WHERE fa.author_role = 'farmer' AND fa.status = 'submitted'
+       AND fa.submitted_at IS NOT NULL
+       AND EXTRACT(YEAR FROM fa.submitted_at)::int = ${year};`);
+  return rows[0] ?? { assessments_completed: 0, average_score: null };
 }
 
 export async function getFarmSummary(
@@ -146,8 +311,9 @@ export async function getFarmRecentActivity(
          AND fa.submitted_at IS NOT NULL
          AND fa.field_id IN (SELECT field_id FROM enrolled_fields)
     ),
-    -- 2. First answer saved on a field = assessment started (only if not yet
-    --    submitted, so we don't duplicate a completed field's story).
+    -- 2. First answer saved on a field = assessment started (only if the field
+    --    has not been submitted in any program yet, so a completed field's story
+    --    is not duplicated).
     ev_started AS (
       SELECT 'assessment_started'              AS type,
              'Assessment started'              AS title,
@@ -157,12 +323,15 @@ export async function getFarmRecentActivity(
              f.name                            AS field_name
         FROM assessment_responses ar
         JOIN fields f ON f.id = ar.field_id
-        LEFT JOIN field_assessments fa
-               ON fa.field_id = ar.field_id AND fa.author_role = 'farmer'
        WHERE ar.author_role = 'farmer'
          AND ar.deleted_at IS NULL
          AND ar.field_id IN (SELECT field_id FROM enrolled_fields)
-         AND (fa.status IS NULL OR fa.status <> 'submitted')
+         AND NOT EXISTS (
+           SELECT 1 FROM field_assessments fa
+            WHERE fa.field_id = ar.field_id
+              AND fa.author_role = 'farmer'
+              AND fa.status = 'submitted'
+         )
        GROUP BY f.id, f.name
     ),
     -- 3. Enrollment events (per enrollment; label the enrolled program).

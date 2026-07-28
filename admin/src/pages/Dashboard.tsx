@@ -15,32 +15,141 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import { Link } from "react-router-dom";
 import { useAuth } from "../store/useAuth";
 import StatCard from "../components/dashboard/StatCard";
 import LoginLogsTable from "../components/dashboard/LoginLogsTable";
 import Loader from "../components/Loader";
 import { FarmIcon, ChartIcon, UsersIcon, LeafIcon, FileIcon } from "../components/icons";
-import { useGetAdminDashboardQuery } from "../store/endpoints/dashboardApi";
+import {
+  useGetAdminDashboardQuery,
+  type AdminDashboardData,
+} from "../store/endpoints/dashboardApi";
+import { useSubmissionStatsQuery } from "../store/endpoints/eligibilityApi";
 import { useLiveData } from "../lib/useLiveData";
+import { showSuccess, showError } from "../lib/toast";
 
 const axisStyle = { fontSize: 12, fill: "#495057" };
 const gridStroke = "#DEE2E6";
 
 const nfmt = new Intl.NumberFormat("en-US");
 
+function csvCell(v: unknown): string {
+  const s = v == null ? "" : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function toCsvRows(rows: (string | number | null)[][]): string {
+  return rows.map((r) => r.map(csvCell).join(",")).join("\n");
+}
+
+// Builds a plain CSV of the numbers already shown on the dashboard and triggers
+// a browser download. No server round-trip.
+function exportDashboardCsv(data: AdminDashboardData) {
+  const sections: string[] = [];
+
+  sections.push("Summary");
+  sections.push(
+    toCsvRows([
+      ["Metric", "Value"],
+      ["Acreage enrolled", data.kpis?.enrolledAcreage ?? 0],
+      ["Farms enrolled", data.kpis?.farmsEnrolled ?? 0],
+      ["Assessment completion %", data.kpis?.completionPct ?? ""],
+      ["Avg RHI score", data.kpis?.avgRhi ?? ""],
+    ])
+  );
+
+  if (data.acreageEnrolled?.length) {
+    sections.push("\nAcreage enrolled by month");
+    sections.push(
+      toCsvRows([
+        ["Month", "Acres"],
+        ...data.acreageEnrolled.map((r) => [r.month, r.acres]),
+      ])
+    );
+  }
+  if (data.programSplit?.length) {
+    sections.push("\nEnrollment by program (%)");
+    sections.push(
+      toCsvRows([
+        ["Program", "Share %"],
+        ...data.programSplit.map((r) => [r.name, r.value]),
+      ])
+    );
+  }
+  if (data.assessmentTrends?.length) {
+    sections.push("\nAssessment trends");
+    sections.push(
+      toCsvRows([
+        ["Month", "Submissions", "Avg score"],
+        ...data.assessmentTrends.map((r) => [r.month, r.completion, r.score]),
+      ])
+    );
+  }
+  if (data.rhiByProgram?.length) {
+    sections.push("\nRHI by program");
+    sections.push(
+      toCsvRows([
+        ["Program", "RHI"],
+        ...data.rhiByProgram.map((r) => [r.region, r.rhi]),
+      ])
+    );
+  }
+
+  const blob = new Blob([sections.join("\n")], {
+    type: "text/csv;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `dashboard-report-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const firstName = (user?.fullName || "Admin").split(" ")[0];
 
   const { data, isLoading, isError, refetch } = useGetAdminDashboardQuery();
+  const { data: surveyStats, refetch: refetchSurvey } = useSubmissionStatsQuery();
 
   useLiveData(["submissions", "enrollments", "dashboard"], refetch);
+  useLiveData(["eligibility"], refetchSurvey);
 
   const kpis = data?.kpis;
   const acreageEnrolled = data?.acreageEnrolled ?? [];
   const programSplit = data?.programSplit ?? [];
   const assessmentTrends = data?.assessmentTrends ?? [];
   const rhiByProgram = data?.rhiByProgram ?? [];
+
+  // Where every website survey producer currently sits. The first three still
+  // need something from the admin side.
+  const pipeline = [
+    {
+      label: "Ready for contract",
+      value: surveyStats?.qualified ?? 0,
+      to: "/eligibility?status=qualified",
+    },
+    {
+      label: "Awaiting signature",
+      value: surveyStats?.contract_sent ?? 0,
+      to: "/eligibility?status=contract_sent",
+    },
+    {
+      label: "Ready to enroll",
+      value: surveyStats?.contract_signed ?? 0,
+      to: "/eligibility?status=contract_signed",
+    },
+    {
+      label: "Enrolled",
+      value: surveyStats?.enrolled ?? 0,
+      to: "/eligibility?status=enrolled",
+    },
+  ];
+  const pipelineTotal = pipeline.reduce((sum, p) => sum + p.value, 0);
 
   return (
     <div className="space-y-6">
@@ -53,7 +162,20 @@ export default function Dashboard() {
             Dashboards &amp; Analytics. Program metrics at a glance.
           </p>
         </div>
-        <button className="btn-primary self-start sm:self-auto">
+        <button
+          type="button"
+          disabled={!data || isLoading}
+          onClick={() => {
+            if (!data) return;
+            try {
+              exportDashboardCsv(data);
+              showSuccess("Report downloaded.");
+            } catch {
+              showError("Could not generate the report.");
+            }
+          }}
+          className="btn-primary self-start disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto"
+        >
           <FileIcon width={18} height={18} />
           Export report
         </button>
@@ -100,6 +222,43 @@ export default function Dashboard() {
               color="accent"
             />
           </div>
+
+          {pipelineTotal > 0 && (
+            <div className="card p-5">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900">
+                    Website survey pipeline
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    Where producers from the website survey currently sit.
+                  </p>
+                </div>
+                <Link
+                  to="/eligibility"
+                  className="text-sm font-medium text-primary hover:underline"
+                >
+                  View all submissions
+                </Link>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {pipeline.map((p) => (
+                  <Link
+                    key={p.label}
+                    to={p.to}
+                    className="rounded-lg border border-gray-300 p-4 transition-colors hover:border-primary hover:bg-primary/5"
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      {p.label}
+                    </p>
+                    <p className="mt-1.5 text-2xl font-extrabold text-gray-900">
+                      {nfmt.format(p.value)}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <div className="card p-5 lg:col-span-2">

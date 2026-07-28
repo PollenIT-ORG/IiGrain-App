@@ -59,6 +59,9 @@ export interface AppEnv {
   };
 
   appUrl: string;
+  websiteUrl: string;
+  surveyAppUrl: string;
+  mobileAppUrl: string;
 
   rateLimit: {
     enabled: boolean;
@@ -89,9 +92,11 @@ export interface Role {
 export interface User {
   id: string;
   role_id: number;
+  org_id: string | null;
   full_name: string | null;
   email: string;
   phone: string | null;
+  avatar_url: string | null;
   password_hash: string | null;
   is_active: boolean;
   is_email_verified: boolean;

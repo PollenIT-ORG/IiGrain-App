@@ -1,3 +1,11 @@
+export interface ProgramField {
+  id: string;
+  name: string;
+  crop: string;
+  farmName: string;
+  enrolled: boolean;
+}
+
 export interface AvailableProgram {
   id: string;
   name: string;
@@ -9,6 +17,8 @@ export interface AvailableProgram {
   userLimit: number | null;
   enrolledCount: number;
   isFull: boolean;
+  alreadyEnrolled: boolean;
+  fields: ProgramField[];
 }
 
 export interface EnrollableField {
@@ -37,4 +47,13 @@ export interface EnrollmentResult {
   note: string | null;
   enrolledAtISO: string;
   fields: EnrolledField[];
+}
+
+/** Result of a farmer removing one of their own fields from a program. */
+export interface UnenrollFieldResult {
+  programId: string;
+  fieldId: string;
+  unenrolled: boolean;
+  /** True when that was the farmer's last field, so the whole enrollment went. */
+  enrollmentRemoved: boolean;
 }

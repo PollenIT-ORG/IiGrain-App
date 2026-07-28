@@ -15,6 +15,7 @@ import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
   fetchAssessorSummaryThunk,
   selectAssessorCategories,
+  selectAssessorLoadedSummaryScope,
   selectAssessorLocked,
   selectAssessorSummary,
   selectAssessorSummaryLoading,
@@ -29,7 +30,8 @@ const AssessorReviewScreen: React.FC<AssessorScreenProps<'AssessorReview'>> = ({
   route,
   navigation,
 }) => {
-  const { fieldId } = route.params;
+  const { programId, fieldId } = route.params;
+  const scope = `${programId}:${fieldId}`;
   const dispatch = useAppDispatch();
 
   const summary = useAppSelector(selectAssessorSummary);
@@ -37,14 +39,15 @@ const AssessorReviewScreen: React.FC<AssessorScreenProps<'AssessorReview'>> = ({
   const locked = useAppSelector(selectAssessorLocked);
   const submitting = useAppSelector(selectAssessorSubmitting);
   const loading = useAppSelector(selectAssessorSummaryLoading);
+  const loadedSummaryScope = useAppSelector(selectAssessorLoadedSummaryScope);
 
-  const ready = !!summary && summary.field.id === fieldId;
+  const ready = !!summary && loadedSummaryScope === scope;
 
   useEffect(() => {
     if (!ready) {
-      dispatch(fetchAssessorSummaryThunk(fieldId));
+      dispatch(fetchAssessorSummaryThunk({ programId, fieldId }));
     }
-  }, [dispatch, fieldId, ready]);
+  }, [dispatch, programId, fieldId, ready]);
 
   const summaryCard = useMemo(() => (ready && summary ? toSummaryCardModel(summary) : null), [ready, summary]);
   const allAnswered =
@@ -55,12 +58,12 @@ const AssessorReviewScreen: React.FC<AssessorScreenProps<'AssessorReview'>> = ({
       showToast('Answer every question before submitting.', { type: 'error' });
       return;
     }
-    const action = await dispatch(submitAssessorAssessmentThunk(fieldId));
+    const action = await dispatch(submitAssessorAssessmentThunk({ programId, fieldId }));
     if (submitAssessorAssessmentThunk.fulfilled.match(action)) {
       showSuccess('Assessment submitted');
       navigation.goBack();
     }
-  }, [allAnswered, dispatch, fieldId, navigation]);
+  }, [allAnswered, dispatch, programId, fieldId, navigation]);
 
   if (!ready || !summaryCard) {
     return (
@@ -108,7 +111,7 @@ const AssessorReviewScreen: React.FC<AssessorScreenProps<'AssessorReview'>> = ({
         {locked ? (
           <View style={styles.lockBanner}>
             <AppIcon name={ICONS.LOCK_CHECK} size={moderateScale(18)} color={COLORS.primary} />
-            <AppText style={styles.lockText}>Submitted by Assessor - locked.</AppText>
+            <AppText style={styles.lockText}>Submitted by Assessor — locked.</AppText>
           </View>
         ) : (
           <>

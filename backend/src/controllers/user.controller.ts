@@ -38,23 +38,35 @@ export const getUser = asyncHandler(async (req, res) => {
 
 export const updateUser = asyncHandler(async (req, res) => {
   const body = req.body as UpdateUserBody;
-  const user = await userService.editUser(req.params.id, body);
+  const user = await userService.editUser(req.params.id, body, {
+    id: req.user!.sub,
+    role: req.user!.role,
+  });
   return ApiResponse.send(res, 200, "User updated successfully.", { user });
 });
 
 export const deleteUser = asyncHandler(async (req, res) => {
-  await userService.removeUser(req.params.id);
+  await userService.removeUser(req.params.id, {
+    id: req.user!.sub,
+    role: req.user!.role,
+  });
   return ApiResponse.send(res, 200, "User deleted successfully.");
 });
 
 export const restoreUser = asyncHandler(async (req, res) => {
-  const user = await userService.restoreUserById(req.params.id);
+  const user = await userService.restoreUserById(req.params.id, {
+    id: req.user!.sub,
+    role: req.user!.role,
+  });
   return ApiResponse.send(res, 200, "User restored successfully.", { user });
 });
 
 export const setUserStatus = asyncHandler(async (req, res) => {
   const { isActive } = req.body as SetStatusBody;
-  const user = await userService.changeStatus(req.params.id, isActive);
+  const user = await userService.changeStatus(req.params.id, isActive, {
+    id: req.user!.sub,
+    role: req.user!.role,
+  });
   const label = isActive ? "activated" : "deactivated";
   return ApiResponse.send(res, 200, `User ${label} successfully.`, { user });
 });

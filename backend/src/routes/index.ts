@@ -16,6 +16,9 @@ import programRoutes from "./program.routes.js";
 import dashboardRoutes from "./dashboard.routes.js";
 import visitRoutes from "./visit.routes.js";
 import notificationRoutes from "./notification.routes.js";
+import webRoutes from "./web.routes.js";
+import standaloneRoutes from "./standalone.routes.js";
+import eligibilityAdminRoutes from "./eligibilityAdmin.routes.js";
 
 const router = Router();
 
@@ -36,5 +39,12 @@ router.use("/programs", programRoutes);
 router.use("/dashboard", dashboardRoutes);
 router.use("/visits", visitRoutes);
 router.use("/notifications", notificationRoutes);
+
+// Public website (eligibility survey, contract signing, contact form).
+router.use("/web", webRoutes);
+// The standalone survey flow (single page, magic-link tracking, no account).
+router.use("/standalone", standaloneRoutes);
+// Admin portal screens for that flow.
+router.use("/eligibility", eligibilityAdminRoutes);
 
 export default router;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import {
   FlatList,
   RefreshControl,
@@ -15,6 +15,7 @@ import { AppShimmer, AppShimmerList, AppShimmerRow } from '../../components/Shim
 import { COLORS, borderRadius, borderWidth, presets, shadows, spacing } from '../../constants';
 import { moderateScale } from '../../utils';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
+import { useAssessorOverviewSync } from '../../hooks/useAssessorOverviewSync';
 import {
   fetchAssessorFieldsThunk,
   selectAssessorError,
@@ -35,11 +36,9 @@ const AssessorFarmersScreen: React.FC = () => {
 
   const header = <AppHeader variant="title" title="Farmers" rightActions={['notification']} />;
 
-  useEffect(() => {
-    if (!overview) {
-      dispatch(fetchAssessorFieldsThunk());
-    }
-  }, [dispatch, overview]);
+  // Shared overview cache: fetch once, then refresh only when the socket says
+  // an assignment/assessment changed (or the TTL lapses). See the hook.
+  useAssessorOverviewSync(!!overview);
 
   const onRefresh = useCallback(() => dispatch(fetchAssessorFieldsThunk()), [dispatch]);
 

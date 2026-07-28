@@ -1,16 +1,16 @@
 import { z } from "zod";
+import { pageField, limitField } from "./pagination.schema.js";
+import { dateOnlyField } from "./common.schema.js";
 
-const dateStr = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD.")
-  .nullable()
-  .optional()
-  .or(z.literal(""));
+const dateStr = (label: string) =>
+  dateOnlyField(label).nullable().optional().or(z.literal(""));
 
+// A limit of 0 would let nobody enrol, so "no limit" is expressed as null
+// rather than 0.
 const userLimit = z.coerce
   .number({ error: "User limit must be a number." })
   .int("User limit must be a whole number.")
-  .min(0, "User limit cannot be negative.")
+  .min(1, "User limit must be at least 1. Choose No Limit to allow everyone.")
   .nullable()
   .optional();
 
@@ -19,8 +19,8 @@ export const createProgramSchema = z.object({
   code: z.string().trim().max(50).nullable().optional().or(z.literal("")),
   description: z.string().trim().max(2000).nullable().optional().or(z.literal("")),
   type: z.string().trim().max(50).nullable().optional().or(z.literal("")),
-  startDate: dateStr,
-  endDate: dateStr,
+  startDate: dateStr("Start date"),
+  endDate: dateStr("End date"),
   userLimit,
   isActive: z.boolean().optional(),
 });
@@ -28,10 +28,10 @@ export const createProgramSchema = z.object({
 export const updateProgramSchema = createProgramSchema.partial();
 
 export const listProgramsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(10),
+  page: pageField(1),
+  limit: limitField(10, 100),
   isActive: z
-    .enum(["true", "false"])
+    .enum(["true", "false"], { error: "isActive must be true or false." })
     .optional()
     .transform((v) => (v === undefined ? undefined : v === "true")),
   search: z.string().trim().max(100).optional(),
@@ -58,15 +58,15 @@ export const selfEnrollSchema = z.object({
 });
 
 export const listEnrollmentsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(10),
+  page: pageField(1),
+  limit: limitField(10, 100),
   search: z.string().trim().max(100).optional(),
   assessor: z.enum(["assigned", "unassigned"]).optional(),
 });
 
 export const listSubmissionsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  page: pageField(1),
+  limit: limitField(20, 100),
   programId: z.string().uuid("Invalid program id.").optional(),
   authorRole: z.enum(["farmer", "assessor"]).optional(),
 });
@@ -84,6 +84,11 @@ export const programIdParamSchema = z.object({
 export const enrollmentParamsSchema = z.object({
   id: z.string().uuid("Invalid program id."),
   enrollmentId: z.string().uuid("Invalid enrollment id."),
+});
+
+export const selfUnenrollParamsSchema = z.object({
+  id: z.string().uuid("Invalid program id."),
+  fieldId: z.string().uuid("Invalid field id."),
 });
 
 export type CreateProgramBody = z.infer<typeof createProgramSchema>;

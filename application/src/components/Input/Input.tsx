@@ -14,6 +14,8 @@ import { styles } from './InputStyle';
 export interface InputProps
   extends Omit<TextInputProps, 'style' | 'placeholderTextColor'> {
   label?: string;
+  /** Appends a red `*` to the label to mark the field as mandatory. */
+  required?: boolean;
   error?: string;
   placeholder?: string;
   secureTextEntry?: boolean;
@@ -27,6 +29,7 @@ const Input = forwardRef<TextInput, InputProps>(
   (
     {
       label,
+      required = false,
       error,
       placeholder,
       secureTextEntry = false,
@@ -38,6 +41,7 @@ const Input = forwardRef<TextInput, InputProps>(
       validateOnChange = false,
       validateOnBlur = true,
       value,
+      multiline = false,
       ...rest
     },
     ref,
@@ -76,18 +80,20 @@ const Input = forwardRef<TextInput, InputProps>(
               hasError && styles.labelError,
             ]}>
             {label}
+            {required ? <AppText style={styles.required}> *</AppText> : null}
           </AppText>
         ) : null}
 
         <View
           style={[
             styles.field,
+            multiline && styles.fieldMultiline,
             focused && styles.fieldFocused,
             hasError && styles.fieldError,
           ]}>
           <AppTextInput
             ref={ref}
-            style={styles.input}
+            style={[styles.input, multiline && styles.inputMultiline]}
             placeholder={placeholder}
             placeholderTextColor={COLORS.gray500}
             secureTextEntry={hidden}
@@ -95,6 +101,10 @@ const Input = forwardRef<TextInput, InputProps>(
             autoCapitalize="none"
             autoCorrect={false}
             value={value}
+            multiline={multiline}
+            // Android draws multiline text vertically centred by default; pin it
+            // to the top so a growing address reads top-down like on iOS.
+            textAlignVertical={multiline ? 'top' : undefined}
             onChangeText={handleChangeText}
             onFocus={handleFocus}
             onBlur={handleBlur}

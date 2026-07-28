@@ -76,3 +76,34 @@ export const updateFieldThunk = createAsyncThunk<
     return rejectWithValue(handleApiError(error));
   }
 });
+
+export interface FieldScopeArgs {
+  farmId: string;
+  fieldId: string;
+}
+
+export const resetFieldThunk = createAsyncThunk<
+  { farmId: string; field: Field | null },
+  FieldScopeArgs,
+  ThunkConfig
+>('field/resetField', async ({ farmId, fieldId }, { rejectWithValue }) => {
+  try {
+    const field = await fieldApi.resetFarmField(farmId, fieldId);
+    return { farmId, field };
+  } catch (error) {
+    return rejectWithValue(handleApiError(error));
+  }
+});
+
+export const deleteFieldThunk = createAsyncThunk<
+  FieldScopeArgs,
+  FieldScopeArgs,
+  ThunkConfig
+>('field/deleteField', async ({ farmId, fieldId }, { rejectWithValue }) => {
+  try {
+    await fieldApi.deleteFarmField(farmId, fieldId);
+    return { farmId, fieldId };
+  } catch (error) {
+    return rejectWithValue(handleApiError(error));
+  }
+});

@@ -1,6 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import { AppIcon, ICONS } from '../../components/AppIcon';
 import { AppHeader, AppText, Button } from '../../components';
 import {
@@ -17,6 +16,8 @@ import CategorySummaryCard from '../../components/assessment/CategorySummaryCard
 import QuestionCard from '../../components/assessment/QuestionCard';
 import SectionHeader from '../../components/assessment/SectionHeader';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
+import { useSyncedFetch } from '../../hooks/useSyncedFetch';
+import { Tags } from '../../redux/syncTags';
 import {
   fetchAssessorCategoryQuestionsThunk,
   selectAssessorCategoryQuestionList,
@@ -32,7 +33,7 @@ const AssessorCategoryScreen: React.FC<AssessorScreenProps<'AssessorCategory'>> 
   route,
   navigation,
 }) => {
-  const { fieldId, categoryId, categoryName } = route.params;
+  const { programId, fieldId, categoryId, categoryName } = route.params;
   const dispatch = useAppDispatch();
 
   const list = useAppSelector(selectAssessorCategoryQuestionList);
@@ -44,16 +45,25 @@ const AssessorCategoryScreen: React.FC<AssessorScreenProps<'AssessorCategory'>> 
   const ready = !!list && list.category.id === categoryId;
 
   const load = useCallback(() => {
-    dispatch(fetchAssessorCategoryQuestionsThunk({ fieldId, categoryId }));
-  }, [dispatch, fieldId, categoryId]);
+    dispatch(fetchAssessorCategoryQuestionsThunk({ programId, fieldId, categoryId }));
+  }, [dispatch, programId, fieldId, categoryId]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  // `categoryQuestions` is a single shared slot, so an unfocused screen must not
+  // pull it back to its own category. Gated on `ready` (the slot already holds
+  // THIS category) so returning to the screen no longer refetches every time —
+  // the assessor's own saves and the socket keep it fresh.
+  useSyncedFetch({
+    tags: [Tags.assessment(programId, fieldId)],
+    run: load,
+    hasData: ready,
+    enabled: !!programId && !!fieldId && !!categoryId,
+  });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await dispatch(fetchAssessorCategoryQuestionsThunk({ fieldId, categoryId }));
+    await dispatch(fetchAssessorCategoryQuestionsThunk({ programId, fieldId, categoryId }));
     setRefreshing(false);
-  }, [dispatch, fieldId, categoryId]);
+  }, [dispatch, programId, fieldId, categoryId]);
 
   const header = useMemo(() => (ready && list ? toCategoryHeaderModel(list) : null), [ready, list]);
   const questionCards = useMemo(
@@ -63,8 +73,13 @@ const AssessorCategoryScreen: React.FC<AssessorScreenProps<'AssessorCategory'>> 
 
   const openQuestion = useCallback(
     (question: AssessmentQuestion) =>
-      navigation.navigate('AssessorQuestion', { fieldId, categoryId, questionId: question.id }),
-    [navigation, fieldId, categoryId],
+      navigation.navigate('AssessorQuestion', {
+        programId,
+        fieldId,
+        categoryId,
+        questionId: question.id,
+      }),
+    [navigation, programId, fieldId, categoryId],
   );
 
   const loadingSkeleton = (

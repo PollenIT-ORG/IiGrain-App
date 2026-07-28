@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useUrlSearchSync } from "../lib/useUrlSearchSync";
+import { useLiveData } from "../lib/useLiveData";
 import {
   useListFieldsQuery,
   useDeleteFieldMutation,
@@ -18,7 +20,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "../components/icons";
-import type { Field, FieldStatus } from "../types";
+import type { Field } from "../types";
 
 function errMsg(err: unknown): string {
   return (
@@ -29,41 +31,11 @@ function errMsg(err: unknown): string {
 
 const PAGE_SIZE = 10;
 
-const STATUS_OPTIONS = [
-  { value: "", label: "All statuses" },
-  { value: "healthy", label: "Healthy" },
-  { value: "monitor", label: "Monitor" },
-  { value: "critical", label: "Critical" },
-];
-
 const ACTIVE_OPTIONS = [
   { value: "", label: "Active / inactive" },
   { value: "true", label: "Active only" },
   { value: "false", label: "Inactive only" },
 ];
-
-function StatusBadge({ status }: { status: FieldStatus }) {
-  if (status === "healthy")
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
-        <span className="h-1.5 w-1.5 rounded-full bg-success" />
-        Healthy
-      </span>
-    );
-  if (status === "critical")
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-danger/10 px-2.5 py-1 text-xs font-semibold text-danger">
-        <span className="h-1.5 w-1.5 rounded-full bg-danger" />
-        Critical
-      </span>
-    );
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-700">
-      <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
-      Monitor
-    </span>
-  );
-}
 
 function formatArea(area: string | null): string {
   if (!area) return "-";
@@ -79,18 +51,18 @@ export default function Fields() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [farmId, setFarmId] = useState("");
-  const [status, setStatus] = useState<"" | FieldStatus>("");
   const [isActive, setIsActive] = useState("");
+  useUrlSearchSync(setSearchInput);
 
-  const { data, isLoading, isError, error } = useListFieldsQuery({
+  const { data, isLoading, isFetching, isError, error, refetch } = useListFieldsQuery({
     page,
     limit: PAGE_SIZE,
     farmId: farmId || undefined,
-    status: (status as FieldStatus) || undefined,
     isActive:
       isActive === "true" ? true : isActive === "false" ? false : undefined,
     search: search || undefined,
   });
+  useLiveData(["fields"], refetch);
   const fields = data?.fields ?? [];
   const meta = data?.meta ?? null;
 
@@ -107,7 +79,7 @@ export default function Fields() {
 
   useEffect(() => {
     setPage(1);
-  }, [farmId, status, isActive, search]);
+  }, [farmId, isActive, search]);
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim()), 400);
@@ -117,7 +89,7 @@ export default function Fields() {
   async function handleDelete(field: Field) {
     const ok = await confirm({
       title: "Delete field?",
-      message: `"${field.name}" will be removed. This can be restored later if needed.`,
+      message: `"${field.name}" and its soil records and documents will be removed.`,
       confirmLabel: "Delete",
       tone: "danger",
     });
@@ -172,12 +144,6 @@ export default function Fields() {
           className="sm:w-48"
         />
         <Select
-          value={status}
-          onChange={(v) => setStatus(v as "" | FieldStatus)}
-          options={STATUS_OPTIONS}
-          className="sm:w-40"
-        />
-        <Select
           value={isActive}
           onChange={setIsActive}
           options={ACTIVE_OPTIONS}
@@ -186,7 +152,7 @@ export default function Fields() {
       </div>
 
       <div className="card overflow-hidden">
-        {isLoading ? (
+        {isLoading || isFetching ? (
           <Loader message="Loading fields..." />
         ) : isError ? (
           <div className="px-5 py-16 text-center text-sm text-gray-500">
@@ -206,7 +172,6 @@ export default function Fields() {
                     <th className="px-5 py-3 font-semibold">Farm</th>
                     <th className="px-5 py-3 font-semibold">Crop / Season</th>
                     <th className="px-5 py-3 font-semibold">Area</th>
-                    <th className="px-5 py-3 font-semibold">Health</th>
                     <th className="px-5 py-3 font-semibold">Active</th>
                     <th className="px-5 py-3 text-right font-semibold">
                       Actions
@@ -241,9 +206,6 @@ export default function Fields() {
                       </td>
                       <td className="px-5 py-3.5 whitespace-nowrap text-gray-700">
                         {formatArea(f.area_acres)}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <StatusBadge status={f.status} />
                       </td>
                       <td className="px-5 py-3.5">
                         {f.is_active ? (

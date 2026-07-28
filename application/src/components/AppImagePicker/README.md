@@ -2,7 +2,7 @@
 
 A reusable, library-agnostic, strongly-typed image-picker module for the iiGrain
 app. Drop it into Profile photo, Farm images, Field images, Assessment evidence,
-documents - any module - without modification.
+documents — any module — without modification.
 
 ```
 AppImagePicker (controlled UI)
@@ -22,7 +22,7 @@ swapping the library is a one-file change.
 
 ## 1. Install
 
-Only one native dependency is required - `react-native-image-crop-picker`
+Only one native dependency is required — `react-native-image-crop-picker`
 (already installed). Permissions use React Native's built-in `PermissionsAndroid`
 (Android) + the picker's own iOS prompts, so **no `react-native-permissions`**.
 
@@ -35,14 +35,14 @@ cd ios && pod install && cd ..
 ```
 
 After installing the native module, a **full native rebuild** is required
-(`yarn android` / rebuild in Xcode) - a JS reload alone won't link it.
+(`yarn android` / rebuild in Xcode) — a JS reload alone won't link it.
 
 ## 2. Native config (already applied in this repo)
 
-**Android** - `android/app/src/main/AndroidManifest.xml`: `CAMERA`,
+**Android** — `android/app/src/main/AndroidManifest.xml`: `CAMERA`,
 `READ_MEDIA_IMAGES`, `READ_EXTERNAL_STORAGE` (maxSdk 32), optional camera feature.
 
-**iOS** - `ios/iiGrain/Info.plist`: `NSCameraUsageDescription`,
+**iOS** — `ios/iiGrain/Info.plist`: `NSCameraUsageDescription`,
 `NSPhotoLibraryUsageDescription`, `NSPhotoLibraryAddUsageDescription`.
 
 ---
@@ -91,6 +91,6 @@ else if (result.status === 'error') showToast(result.error.message);
   removals → `onDelete(file)`. Single mode = `multiple` omitted (cap of 1).
 - **Errors are typed** (`ImagePickerError`), never alerts. A `PERMISSION_BLOCKED`
   error also auto-opens OS Settings.
-- **Cancellation is not an error** - the result is `{ status: 'cancelled' }`.
+- **Cancellation is not an error** — the result is `{ status: 'cancelled' }`.
 - **Compression** is applied at pick time (`compressQuality`, default 0.8, longest
   edge capped at 2000px).

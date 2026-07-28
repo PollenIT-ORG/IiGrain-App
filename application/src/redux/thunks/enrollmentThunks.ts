@@ -4,6 +4,7 @@ import type {
   AvailableProgram,
   EnrollableField,
   EnrollmentResult,
+  UnenrollFieldResult,
   EnrollSelfInput,
 } from '../../types/enrollment';
 import { handleApiError, StandardizedError } from '../../utils/handleApiError';
@@ -51,3 +52,20 @@ export const enrollSelfThunk = createAsyncThunk<EnrollmentResult, EnrollSelfArg,
       !(getState() as { enrollment: { enrolling: boolean } }).enrollment.enrolling,
   },
 );
+
+export interface UnenrollFieldArg {
+  programId: string;
+  fieldId: string;
+}
+
+export const unenrollFieldThunk = createAsyncThunk<
+  UnenrollFieldResult,
+  UnenrollFieldArg,
+  ThunkConfig
+>('enrollment/unenrollField', async ({ programId, fieldId }, { rejectWithValue }) => {
+  try {
+    return await enrollmentApi.unenrollField(programId, fieldId);
+  } catch (error) {
+    return rejectWithValue(handleApiError(error));
+  }
+});

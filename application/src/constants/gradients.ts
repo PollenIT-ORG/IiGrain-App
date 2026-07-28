@@ -8,8 +8,10 @@ export type GradientVariant =
   | 'button'
   | 'fab'
   | 'progress'
+  | 'progressLight'
   | 'success'
   | 'warning'
+  | 'infoBlue'
   | 'dark'
   | 'glass'
   | 'cardHighlight'
@@ -74,6 +76,16 @@ export const GRADIENTS: Record<GradientVariant, GradientConfig> = {
     ...TOP_BOTTOM,
   },
 
+  infoBlue: {
+    colors: ['#4C97E0', COLORS.infoBlue],
+    ...TOP_BOTTOM,
+  },
+
+  progressLight: {
+    colors: [COLORS.primaryLighter, COLORS.primaryLight],
+    ...LEFT_RIGHT,
+  },
+
   dark: {
     colors: [COLORS.gray900, '#1A2030'],
     ...TOP_BOTTOM,
@@ -104,4 +116,34 @@ export const GRADIENTS: Record<GradientVariant, GradientConfig> = {
     colors: [COLORS.secondary, COLORS.primary],
     ...LEFT_RIGHT,
   },
+};
+
+export const progressGradientForPercent = (percent: number): GradientVariant => {
+  const p = Number.isFinite(percent) ? percent : 0;
+  if (p <= 40) return 'warning';
+  if (p <= 75) return 'infoBlue';
+  if (p <= 90) return 'progressLight';
+  return 'primaryDark';
+};
+
+export const progressColorForPercent = (percent: number): string => {
+  const cols = GRADIENTS[progressGradientForPercent(percent)].colors;
+  return cols[cols.length - 1];
+};
+
+export type ProgressTier = 'poor' | 'fair' | 'good' | 'excellent';
+
+export const progressTierForPercent = (percent: number): ProgressTier => {
+  const p = Number.isFinite(percent) ? percent : 0;
+  if (p <= 40) return 'poor';
+  if (p <= 75) return 'fair';
+  if (p <= 90) return 'good';
+  return 'excellent';
+};
+
+export const PROGRESS_TIER_LABEL: Record<ProgressTier, string> = {
+  poor: 'Needs Attention',
+  fair: 'Fair Progress',
+  good: 'Good Progress',
+  excellent: 'Excellent Progress',
 };

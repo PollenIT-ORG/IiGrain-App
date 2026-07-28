@@ -277,7 +277,7 @@ export default function QuestionForm() {
               Cancel
             </button>
             <button type="submit" className="btn-primary" disabled={isSaving}>
-              {isSaving ? "Saving…" : isEdit ? "Save changes" : "Create question"}
+              {isSaving ? "Saving..." : isEdit ? "Save changes" : "Create question"}
             </button>
           </div>
         </form>

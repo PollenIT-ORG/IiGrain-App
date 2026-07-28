@@ -6,7 +6,15 @@ export type ChangedResource =
   | "submissions"
   | "visits"
   | "assignments"
-  | "dashboard";
+  | "dashboard"
+  | "farms"
+  | "fields"
+  | "users"
+  | "programs"
+  | "organizations"
+  | "eligibility"
+  | "survey_questions"
+  | "contact_enquiries";
 
 export function useLiveData(
   resources: ChangedResource[],

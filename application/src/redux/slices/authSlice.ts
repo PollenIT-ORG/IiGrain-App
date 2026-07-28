@@ -1,4 +1,4 @@
-import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSlice, isAnyOf, PayloadAction } from '@reduxjs/toolkit';
 import * as authApi from '../../api/authApi';
 import * as profileApi from '../../api/profileApi';
 import type {
@@ -11,6 +11,12 @@ import type {
 import { tokenStorage } from '../../services/tokenStorage';
 import { closeSocket } from '../../services/socket';
 import { handleApiError, StandardizedError } from '../../utils/handleApiError';
+import {
+  fetchProfileThunk,
+  removeAvatarThunk,
+  updateProfileThunk,
+  uploadAvatarThunk,
+} from '../thunks/profileThunks';
 
 export type AuthStatus = 'idle' | 'authenticated' | 'unauthenticated';
 
@@ -42,6 +48,12 @@ export interface SignupResult {
 }
 
 type ThunkConfig = { rejectValue: StandardizedError };
+// example to undestand
+// createAsyncThunk<
+//     Return Type,
+//     Input Type,
+//     Config Type
+// >
 
 export const bootstrapThunk = createAsyncThunk<AuthUser | null>(
   'auth/bootstrap',
@@ -85,7 +97,6 @@ export const loginThunk = createAsyncThunk<
       try {
         await authApi.requestOtp(payload.email);
       } catch {
-        // the screen can offer a manual resend
       }
       return rejectWithValue({
         ...handleApiError(error),
@@ -167,7 +178,6 @@ export const logoutThunk = createAsyncThunk('auth/logout', async (_, { dispatch 
     try {
       await authApi.logout(refreshToken);
     } catch {
-      // token is already wiped locally and expires server-side anyway
     }
   }
 });
@@ -185,6 +195,10 @@ export const deleteAccountThunk = createAsyncThunk<void, void, ThunkConfig>(
     dispatch(authSlice.actions.logout());
   },
 );
+
+
+
+
 
 const authSlice = createSlice({
   name: 'auth',
@@ -263,9 +277,45 @@ const authSlice = createSlice({
       .addCase(signupThunk.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload?.message ?? 'Registration failed';
-      });
+      })
+      // The profile endpoints are the only ones that return an avatar, so every
+      // profile write is folded back into the auth user. Without this the two
+      // copies drift: auth keeps the avatar it was created with (usually none)
+      // while the profile moves on, and a removed avatar can reappear from the
+      // stale auth copy via the identity fallback chain.
+      .addMatcher(
+        isAnyOf(
+          fetchProfileThunk.fulfilled,
+          updateProfileThunk.fulfilled,
+          uploadAvatarThunk.fulfilled,
+          removeAvatarThunk.fulfilled,
+        ),
+        (state, action) => {
+          if (!state.user) {
+            return;
+          }
+          // Guard against a response for a previous account landing late.
+          if (state.user.id && action.payload.id && state.user.id !== action.payload.id) {
+            return;
+          }
+          const profile = action.payload;
+          state.user = {
+            ...state.user,
+            id: profile.id,
+            fullName: profile.fullName,
+            email: profile.email,
+            phone: profile.phone,
+            role: profile.role,
+            emailVerified: profile.emailVerified,
+            avatarUrl: profile.avatarUrl ?? null,
+          };
+        },
+      );
   },
 });
+
+
+
 
 export const { setUser, clearError, logout } = authSlice.actions;
 export default authSlice.reducer;

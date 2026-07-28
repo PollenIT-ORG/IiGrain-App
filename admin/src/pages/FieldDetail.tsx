@@ -6,17 +6,22 @@ import {
   useGetFieldDocumentsQuery,
   useGetFieldHistoryQuery,
   useGetAssessmentComparisonQuery,
+  useResetFieldMutation,
+  useDeleteFieldMutation,
 } from "../store/endpoints/fieldsApi";
+import { showSuccess, showError } from "../lib/toast";
+import { useDialog } from "../components/ui/DialogProvider";
 import Loader from "../components/Loader";
 import {
   ChevronLeftIcon,
   EditIcon,
   FileIcon,
   LeafIcon,
+  RefreshIcon,
+  TrashIcon,
 } from "../components/icons";
 import type {
   Field,
-  FieldStatus,
   FieldSoil,
   FieldDocument,
   FieldHistoryEvent,
@@ -27,26 +32,6 @@ function errMsg(err: unknown): string {
   return (
     (err as { message?: string })?.message ??
     "Something went wrong. Please try again."
-  );
-}
-
-function StatusBadge({ status }: { status: FieldStatus }) {
-  const map = {
-    healthy: { cls: "bg-success/10 text-success", dot: "bg-success", label: "Healthy" },
-    critical: { cls: "bg-danger/10 text-danger", dot: "bg-danger", label: "Critical" },
-    monitor: {
-      cls: "bg-yellow-100 text-yellow-700",
-      dot: "bg-yellow-500",
-      label: "Monitor",
-    },
-  }[status];
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${map.cls}`}
-    >
-      <span className={`h-1.5 w-1.5 rounded-full ${map.dot}`} />
-      {map.label}
-    </span>
   );
 }
 
@@ -72,6 +57,7 @@ function formatDate(iso: string | null): string {
 
 export default function FieldDetail() {
   const navigate = useNavigate();
+  const { confirm } = useDialog();
   const { id = "" } = useParams();
 
   const {
@@ -80,6 +66,44 @@ export default function FieldDetail() {
     isError,
     error,
   } = useGetFieldQuery(id, { skip: !id });
+
+  const [resetField, { isLoading: resetting }] = useResetFieldMutation();
+  const [deleteField, { isLoading: deleting }] = useDeleteFieldMutation();
+
+  async function handleReset() {
+    if (!field) return;
+    const ok = await confirm({
+      title: "Reset field?",
+      message: `This clears "${field.name}"'s editable data. This cannot be undone.`,
+      confirmLabel: "Reset",
+      tone: "danger",
+    });
+    if (!ok) return;
+    try {
+      await resetField(field.id).unwrap();
+      showSuccess("Field reset.");
+    } catch (err) {
+      showError(errMsg(err));
+    }
+  }
+
+  async function handleDelete() {
+    if (!field) return;
+    const ok = await confirm({
+      title: "Delete field?",
+      message: `"${field.name}" and its soil records and documents will be removed.`,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
+    try {
+      await deleteField(field.id).unwrap();
+      showSuccess("Field deleted.");
+      navigate("/fields");
+    } catch (err) {
+      showError(errMsg(err));
+    }
+  }
 
   const { data: soil, isFetching: soilLoading } = useGetFieldSoilQuery(id, {
     skip: !id,
@@ -128,7 +152,6 @@ export default function FieldDetail() {
               <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
                 {field.farm_name}
               </span>
-              <StatusBadge status={field.status} />
               {field.is_active ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-0.5 text-xs font-semibold text-success">
                   <span className="h-1.5 w-1.5 rounded-full bg-success" />
@@ -142,13 +165,31 @@ export default function FieldDetail() {
               )}
             </div>
           </div>
-          <button
-            onClick={() => navigate(`/fields/${field.id}/edit`)}
-            className="btn-secondary"
-          >
-            <EditIcon width={16} height={16} />
-            Edit field & soil
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate(`/fields/${field.id}/edit`)}
+              className="btn-secondary"
+            >
+              <EditIcon width={16} height={16} />
+              Edit field & soil
+            </button>
+            <button
+              onClick={handleReset}
+              disabled={resetting}
+              className="btn-secondary"
+            >
+              <RefreshIcon width={16} height={16} />
+              Reset
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="btn-danger"
+            >
+              <TrashIcon width={16} height={16} />
+              Delete
+            </button>
+          </div>
         </div>
       </div>
 

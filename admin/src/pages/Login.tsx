@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { showSuccess, showError } from "../lib/toast";
+import { showSuccess, showError, showInfo } from "../lib/toast";
 import { requiredEmail, required, isClean } from "../lib/validation";
 import { useAppDispatch } from "../store/hooks";
 import { setCredentials } from "../store/authSlice";
@@ -8,6 +8,7 @@ import { useLoginMutation } from "../store/endpoints/authApi";
 import Logo from "../components/Logo";
 import ForgotPasswordForm from "../components/auth/ForgotPasswordForm";
 import { EyeIcon, EyeOffIcon } from "../components/icons";
+import { canUseAdminPanel } from "../types";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -25,6 +26,13 @@ export default function Login() {
   const from =
     (location.state as { from?: string } | null)?.from ?? "/dashboard";
 
+  useEffect(() => {
+    if (sessionStorage.getItem("session_expired")) {
+      sessionStorage.removeItem("session_expired");
+      showInfo("Your session expired. Please sign in again.");
+    }
+  }, []);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const next = {
@@ -39,7 +47,7 @@ export default function Login() {
         password,
       }).unwrap();
 
-      if (data.user.role !== "admin") {
+      if (!canUseAdminPanel(data.user.role)) {
         showError("Access denied. This panel is for administrators only.");
         return;
       }

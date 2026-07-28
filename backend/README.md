@@ -1,10 +1,12 @@
-# Farmer App - Backend
+# 🚜 Farmer App - Backend
 
-REST API for the Farmer App, built with **Node.js + Express + PostgreSQL (Neon)**, written in **TypeScript**.
+Production-grade REST API for the Farmer App, built with **Node.js + Express + PostgreSQL (Neon)**, written in **TypeScript**.
+
+This document is the **living reference** for the backend - every time we add a feature, we update this file so anyone (you, the admin-panel dev, the mobile dev) knows exactly what exists and how to use it.
 
 ---
 
-## Tech Stack
+## 📦 Tech Stack
 
 | Layer          | Technology                          |
 | -------------- | ----------------------------------- |
@@ -21,7 +23,7 @@ REST API for the Farmer App, built with **Node.js + Express + PostgreSQL (Neon)*
 
 ---
 
-## Folder Structure
+## 📁 Folder Structure
 
 ```
 backend/
@@ -40,11 +42,11 @@ backend/
 │   │   └── auth.routes.ts
 │   │
 │   ├── middlewares/            # Express middlewares
-│   │   ├── errorHandler.ts     # Global error handler (consistent errors)
+│   │   ├── errorHandler.ts     # 🔴 Global error handler (consistent errors)
 │   │   ├── notFound.ts         # 404 handler
 │   │   ├── authenticate.ts     # JWT auth guard + role authorization
 │   │   ├── rateLimiters.ts     # Route-specific rate limiters
-│   │   └── validate.ts         # Zod validation middleware
+│   │   └── validate.ts         # ✅ Zod validation middleware
 │   │
 │   ├── validators/             # Zod request schemas (per feature)
 │   │   └── auth.schema.ts
@@ -99,7 +101,7 @@ backend/
 
 ---
 
-## Getting Started
+## 🚀 Getting Started
 
 ### 1. Install dependencies
 ```bash
@@ -118,7 +120,7 @@ cp .env.example .env
 ```bash
 npm run db:check
 ```
-Expected: `Database is reachable`
+Expected: `✅ Database is reachable`
 
 ### 4. Run the server
 ```bash
@@ -142,7 +144,7 @@ Server starts on `https://api.farmer.tcqitsolution.com`.
 
 ---
 
-## Environment Variables
+## 🔌 Environment Variables
 
 | Variable                 | Required | Default       | Description                                  |
 | ------------------------ | -------- | ------------- | -------------------------------------------- |
@@ -173,7 +175,7 @@ Server starts on `https://api.farmer.tcqitsolution.com`.
 
 Missing a **required** variable will stop the server at startup with a clear message.
 
-### Database sync & seed (flag-driven)
+### 🔁 Database sync & seed (flag-driven)
 
 You apply schema changes and seed data by flipping env flags and **restarting** - no separate CLI command to remember:
 
@@ -187,9 +189,9 @@ Both are **idempotent** - already-applied migrations are skipped and existing ro
 
 ---
 
-## API Conventions
+## 📡 API Conventions
 
-### Success Response (every endpoint)
+### ✅ Success Response (every endpoint)
 ```json
 {
   "success": true,
@@ -200,7 +202,7 @@ Both are **idempotent** - already-applied migrations are skipped and existing ro
 ```
 `meta` is optional (used for pagination, counts, etc.).
 
-### Error Response (every error)
+### ❌ Error Response (every error)
 ```json
 {
   "success": false,
@@ -233,7 +235,7 @@ Common PostgreSQL errors (unique violation, FK violation, etc.) are automaticall
 
 ---
 
-## Health Endpoints
+## 🩺 Health Endpoints
 
 > The `/api/v1` prefix below comes from the `API_PREFIX` env var - if you change it, these paths change accordingly.
 
@@ -263,7 +265,7 @@ curl https://api.farmer.tcqitsolution.com/api/v1/health
 
 ---
 
-## Authentication
+## 🔑 Authentication
 
 **Registration requires email/OTP verification.** New users register → account is created
 *pending* and an OTP is sent (printed to terminal while SMTP is off) → the user verifies the
@@ -293,7 +295,7 @@ Register ──► (pending, OTP sent) ──► Verify OTP ──► (active + 
 > Re-registering an email that's still **unverified** simply re-sends the OTP (no error). Re-registering
 > an **already-verified** email returns `409 Conflict`.
 
-### Day 3 - User management (admin) & Profile
+### 🗓️ Day 3 - User management (admin) & Profile
 
 **Users - all admin-only** (`authenticate` + `authorize("admin")`):
 
@@ -315,7 +317,7 @@ Register ──► (pending, OTP sent) ──► Verify OTP ──► (active + 
 | PATCH  | `{API_PREFIX}/profile/me`             | `{ fullName?, phone? }`               | Update own name/phone. |
 | POST   | `{API_PREFIX}/profile/change-password`| `{ currentPassword, newPassword }`    | Verifies current password; `401` if wrong. |
 
-### Token model (access + refresh)
+### 🔁 Token model (access + refresh)
 
 Login / verify-otp return **two** tokens:
 
@@ -332,7 +334,7 @@ logout). **`POST /auth/logout`** deletes the refresh token from the DB so it can
 > with the stored refresh token, retry the failed request with the new access token. Not yet wired
 > in the admin/app frontends.
 
-### Input validation (Zod schemas + middleware)
+### ✅ Input validation (Zod schemas + middleware)
 
 Validation uses **Zod**. Each route's schema lives in `src/validators/` and is applied via the
 **`validate(schema)`** middleware (`src/middlewares/validate.ts`), which:
@@ -370,7 +372,7 @@ Production field rules (in `src/validators/auth.schema.ts`):
 
 ```
 ┌────────────────────────────────────────────┐
-│  OTP (SMTP disabled - dev mode)          │
+│  🔐  OTP (SMTP disabled - dev mode)          │
 ├────────────────────────────────────────────┤
 │  Email : farmer@example.com                │
 │  Code  : 075184                            │
@@ -381,7 +383,7 @@ Production field rules (in `src/validators/auth.schema.ts`):
 Copy that code into `verify-otp`. When you're ready for real email, fill the `SMTP_*` vars and set
 `SMTP_ENABLED=true` - the same code path then emails the OTP instead, no code change.
 
-> **TESTING ONLY - OTP in response:** for now, `register`, `request-otp`, and `forgot-password`
+> ⚠️ **TESTING ONLY - OTP in response:** for now, `register`, `request-otp`, and `forgot-password`
 > also return the OTP in the response body as `data.code` (so it's usable on live without email/log
 > access). **This is insecure and must be removed before real launch.** Every spot is marked with a
 > `// TODO: REMOVE-TESTING` comment - run `grep -rn "REMOVE-TESTING" src/` to find and delete them.
@@ -398,7 +400,7 @@ every login attempt (success or failure) is recorded in `login_logs`.
 
 ---
 
-## Database Tables
+## 🗄️ Database Tables
 
 | Table        | Purpose                                                                 |
 | ------------ | ----------------------------------------------------------------------- |
@@ -413,7 +415,7 @@ Schema lives in `src/db/migrations/` as ordered SQL files - see the **Database s
 
 ---
 
-## Soft Delete (Paranoid Mode)
+## 🗑️ Soft Delete (Paranoid Mode)
 
 **Delete APIs never physically remove a row.** Every table has a `deleted_at`
 timestamp column. "Deleting" a record just sets `deleted_at = now()` - the data
@@ -453,7 +455,7 @@ finders already filter to live rows.
 
 ---
 
-## How to Add a New Feature (recipe)
+## 🧩 How to Add a New Feature (recipe)
 
 Example: adding "farmers".
 
@@ -476,7 +478,7 @@ That's it - the global error handler and response format apply automatically.
 
 ---
 
-## Security Built In
+## 🔐 Security Built In
 - **Helmet** - secure HTTP headers
 - **CORS** - restricts origins (configurable)
 - **Rate limiting** - throttles abusive clients
@@ -490,7 +492,7 @@ That's it - the global error handler and response format apply automatically.
 
 ---
 
-## Postman
+## 📮 Postman
 
 Import `postman/farmer-app.postman_collection.json` into Postman. It includes all
 health + auth requests with collection variables:
@@ -504,7 +506,7 @@ Typical flow: **Register** (or **Login**) → token is saved → hit **Get Me**.
 
 ---
 
-## Changelog (update as we build)
+## 📝 Changelog (update as we build)
 
 | Date       | Change                                                            |
 | ---------- | ----------------------------------------------------------------- |
@@ -529,6 +531,6 @@ Typical flow: **Register** (or **Login**) → token is saved → hit **Get Me**.
 | 2026-06-24 | Migrated request validation to **Zod** - added a `validate(schema)` middleware + `src/validators/auth.schema.ts` (schema-inferred types). Routes now run `validate(schema)` before the controller; removed the old custom `utils/validate.ts`. Same field rules + `400 VALIDATION_ERROR` response shape. |
 | 2026-06-25 | **Day 3 - User management & Profile.** Admin-only User CRUD (`/users`): create (with role, active+verified), paginated list with role/status filters + search, get, update (incl. role assignment), soft-delete + restore, status toggle, email-unique check. Self-service Profile (`/profile`): view/update, change-password. Added `user.schema.ts`, `user.service.ts`, `user`/`profile` controllers + routes. All 18 test scenarios pass; errors are human-readable. |
 | 2026-06-25 | **Clearer auth error messages.** Login on an **inactive** account now says "Your account is inactive. Please contact an administrator to reactivate it." (shown only after a correct password, so account existence isn't leaked) - previously it returned the generic "Invalid email or password". Same clear message for OTP login, request-otp, forgot/reset password. Refresh-token on a dead account → "Your session is no longer valid. Please sign in again." Invalid-role messages list the allowed roles. |
-| 2026-06-26 | **Sprint 1 - Organizations & Farms.** New `organizations` table + nullable `users.org_id` (a user belongs to one org) and a `farms` table (owner = a farmer, optional org) - migrations 009/010. Admin-only **Organization CRUD** (`/organizations`): create/list (filter+search+paginate)/get-with-members/update/soft-delete (unlinks members), plus **userorg mapping** (`POST /organizations/:id/users`, `DELETE /organizations/:id/users/:userId`). Admin **Farm CRUD** (`/farms`): create/list (filter by owner/org/status + search)/get/update/soft-delete; owner is validated to be a **farmer**, org existence is validated. **Mobile endpoints** for app users: `GET /farms/me/farms`, `GET /farms/me/farms/:id` (own-farm-only, 404 otherwise), `GET /profile/organization` (the user's org or null). Added `organization`/`farm` models, schemas, services, controllers, routes. All **39 test scenarios pass** (CRUD, access control, validation, mapping, ownership, soft-delete); errors are human-readable. Admin panel wired: **Organizations** (list/create/edit/detail + member assign/remove) and **Farms** (list/create/edit) modules via RTK Query. |
+| 2026-06-26 | **Sprint 1 - Organizations & Farms.** New `organizations` table + nullable `users.org_id` (a user belongs to one org) and a `farms` table (owner = a farmer, optional org) - migrations 009/010. Admin-only **Organization CRUD** (`/organizations`): create/list (filter+search+paginate)/get-with-members/update/soft-delete (unlinks members), plus **user↔org mapping** (`POST /organizations/:id/users`, `DELETE /organizations/:id/users/:userId`). Admin **Farm CRUD** (`/farms`): create/list (filter by owner/org/status + search)/get/update/soft-delete; owner is validated to be a **farmer**, org existence is validated. **Mobile endpoints** for app users: `GET /farms/me/farms`, `GET /farms/me/farms/:id` (own-farm-only, 404 otherwise), `GET /profile/organization` (the user's org or null). Added `organization`/`farm` models, schemas, services, controllers, routes. All **39 test scenarios pass** (CRUD, access control, validation, mapping, ownership, soft-delete); errors are human-readable. Admin panel wired: **Organizations** (list/create/edit/detail + member assign/remove) and **Farms** (list/create/edit) modules via RTK Query. |
 
 > **Convention:** whenever a feature/endpoint is added or changed, add a row here and update the relevant section above.

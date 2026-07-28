@@ -28,8 +28,8 @@ const RegenTrendChart: React.FC<RegenTrendChartProps> = ({ data, selectedYear })
       dataPointText: String(p.value),
       dataPointColor: active ? COLORS.primaryDark : COLORS.primary,
       dataPointRadius: active ? scale(6) : scale(4),
+      textFontSize: moderateScale(active ? 13 : 12),
       textColor: COLORS.gray900,
-      textFontSize: moderateScale(12),
       textShiftY: -moderateScale(14),
     };
   });
@@ -37,8 +37,10 @@ const RegenTrendChart: React.FC<RegenTrendChartProps> = ({ data, selectedYear })
   const initialSpacing = scale(18);
   const endSpacing = scale(18);
   const plotWidth = containerW > 0 ? containerW - Y_AXIS_WIDTH - scale(6) : 0;
-  const pointSpacing =
-    data.length > 1 ? (plotWidth - initialSpacing - endSpacing) / (data.length - 1) : plotWidth;
+  // A single year is a valid chart (one dot). Spacing only has meaning between
+  // points, so it falls back to the usable width instead of dividing by zero.
+  const usableWidth = Math.max(plotWidth - initialSpacing - endSpacing, 0);
+  const pointSpacing = data.length > 1 ? usableWidth / (data.length - 1) : usableWidth;
 
   return (
     <View

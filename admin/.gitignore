@@ -1,4 +1,6 @@
+# ─────────────────────────────────────────────
 # Admin Panel - React.js (Vite or CRA)
+# ─────────────────────────────────────────────
 
 # Dependencies
 node_modules/
@@ -25,6 +27,11 @@ pnpm-debug.log*
 
 # Testing / coverage
 coverage/
+test-results/
+playwright-report/
+playwright/.cache/
+e2e-results.json
+qa-out/
 
 # Local dev / cache
 .eslintcache

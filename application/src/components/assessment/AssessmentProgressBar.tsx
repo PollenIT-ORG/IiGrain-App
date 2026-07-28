@@ -1,13 +1,24 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
-import { COLORS, borderRadius, presets, spacing } from '../../constants';
+import {
+  COLORS,
+  borderRadius,
+  presets,
+  spacing,
+  progressColorForPercent,
+  progressGradientForPercent,
+} from '../../constants';
 import { scale } from '../../utils';
 import AppText from '../AppText/AppText';
 import AppGradient from '../AppGradient/AppGradient';
 
+const LR_START = { x: 0, y: 0 };
+const LR_END = { x: 1, y: 0 };
+
 export interface AssessmentProgressBarProps {
   progress: number;
   solidColor?: string;
+  colorByPercent?: boolean;
   backgroundColor?: string;
   height?: number;
   showPercent?: boolean;
@@ -16,6 +27,7 @@ export interface AssessmentProgressBarProps {
 const AssessmentProgressBar: React.FC<AssessmentProgressBarProps> = ({
   progress,
   solidColor,
+  colorByPercent = false,
   backgroundColor = COLORS.gray200,
   height = scale(9),
   showPercent = true,
@@ -44,7 +56,9 @@ const AssessmentProgressBar: React.FC<AssessmentProgressBarProps> = ({
             <View style={[StyleSheet.absoluteFillObject, { backgroundColor: solidColor }]} />
           ) : (
             <AppGradient
-              variant="progress"
+              variant={colorByPercent ? progressGradientForPercent(progress) : 'progress'}
+              start={LR_START}
+              end={LR_END}
               style={StyleSheet.absoluteFillObject}
             />
           )}
@@ -52,7 +66,9 @@ const AssessmentProgressBar: React.FC<AssessmentProgressBarProps> = ({
       </View>
 
       {showPercent ? (
-        <AppText style={styles.percent} color={solidColor ?? COLORS.primary}>
+        <AppText
+          style={styles.percent}
+          color={solidColor ?? (colorByPercent ? progressColorForPercent(progress) : COLORS.primary)}>
           {progress}%
         </AppText>
       ) : null}

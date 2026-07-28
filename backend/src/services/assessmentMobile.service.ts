@@ -14,9 +14,10 @@ import {
   isFieldSubmitted,
   findFieldAssessment,
   submitFieldAssessment,
+  discardFieldAssessment,
+  getAssessmentWriteContext,
   getReviewRowsForField,
   getHistoryRowsForField,
-  resolveProgramForField,
   type QuestionWithAnswer,
   type SavedResponse,
   type FieldAssessment,
@@ -25,6 +26,7 @@ import {
 import prisma from "../db/prisma.js";
 import { notifyUser, notifyUsers } from "./notification.service.js";
 import { broadcastToAdmins } from "./realtime.service.js";
+import { emitSync } from "../socket/liveSync.js";
 import {
   assessmentSubmittedEmail,
   assessmentSubmittedNoticeEmail,
@@ -35,9 +37,51 @@ function pct(answered: number, total: number): number {
   return Math.round((answered / total) * 1000) / 10;
 }
 
+/**
+ * Gate for anything that WRITES assessment work on a (field, program).
+ * Reads (history, review, comparison) are intentionally left open.
+ *
+ * - A closed or ended program is a hard cutoff for both roles.
+ * - An inactive farm or field cannot be assessed or submitted.
+ *   `allowInactiveEntity` is used by discard, which is a cleanup action and must
+ *   stay possible so a draft on a deactivated farm is not stuck forever.
+ */
+export async function assertAssessmentWritable(
+  fieldId: string,
+  programId: string,
+  opts: { allowInactiveEntity?: boolean } = {}
+): Promise<void> {
+  const ctx = await getAssessmentWriteContext(fieldId, programId);
+  if (!ctx) throw ApiError.notFound("Field not found.");
+
+  if (!ctx.program_active) {
+    throw ApiError.conflict(
+      "This program is closed, so its assessments can no longer be changed."
+    );
+  }
+  if (ctx.program_ended) {
+    throw ApiError.conflict(
+      "This program has ended, so its assessments can no longer be changed."
+    );
+  }
+  if (!opts.allowInactiveEntity) {
+    if (!ctx.farm_active) {
+      throw ApiError.conflict(
+        "This farm is inactive, so its assessments cannot be edited or submitted."
+      );
+    }
+    if (!ctx.field_active) {
+      throw ApiError.conflict(
+        "This field is inactive, so its assessments cannot be edited or submitted."
+      );
+    }
+  }
+}
+
 export interface MyFieldAssessmentCard {
-  field: { id: string; name: string; crop: string | null; status: string };
+  field: { id: string; name: string; crop: string | null };
   farm: { id: string; name: string };
+  program: { id: string | null; name: string | null };
   assessment: {
     status: "not_started" | "in_progress" | "completed";
     inProgress: boolean;
@@ -49,6 +93,13 @@ export interface MyFieldAssessmentCard {
   };
 }
 
+export type PageMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
 export interface MyFieldsAssessmentList {
   year: number;
   title: string;
@@ -56,15 +107,24 @@ export interface MyFieldsAssessmentList {
   fields: MyFieldAssessmentCard[];
 }
 
-export async function getMyFieldsAssessmentList(
-  userId: string,
-  year: number
-): Promise<MyFieldsAssessmentList> {
-  const rows = await listMyFieldsWithAssessment(userId);
+export interface MyFieldsAssessmentInput {
+  userId: string;
+  year: number;
+  page: number;
+  limit: number;
+  search?: string;
+}
 
-  let notStarted = 0;
-  let inProgress = 0;
-  let completed = 0;
+export async function getMyFieldsAssessmentList(
+  input: MyFieldsAssessmentInput
+): Promise<{ result: MyFieldsAssessmentList; meta: PageMeta }> {
+  const offset = (input.page - 1) * input.limit;
+  const { rows, total, notStarted, inProgress } = await listMyFieldsWithAssessment({
+    userId: input.userId,
+    search: input.search,
+    limit: input.limit,
+    offset,
+  });
 
   const fields: MyFieldAssessmentCard[] = rows.map((r) => {
     const status: MyFieldAssessmentCard["assessment"]["status"] = r.submitted
@@ -73,18 +133,15 @@ export async function getMyFieldsAssessmentList(
         ? "in_progress"
         : "not_started";
 
-    if (status === "completed") completed += 1;
-    else if (status === "in_progress") inProgress += 1;
-    else notStarted += 1;
-
     const percentage =
       status === "completed" && r.percentage !== null
         ? Math.round(Number(r.percentage) * 10) / 10
         : pct(r.answered, r.total_questions);
 
     return {
-      field: { id: r.id, name: r.name, crop: r.crop, status: r.status },
+      field: { id: r.id, name: r.name, crop: r.crop },
       farm: { id: r.farm_id, name: r.farm_name },
+      program: { id: r.program_id, name: r.program_name },
       assessment: {
         status,
         inProgress: status === "in_progress",
@@ -97,11 +154,21 @@ export async function getMyFieldsAssessmentList(
     };
   });
 
+  // counts reflect the whole (search-filtered) set, not just this page.
+  // The pending list never contains submitted assessments, so completed = 0.
   return {
-    year,
-    title: `${year} Annual Assessment`,
-    counts: { total: fields.length, notStarted, inProgress, completed },
-    fields,
+    result: {
+      year: input.year,
+      title: `${input.year} Annual Assessment`,
+      counts: { total, notStarted, inProgress, completed: 0 },
+      fields,
+    },
+    meta: {
+      page: input.page,
+      limit: input.limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / input.limit)),
+    },
   };
 }
 
@@ -122,11 +189,25 @@ export interface MyCompletedAssessmentsList {
   assessments: CompletedAssessmentCard[];
 }
 
+export interface MyCompletedAssessmentsInput {
+  userId: string;
+  farmId: string | null;
+  page: number;
+  limit: number;
+  search?: string;
+}
+
 export async function getMyCompletedAssessments(
-  userId: string,
-  farmId: string | null
-): Promise<MyCompletedAssessmentsList> {
-  const rows = await listMyCompletedAssessments(userId, farmId);
+  input: MyCompletedAssessmentsInput
+): Promise<{ result: MyCompletedAssessmentsList; meta: PageMeta }> {
+  const offset = (input.page - 1) * input.limit;
+  const { rows, total } = await listMyCompletedAssessments({
+    userId: input.userId,
+    farmId: input.farmId,
+    search: input.search,
+    limit: input.limit,
+    offset,
+  });
   const assessments: CompletedAssessmentCard[] = rows.map((r) => ({
     field: { id: r.id, name: r.name, crop: r.crop },
     farm: { id: r.farm_id, name: r.farm_name },
@@ -138,7 +219,15 @@ export async function getMyCompletedAssessments(
       submittedAt: r.submitted_at ? r.submitted_at.toISOString() : null,
     },
   }));
-  return { count: assessments.length, assessments };
+  return {
+    result: { count: total, assessments },
+    meta: {
+      page: input.page,
+      limit: input.limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / input.limit)),
+    },
+  };
 }
 
 export interface CategorySummary {
@@ -164,13 +253,14 @@ export interface FieldAssessmentSummary {
 
 export async function getFieldAssessmentSummary(
   fieldId: string,
+  programId: string,
   userId: string,
   year: number
 ): Promise<FieldAssessmentSummary> {
-  const field = await findOwnedField(fieldId, userId);
+  const field = await findOwnedField(fieldId, userId, programId);
   if (!field) throw ApiError.notFound("Field not found.");
 
-  const rows = await getCategoryProgressForField(fieldId);
+  const rows = await getCategoryProgressForField(fieldId, programId);
 
   const categories: CategorySummary[] = rows.map((r) => ({
     id: r.id,
@@ -232,12 +322,13 @@ function ratingFor(index: number): string {
 
 export async function getFieldRegenIndex(
   fieldId: string,
+  programId: string,
   userId: string
 ): Promise<FieldRegenIndex> {
-  const field = await findOwnedField(fieldId, userId);
+  const field = await findOwnedField(fieldId, userId, programId);
   if (!field) throw ApiError.notFound("Field not found.");
 
-  const rows = await getFieldCategoryScores(fieldId, "farmer");
+  const rows = await getFieldCategoryScores(fieldId, programId, "farmer");
 
   const categories = rows.map((r) => ({
     id: r.id,
@@ -297,16 +388,17 @@ export interface CategoryQuestionsResult {
 
 export async function getFieldCategoryQuestions(
   fieldId: string,
+  programId: string,
   categoryId: string,
   userId: string
 ): Promise<CategoryQuestionsResult> {
-  const field = await findOwnedField(fieldId, userId);
+  const field = await findOwnedField(fieldId, userId, programId);
   if (!field) throw ApiError.notFound("Field not found.");
 
   const category = await findActiveCategory(categoryId);
   if (!category) throw ApiError.notFound("Category not found.");
 
-  const rows = await getCategoryQuestionsForField(categoryId, fieldId);
+  const rows = await getCategoryQuestionsForField(categoryId, fieldId, programId);
 
   const questions = rows.map((q: QuestionWithAnswer) => ({
     id: q.id,
@@ -351,16 +443,17 @@ export interface CategoryQuestionListResult {
 
 export async function getFieldCategoryQuestionList(
   fieldId: string,
+  programId: string,
   categoryId: string,
   userId: string
 ): Promise<CategoryQuestionListResult> {
-  const field = await findOwnedField(fieldId, userId);
+  const field = await findOwnedField(fieldId, userId, programId);
   if (!field) throw ApiError.notFound("Field not found.");
 
   const category = await findActiveCategory(categoryId);
   if (!category) throw ApiError.notFound("Category not found.");
 
-  const rows = await listCategoryQuestionsForField(categoryId, fieldId);
+  const rows = await listCategoryQuestionsForField(categoryId, fieldId, programId);
 
   const questions = rows.map((q) => ({
     id: q.id,
@@ -405,20 +498,21 @@ export interface QuestionDetail {
 
 export async function getFieldQuestionDetail(
   fieldId: string,
+  programId: string,
   categoryId: string,
   questionId: string,
   userId: string
 ): Promise<QuestionDetail> {
-  const field = await findOwnedField(fieldId, userId);
+  const field = await findOwnedField(fieldId, userId, programId);
   if (!field) throw ApiError.notFound("Field not found.");
 
   const category = await findActiveCategory(categoryId);
   if (!category) throw ApiError.notFound("Category not found.");
 
-  const q = await findCategoryQuestionForField(categoryId, questionId, fieldId);
+  const q = await findCategoryQuestionForField(categoryId, questionId, fieldId, programId);
   if (!q) throw ApiError.notFound("Question not found.");
 
-  const locked = await isFieldSubmitted(fieldId);
+  const locked = await isFieldSubmitted(fieldId, programId);
 
   return {
     field: { id: field.id, name: field.name },
@@ -445,20 +539,26 @@ export async function getFieldQuestionDetail(
 
 export interface SaveAnswerInput {
   score: number;
-  comment?: string;
-  evidenceUrls?: string[];
+  // null clears the stored value; undefined leaves it untouched.
+  comment?: string | null;
+  evidenceUrls?: string[] | null;
 }
 
+// Returns `undefined` for a field the caller did not send, so the stored value is
+// left untouched. Sending "" or [] explicitly still clears it.
 async function assertCanAnswer(
   fieldId: string,
+  programId: string,
   questionId: string,
   userId: string,
   input: SaveAnswerInput
-): Promise<{ comment: string | null; evidenceUrls: string[] }> {
-  const field = await findOwnedField(fieldId, userId);
+): Promise<{ comment?: string | null; evidenceUrls?: string[] }> {
+  const field = await findOwnedField(fieldId, userId, programId);
   if (!field) throw ApiError.notFound("Field not found.");
 
-  if (await isFieldSubmitted(fieldId)) {
+  await assertAssessmentWritable(fieldId, programId);
+
+  if (await isFieldSubmitted(fieldId, programId)) {
     throw ApiError.forbidden(
       "This assessment has been submitted and can no longer be edited."
     );
@@ -467,30 +567,41 @@ async function assertCanAnswer(
   const question = await findActiveQuestion(questionId);
   if (!question) throw ApiError.notFound("Question not found.");
 
-  const evidenceUrls = input.evidenceUrls ?? [];
-  if (evidenceUrls.length > 5) {
+  // null means "clear the photos", so normalise it to an empty array; undefined
+  // stays undefined so the stored photos are left untouched.
+  const evidenceUrls =
+    input.evidenceUrls === null ? [] : input.evidenceUrls;
+  if (evidenceUrls !== undefined && evidenceUrls.length > 5) {
     throw ApiError.badRequest("You can attach at most 5 photos.");
   }
 
-  const comment = input.comment?.trim() ? input.comment.trim() : null;
+  // undefined -> leave; null or "" -> clear; text -> trimmed text.
+  const comment =
+    input.comment === undefined
+      ? undefined
+      : input.comment && input.comment.trim()
+        ? input.comment.trim()
+        : null;
+
   return { comment, evidenceUrls };
 }
 
 export async function saveFieldAnswer(
   fieldId: string,
+  programId: string,
   questionId: string,
   userId: string,
   input: SaveAnswerInput
 ): Promise<SavedResponse> {
   const { comment, evidenceUrls } = await assertCanAnswer(
     fieldId,
+    programId,
     questionId,
     userId,
     input
   );
 
-  const programId = await resolveProgramForField(fieldId);
-  return upsertResponse({
+  const saved = await upsertResponse({
     fieldId,
     questionId,
     score: input.score,
@@ -500,6 +611,18 @@ export async function saveFieldAnswer(
     authorId: userId,
     programId,
   });
+
+  // Live sync: tell this farmer's other devices an answer changed so a second
+  // phone on the same assessment updates without a manual refresh.
+  emitSync(userId, {
+    resource: "assessment",
+    action: "answer_saved",
+    programId,
+    fieldId,
+    questionId,
+  });
+
+  return saved;
 }
 
 export interface FieldReview {
@@ -531,13 +654,14 @@ export interface FieldReview {
 
 export async function getFieldReview(
   fieldId: string,
+  programId: string,
   userId: string
 ): Promise<FieldReview> {
-  const field = await findOwnedField(fieldId, userId);
+  const field = await findOwnedField(fieldId, userId, programId);
   if (!field) throw ApiError.notFound("Field not found.");
 
-  const rows = await getReviewRowsForField(fieldId);
-  const submission = await findFieldAssessment(fieldId);
+  const rows = await getReviewRowsForField(fieldId, programId);
+  const submission = await findFieldAssessment(fieldId, programId);
 
   const byCat = new Map<string, FieldReview["categories"][number]>();
   for (const r of rows) {
@@ -661,19 +785,20 @@ function scoreDescriptionFor(
 
 export async function getFieldAssessmentHistory(
   fieldId: string,
+  programId: string,
   userId: string
 ): Promise<FieldAssessmentHistory> {
-  const field = await findOwnedField(fieldId, userId);
+  const field = await findOwnedField(fieldId, userId, programId);
   if (!field) throw ApiError.notFound("Field not found.");
 
-  const submission = await findFieldAssessment(fieldId);
+  const submission = await findFieldAssessment(fieldId, programId);
   if (!submission || submission.status !== "submitted") {
     throw ApiError.conflict(
       "This assessment has not been submitted yet - no history to show."
     );
   }
 
-  const rows = await getHistoryRowsForField(fieldId);
+  const rows = await getHistoryRowsForField(fieldId, programId);
 
   const byCat = new Map<string, HistoryCategory>();
   for (const r of rows) {
@@ -733,19 +858,55 @@ export interface SubmitResult {
   assessment: FieldAssessment;
 }
 
-export async function submitFieldAssessmentForUser(
+export interface DiscardResult {
+  field: { id: string; name: string };
+  discardedAnswers: number;
+}
+
+export async function discardFieldAssessmentForUser(
   fieldId: string,
+  programId: string,
   userId: string
-): Promise<SubmitResult> {
-  const field = await findOwnedField(fieldId, userId);
+): Promise<DiscardResult> {
+  const field = await findOwnedField(fieldId, userId, programId);
   if (!field) throw ApiError.notFound("Field not found.");
 
-  const existing = await findFieldAssessment(fieldId, "farmer");
+  // Discard stays available on an inactive farm/field so a draft is never stuck.
+  await assertAssessmentWritable(fieldId, programId, { allowInactiveEntity: true });
+
+  const existing = await findFieldAssessment(fieldId, programId, "farmer");
+  if (existing?.status === "submitted") {
+    throw ApiError.conflict(
+      "This assessment has already been submitted and cannot be discarded."
+    );
+  }
+
+  const discardedAnswers = await discardFieldAssessment(fieldId, programId, "farmer");
+  emitSync(userId, {
+    resource: "assessment",
+    action: "discarded",
+    programId,
+    fieldId,
+  });
+  return { field: { id: field.id, name: field.name }, discardedAnswers };
+}
+
+export async function submitFieldAssessmentForUser(
+  fieldId: string,
+  programId: string,
+  userId: string
+): Promise<SubmitResult> {
+  const field = await findOwnedField(fieldId, userId, programId);
+  if (!field) throw ApiError.notFound("Field not found.");
+
+  await assertAssessmentWritable(fieldId, programId);
+
+  const existing = await findFieldAssessment(fieldId, programId, "farmer");
   if (existing?.status === "submitted") {
     throw ApiError.conflict("This assessment has already been submitted.");
   }
 
-  const rows = await getReviewRowsForField(fieldId, "farmer");
+  const rows = await getReviewRowsForField(fieldId, programId, "farmer");
   const answeredCount = rows.filter((r) => r.answer_score !== null).length;
   if (answeredCount === 0) {
     throw ApiError.badRequest(
@@ -753,25 +914,31 @@ export async function submitFieldAssessmentForUser(
     );
   }
 
-  const programId = await resolveProgramForField(fieldId);
-  const assessment = await submitFieldAssessment(fieldId, "farmer", userId, programId);
+  const assessment = await submitFieldAssessment(fieldId, programId, "farmer", userId);
   if (!assessment) {
     throw ApiError.conflict("This assessment has already been submitted.");
   }
 
   const score = Math.round(Number(assessment.percentage) * 10) / 10;
-  void notifyAssessmentSubmitted(userId, field.id, field.name, {
+  void notifyAssessmentSubmitted(userId, programId, field.id, field.name, {
     answered: assessment.answered,
     totalQuestions: assessment.total_questions,
     percentage: score,
   });
   broadcastToAdmins("submissions", { fieldId: field.id });
+  emitSync(userId, {
+    resource: "assessment",
+    action: "submitted",
+    programId,
+    fieldId,
+  });
 
   return { field: { id: field.id, name: field.name }, assessment };
 }
 
 async function notifyAssessmentSubmitted(
   farmerId: string,
+  programId: string,
   fieldId: string,
   fieldName: string,
   stats: { answered: number; totalQuestions: number; percentage: number }
@@ -782,13 +949,13 @@ async function notifyAssessmentSubmitted(
   });
   const who = farmer?.full_name ?? "A farmer";
 
-  // Receipt to the farmer who submitted.
+  // Receipt to the farmer who submitted -> their submitted-assessment history.
   void notifyUser({
     userId: farmerId,
     type: "assessment_submitted",
     title: "Assessment submitted",
     body: `Your assessment for "${fieldName}" was submitted (${stats.percentage}%).`,
-    data: { fieldId },
+    data: { fieldId, programId, screen: "assessment_history" },
     emailFor: (r) =>
       assessmentSubmittedEmail({
         fullName: r.fullName,
@@ -799,7 +966,7 @@ async function notifyAssessmentSubmitted(
       }),
   });
 
-  // Notice to the assigned assessor.
+  // Notice to the assigned assessor -> their assessment for that field.
   const assignment = await prisma.assessor_assignments.findFirst({
     where: { farmer_id: farmerId, deleted_at: null },
     orderBy: { created_at: "desc" },
@@ -811,7 +978,7 @@ async function notifyAssessmentSubmitted(
       type: "assessment_submitted",
       title: "Assessment submitted",
       body: `${who} submitted an assessment for "${fieldName}".`,
-      data: { fieldId },
+      data: { fieldId, programId, screen: "assessor_field_assessment" },
       emailFor: (r) =>
         assessmentSubmittedNoticeEmail({
           fullName: r.fullName,
@@ -834,7 +1001,7 @@ async function notifyAssessmentSubmitted(
         type: "assessment_submitted",
         title: "Assessment submitted",
         body: `${who} submitted an assessment for "${fieldName}".`,
-        data: { fieldId },
+        data: { fieldId, programId, screen: "assessment_comparison" },
       }
     );
   }

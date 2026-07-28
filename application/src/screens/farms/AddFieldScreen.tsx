@@ -3,20 +3,20 @@ import { Pressable, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { AppIcon, ICONS } from '../../components/AppIcon';
 import {
-  AppDatePicker,
   AppHeader,
+  AppMonthPicker,
   AppText,
   Button,
   Input,
-  parseISODate,
 } from '../../components';
-import { COLORS } from '../../constants';
-import { moderateScale } from '../../utils';
+import { API_LIMITS, COLORS } from '../../constants';
+import { formatNumber, moderateScale } from '../../utils';
 import { useFormValidation } from '../../hooks';
 import type { ValidatorMap } from '../../hooks';
 import {
-  optionalPositiveNumberValidator,
   requiredNameValidator,
+  requiredPositiveNumberValidator,
+  requiredValidator,
 } from '../../utils/fieldValidators';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
@@ -36,12 +36,10 @@ import {
   selectSoilSaving,
 } from '../../redux/slices/soilSlice';
 import { showSuccess } from '../../services/toastService';
-import { FIELD_HEALTH_META, type FieldHealth } from '../../types/farm';
 import type { SaveSoilInput, SoilRecord } from '../../types/fieldDetails';
 import type { AppScreenProps } from '../../navigation/navigationTypes';
 import SoilDetailsModal, { type SoilValues } from '../../components/farms/SoilDetailsModal';
-import LocationPickerModal from '../../components/location/LocationPickerModal';
-import type { PickedLocation } from '../../components/location/LocationPicker';
+import { LocationPickerModal, type PickedLocation } from '../../maps';
 import { selectSelectedFarm } from '../../redux/slices/farmSlice';
 import { styles } from './AddFieldScreenStyle';
 
@@ -56,20 +54,9 @@ type FieldFormValues = {
   expectedHarvest: string;
 };
 
-const STATUS_OPTIONS: readonly FieldHealth[] = ['healthy', 'monitor', 'critical'];
-
-const STATUS_COLOR: Record<FieldHealth, string> = {
-  healthy: COLORS.success,
-  monitor: COLORS.warning,
-  critical: COLORS.danger,
-};
-
 const areaToText = (area: number): string => (area > 0 ? String(area) : '');
 
-const clean = (value: string): string => (value && value !== '-' ? value : '');
-
-const numToText = (n: number | null): string =>
-  n === null || n === undefined ? '' : String(n);
+const clean = (value: string): string => (value && value !== '—' ? value : '');
 
 const textToNum = (t: string): number | null => {
   const s = t.trim();
@@ -115,17 +102,10 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
   const [location, setLocation] = useState('');
   const [sowingDate, setSowingDate] = useState('');
   const [expectedHarvest, setExpectedHarvest] = useState('');
-  const [status, setStatus] = useState<FieldHealth>('healthy');
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
 
   const [soilTexture, setSoilTexture] = useState('');
-  const [soilPh, setSoilPh] = useState('');
-  const [soilOrganicMatter, setSoilOrganicMatter] = useState('');
-  const [soilNitrogen, setSoilNitrogen] = useState('');
-  const [soilPhosphorus, setSoilPhosphorus] = useState('');
-  const [soilPotassium, setSoilPotassium] = useState('');
-  const [soilMoisture, setSoilMoisture] = useState('');
   const [soilTestedOn, setSoilTestedOn] = useState('');
   const [soilNotes, setSoilNotes] = useState('');
   const [soilModalVisible, setSoilModalVisible] = useState(false);
@@ -149,6 +129,25 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
         : null,
     [selectedFarm, farmId],
   );
+
+  const availableAreaAcres = useMemo(() => {
+    if (
+      !selectedFarm ||
+      selectedFarm.id !== farmId ||
+      selectedFarm.usedAcres == null ||
+      selectedFarm.availableAcres == null
+    ) {
+      return null;
+    }
+    const ownArea = isEdit && existing ? existing.areaAcres : 0;
+    return selectedFarm.availableAcres + ownArea;
+  }, [selectedFarm, farmId, isEdit, existing]);
+
+  const enteredArea = textToNum(areaAcres);
+  const areaWarning =
+    availableAreaAcres != null && enteredArea != null && enteredArea > availableAreaAcres
+      ? `Only ${formatNumber(availableAreaAcres)} acres free in this farm — this field's area goes over that.`
+      : null;
 
   const handlePickLocation = useCallback((loc: PickedLocation) => {
     setCoords({ latitude: loc.latitude, longitude: loc.longitude });
@@ -180,7 +179,6 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
     setLocation(clean(existing.coordinates));
     setSowingDate(existing.sowingDateISO || '');
     setExpectedHarvest(existing.expectedHarvestISO || '');
-    setStatus(existing.status);
     if (existing.latitude != null && existing.longitude != null) {
       setCoords({ latitude: existing.latitude, longitude: existing.longitude });
     }
@@ -201,12 +199,6 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
     soilSeededId.current = fieldId;
     hadSoilRef.current = soilHasData(soilRecord);
     setSoilTexture(soilRecord.texture ?? '');
-    setSoilPh(numToText(soilRecord.ph));
-    setSoilOrganicMatter(numToText(soilRecord.organicMatter));
-    setSoilNitrogen(numToText(soilRecord.nitrogen));
-    setSoilPhosphorus(numToText(soilRecord.phosphorus));
-    setSoilPotassium(numToText(soilRecord.potassium));
-    setSoilMoisture(numToText(soilRecord.moisture));
     setSoilTestedOn(soilRecord.testedOnISO ?? '');
     setSoilNotes(soilRecord.notes ?? '');
   }, [isEdit, fieldId, soilRecord]);
@@ -214,9 +206,11 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
   const validators = useMemo<ValidatorMap<FieldFormValues>>(
     () => ({
       name: requiredNameValidator<FieldFormValues>('Field name', 1),
-      areaAcres: optionalPositiveNumberValidator<FieldFormValues>(
+      areaAcres: requiredPositiveNumberValidator<FieldFormValues>(
+        'Area',
         'Enter a valid area in acres',
       ),
+      crop: requiredValidator<FieldFormValues>('Crop is required'),
     }),
     [],
   );
@@ -229,47 +223,32 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
 
   const persistSoil = useCallback(
     async (savedFieldId: string) => {
+      // Nutrients are locked until the field is enrolled in a started program, so
+      // the create/edit form only persists the always-editable fields. Nutrients
+      // are entered later from the field's soil tab.
       const input: SaveSoilInput = {
-        ph: textToNum(soilPh),
-        organicMatter: textToNum(soilOrganicMatter),
-        nitrogen: textToNum(soilNitrogen),
-        phosphorus: textToNum(soilPhosphorus),
-        potassium: textToNum(soilPotassium),
-        moisture: textToNum(soilMoisture),
         texture: soilTexture.trim() || null,
         notes: soilNotes.trim() || null,
         testedOn: soilTestedOn.trim() || null,
       };
       const hasAny =
-        input.ph !== null ||
-        input.organicMatter !== null ||
-        input.nitrogen !== null ||
-        input.phosphorus !== null ||
-        input.potassium !== null ||
-        input.moisture !== null ||
-        input.texture !== null ||
-        input.notes !== null ||
-        input.testedOn !== null;
-      if (hasAny || hadSoilRef.current) {
-        await dispatch(saveFieldSoilThunk({ fieldId: savedFieldId, input }));
+        input.texture !== null || input.notes !== null || input.testedOn !== null;
+      if (!hasAny && !hadSoilRef.current) {
+        return true;
       }
+      const action = await dispatch(saveFieldSoilThunk({ fieldId: savedFieldId, input }));
+      return saveFieldSoilThunk.fulfilled.match(action);
     },
-    [
-      dispatch,
-      soilPh,
-      soilOrganicMatter,
-      soilNitrogen,
-      soilPhosphorus,
-      soilPotassium,
-      soilMoisture,
-      soilTexture,
-      soilNotes,
-      soilTestedOn,
-    ],
+    [dispatch, soilTexture, soilNotes, soilTestedOn],
   );
 
   const handleSave = useCallback(async () => {
     if (saving || soilSaving) {
+      return;
+    }
+    // The button is disabled in this state, but the guard stays: it is the only
+    // thing that holds if the farm's free area shrinks between render and press.
+    if (areaWarning) {
       return;
     }
     if (!validateForm()) {
@@ -294,13 +273,16 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
             longitude: coords?.longitude,
             sowingDate: sowingDate.trim() || null,
             expectedHarvest: expectedHarvest.trim() || null,
-            status,
           },
         }),
       );
       if (updateFieldThunk.fulfilled.match(action)) {
-        await persistSoil(fieldId);
-        showSuccess('Field updated');
+        const soilSaved = await persistSoil(fieldId);
+        showSuccess(
+          soilSaved
+            ? 'Field updated'
+            : 'Field updated, but the soil details could not be saved',
+        );
         navigation.goBack();
       }
       return;
@@ -320,18 +302,23 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
           longitude: coords?.longitude,
           sowingDate: sowingDate.trim() || undefined,
           expectedHarvest: expectedHarvest.trim() || undefined,
-          status,
         },
       }),
     );
     if (createFieldThunk.fulfilled.match(action)) {
-      await persistSoil(action.payload.field.id);
-      showSuccess('Field added');
+      // The field is already created at this point, so never send the user back
+      // to re-submit — that would create a duplicate. Report what actually
+      // happened instead.
+      const soilSaved = await persistSoil(action.payload.field.id);
+      showSuccess(
+        soilSaved ? 'Field added' : 'Field added, but the soil details could not be saved',
+      );
       navigation.goBack();
     }
   }, [
     saving,
     soilSaving,
+    areaWarning,
     validateForm,
     areaAcres,
     isEdit,
@@ -346,45 +333,30 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
     coords,
     sowingDate,
     expectedHarvest,
-    status,
     persistSoil,
     navigation,
   ]);
 
+  // Nutrients are locked until the field is enrolled, so this form neither shows
+  // nor sends them; they are edited later from the field's soil tab.
   const soilValues = useMemo<SoilValues>(
     () => ({
       texture: soilTexture,
-      ph: soilPh,
-      organicMatter: soilOrganicMatter,
-      nitrogen: soilNitrogen,
-      phosphorus: soilPhosphorus,
-      potassium: soilPotassium,
-      moisture: soilMoisture,
+      ph: '',
+      organicMatter: '',
+      nitrogen: '',
+      phosphorus: '',
+      potassium: '',
+      moisture: '',
       testedOn: soilTestedOn,
       notes: soilNotes,
     }),
-    [
-      soilTexture,
-      soilPh,
-      soilOrganicMatter,
-      soilNitrogen,
-      soilPhosphorus,
-      soilPotassium,
-      soilMoisture,
-      soilTestedOn,
-      soilNotes,
-    ],
+    [soilTexture, soilTestedOn, soilNotes],
   );
 
   const handleSoilChange = useCallback((field: keyof SoilValues, value: string) => {
     switch (field) {
       case 'texture': setSoilTexture(value); break;
-      case 'ph': setSoilPh(value); break;
-      case 'organicMatter': setSoilOrganicMatter(value); break;
-      case 'nitrogen': setSoilNitrogen(value); break;
-      case 'phosphorus': setSoilPhosphorus(value); break;
-      case 'potassium': setSoilPotassium(value); break;
-      case 'moisture': setSoilMoisture(value); break;
       case 'testedOn': setSoilTestedOn(value); break;
       case 'notes': setSoilNotes(value); break;
     }
@@ -415,6 +387,7 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
 
         <Input
           label="Field Name"
+          required
           placeholder="e.g. North Plot"
           value={name}
           onChangeText={setName}
@@ -422,11 +395,13 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
           error={errors.name}
           autoCapitalize="words"
           returnKeyType="next"
+          maxLength={API_LIMITS.field.name}
         />
 
         <Input
           label="Area (acres)"
-          placeholder="e.g. 3.5  (optional)"
+          required
+          placeholder="e.g. 3.5"
           value={areaAcres}
           onChangeText={setAreaAcres}
           onValidate={v => validateField('areaAcres', { areaAcres: v })}
@@ -435,13 +410,24 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
           returnKeyType="next"
         />
 
+        {areaWarning ? (
+          <View style={styles.areaWarning}>
+            <AppIcon name={ICONS.WARNING} size={moderateScale(16)} color={COLORS.warning} />
+            <AppText style={styles.areaWarningText}>{areaWarning}</AppText>
+          </View>
+        ) : null}
+
         <Input
           label="Crop"
-          placeholder="e.g. Rice  (optional)"
+          required
+          placeholder="e.g. Rice"
           value={crop}
           onChangeText={setCrop}
+          onValidate={v => validateField('crop', { crop: v })}
+          error={errors.crop}
           autoCapitalize="words"
           returnKeyType="next"
+          maxLength={API_LIMITS.field.crop}
         />
 
         <Input
@@ -451,6 +437,7 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
           onChangeText={setSeason}
           autoCapitalize="words"
           returnKeyType="next"
+          maxLength={API_LIMITS.field.season}
         />
 
         <Input
@@ -460,6 +447,7 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
           onChangeText={setIrrigation}
           autoCapitalize="words"
           returnKeyType="next"
+          maxLength={API_LIMITS.field.irrigation}
         />
 
         <Input
@@ -468,6 +456,10 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
           value={location}
           onChangeText={setLocation}
           autoCapitalize="words"
+          multiline
+          // A map-picked address can be long — wrap it inside the field instead
+          // of overflowing the box (iOS doesn't clip overflow like Android).
+          blurOnSubmit
           returnKeyType="next"
         />
 
@@ -484,7 +476,7 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
             <AppText style={styles.soilTriggerSub} numberOfLines={1}>
               {coords
                 ? `📍 ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`
-                : 'Tap to pin - starts at the farm’s location'}
+                : 'Tap to pin — starts at the farm’s location'}
             </AppText>
           </View>
           <AppIcon
@@ -494,48 +486,21 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
           />
         </Pressable>
 
-        <AppText style={styles.fieldLabel}>Health Status</AppText>
-        <View style={styles.statusRow}>
-          {STATUS_OPTIONS.map(option => {
-            const active = status === option;
-            const accent = STATUS_COLOR[option];
-            return (
-              <Pressable
-                key={option}
-                onPress={() => setStatus(option)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                style={[
-                  styles.statusChip,
-                  active && { backgroundColor: accent, borderColor: accent },
-                ]}>
-                <View
-                  style={[styles.statusDot, { backgroundColor: active ? COLORS.white : accent }]}
-                />
-                <AppText
-                  style={[styles.statusText, active && styles.statusTextActive]}>
-                  {FIELD_HEALTH_META[option].label}
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </View>
-
         <View style={styles.dateRow}>
           <View style={styles.dateCol}>
-            <AppDatePicker
-              label="Sowing Date"
+            <AppMonthPicker
+              label="Expected Planting Month"
               value={sowingDate || null}
               onChange={setSowingDate}
-              maximumDate={parseISODate(expectedHarvest) ?? undefined}
+              maxMonth={expectedHarvest || null}
             />
           </View>
           <View style={styles.dateCol}>
-            <AppDatePicker
-              label="Exp. Harvest"
+            <AppMonthPicker
+              label="Expected Harvest Month"
               value={expectedHarvest || null}
               onChange={setExpectedHarvest}
-              minimumDate={parseISODate(sowingDate) ?? undefined}
+              minMonth={sowingDate || null}
             />
           </View>
         </View>
@@ -554,7 +519,7 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
             <AppText style={styles.soilTriggerSub} numberOfLines={1}>
               {filledSoilCount > 0
                 ? `${filledSoilCount} ${filledSoilCount === 1 ? 'detail' : 'details'} added`
-                : 'Optional - texture, pH, nutrients…'}
+                : 'Optional — texture, pH, nutrients…'}
             </AppText>
           </View>
           {filledSoilCount > 0 ? (
@@ -569,11 +534,14 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
           title={isEdit ? 'Save Changes' : 'Create Field'}
           onPress={handleSave}
           loading={saving || soilSaving}
+          disabled={!!areaWarning}
           style={styles.submit}
         />
       </KeyboardAwareScrollView>
 
       <SoilDetailsModal
+        showNutrients={false}
+        subtitle="Optional — nutrients unlock once the field is enrolled"
         visible={soilModalVisible}
         onClose={() => setSoilModalVisible(false)}
         values={soilValues}

@@ -6,6 +6,8 @@ import {
   refreshFarmFieldsThunk,
   createFieldThunk,
   updateFieldThunk,
+  resetFieldThunk,
+  deleteFieldThunk,
 } from '../thunks/fieldThunks';
 
 export interface FieldState {
@@ -15,6 +17,8 @@ export interface FieldState {
   refreshing: boolean;
   error: string | null;
   creating: boolean;
+  resetting: boolean;
+  deleting: boolean;
   createError: string | null;
   updating: boolean;
   updateError: string | null;
@@ -27,6 +31,8 @@ const initialState: FieldState = {
   refreshing: false,
   error: null,
   creating: false,
+  resetting: false,
+  deleting: false,
   createError: null,
   updating: false,
   updateError: null,
@@ -105,6 +111,36 @@ const fieldSlice = createSlice({
         state.updating = true;
         state.updateError = null;
       })
+      .addCase(resetFieldThunk.pending, state => {
+        state.resetting = true;
+        state.error = null;
+      })
+      .addCase(resetFieldThunk.fulfilled, (state, action) => {
+        state.resetting = false;
+        const { farmId, field } = action.payload;
+        if (field && state.farmId === farmId) {
+          state.fields = state.fields.map(f => (f.id === field.id ? field : f));
+        }
+      })
+      .addCase(resetFieldThunk.rejected, (state, action) => {
+        state.resetting = false;
+        state.error = action.payload?.message ?? 'Failed to reset field';
+      })
+      .addCase(deleteFieldThunk.pending, state => {
+        state.deleting = true;
+        state.error = null;
+      })
+      .addCase(deleteFieldThunk.fulfilled, (state, action) => {
+        state.deleting = false;
+        const { farmId, fieldId } = action.payload;
+        if (state.farmId === farmId) {
+          state.fields = state.fields.filter(f => f.id !== fieldId);
+        }
+      })
+      .addCase(deleteFieldThunk.rejected, (state, action) => {
+        state.deleting = false;
+        state.error = action.payload?.message ?? 'Failed to delete field';
+      })
       .addCase(updateFieldThunk.fulfilled, (state, action) => {
         state.updating = false;
         if (state.farmId === action.payload.farmId) {
@@ -146,5 +182,7 @@ export const selectFieldsRefreshing = (s: HasField): boolean => s.field.refreshi
 export const selectFieldsError = (s: HasField): string | null => s.field.error;
 export const selectFieldCreating = (s: HasField): boolean => s.field.creating;
 export const selectFieldCreateError = (s: HasField): string | null => s.field.createError;
+export const selectFieldResetting = (s: HasField): boolean => s.field.resetting;
+export const selectFieldDeleting = (s: HasField): boolean => s.field.deleting;
 export const selectFieldUpdating = (s: HasField): boolean => s.field.updating;
 export const selectFieldUpdateError = (s: HasField): string | null => s.field.updateError;
