@@ -8,14 +8,11 @@ import {
   findRoleByName,
   findPublicById,
   findById,
-  findAnyById,
   createUserByAdmin,
   listUsers,
   listAssessors,
   updateUser,
   setUserStatus,
-  softDeleteUser,
-  restoreUser,
   updatePassword,
   emailExists,
   setUserOrg,
@@ -28,6 +25,11 @@ import { uploadAvatarImage } from "./upload.service.js";
 import { emitSync } from "../socket/liveSync.js";
 import { broadcastToAdmins } from "./realtime.service.js";
 import { notifyUser } from "./notification.service.js";
+import {
+  summarizeUserDeletion,
+  deleteUserCascade,
+  type DeletionLine,
+} from "./cascadeDelete.service.js";
 import { assessorAssignedEmail } from "./emailTemplates.js";
 import {
   setFarmerAssessor,
@@ -103,6 +105,8 @@ interface ListUsersInput {
   page: number;
   limit: number;
   role?: string;
+  /** The only roles the caller may see. */
+  roles?: string[];
   status?: "active" | "inactive";
   search?: string;
   assessor?: "assigned" | "unassigned";
@@ -114,6 +118,7 @@ export async function getUsers(input: ListUsersInput): Promise<{
 }> {
   const filters: ListUsersFilters = {
     role: input.role,
+    roles: input.roles,
     status: input.status,
     search: input.search,
     assessor: input.assessor,
@@ -290,37 +295,30 @@ export async function removeUser(id: string, actor: Actor): Promise<void> {
     );
   }
   await loadManageableTarget(id, actor);
-  const ok = await softDeleteUser(id);
+  // Their farms, fields, enrollments, assessments and visits go with them:
+  // left behind they would be counted and listed with nobody to explain them.
+  const ok = await deleteUserCascade(id);
   if (!ok) throw ApiError.notFound("User not found or already deleted.");
   await revokeAllForUser(id);
   broadcastToAdmins("users");
+  broadcastToAdmins("farms");
+  broadcastToAdmins("fields");
+  broadcastToAdmins("enrollments");
+}
+
+/** What deleting this person would take with them, for the confirmation. */
+export async function getUserDeletionSummary(
+  id: string,
+  actor: Actor
+): Promise<DeletionLine[]> {
+  await loadManageableTarget(id, actor);
+  return summarizeUserDeletion(id);
 }
 
 export async function deleteOwnAccount(userId: string): Promise<void> {
-  const ok = await softDeleteUser(userId);
+  const ok = await deleteUserCascade(userId);
   if (!ok) throw ApiError.notFound("Account not found or already deleted.");
   await revokeAllForUser(userId);
-}
-
-export async function restoreUserById(
-  id: string,
-  actor: Actor
-): Promise<PublicUser> {
-  const target = await findAnyById(id);
-  if (!target) throw ApiError.notFound("No deleted user found to restore.");
-  if (!canManageUser(actor.role, target.role_name)) {
-    throw ApiError.forbidden(
-      "You do not have permission to manage this account."
-    );
-  }
-  const ok = await restoreUser(id);
-  if (!ok) {
-    throw ApiError.notFound("No deleted user found to restore.");
-  }
-  const user = await findPublicById(id);
-  if (!user) throw ApiError.notFound("User not found after restore.");
-  broadcastToAdmins("users");
-  return user;
 }
 
 export async function changeStatus(

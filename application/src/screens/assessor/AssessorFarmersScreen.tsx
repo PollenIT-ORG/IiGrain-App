@@ -12,7 +12,7 @@ import { AppIcon, ICONS } from '../../components/AppIcon';
 import { AppHeader, AppText, Button } from '../../components';
 import { EmptyState } from '../../components/farms';
 import { AppShimmer, AppShimmerList, AppShimmerRow } from '../../components/Shimmer';
-import { COLORS, borderRadius, borderWidth, presets, shadows, spacing } from '../../constants';
+import { COLORS, LIST_PERF, borderRadius, borderWidth, presets, shadows, spacing } from '../../constants';
 import { moderateScale } from '../../utils';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import { useAssessorOverviewSync } from '../../hooks/useAssessorOverviewSync';
@@ -36,8 +36,6 @@ const AssessorFarmersScreen: React.FC = () => {
 
   const header = <AppHeader variant="title" title="Farmers" rightActions={['notification']} />;
 
-  // Shared overview cache: fetch once, then refresh only when the socket says
-  // an assignment/assessment changed (or the TTL lapses). See the hook.
   useAssessorOverviewSync(!!overview);
 
   const onRefresh = useCallback(() => dispatch(fetchAssessorFieldsThunk()), [dispatch]);
@@ -47,6 +45,8 @@ const AssessorFarmersScreen: React.FC = () => {
       navigation.navigate('AssessorFarmerDetail', { farmerId: f.id, farmerName: f.name }),
     [navigation],
   );
+
+  const keyExtractor = useCallback((item: AssignedFarmer) => item.id, []);
 
   const renderItem = useCallback<ListRenderItem<AssignedFarmer>>(
     ({ item }) => (
@@ -103,10 +103,11 @@ const AssessorFarmersScreen: React.FC = () => {
       {header}
       <FlatList
         data={farmers}
-        keyExtractor={item => item.id}
+        keyExtractor={keyExtractor}
         renderItem={renderItem}
         contentContainerStyle={styles.body}
         showsVerticalScrollIndicator={false}
+        {...LIST_PERF}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={onRefresh} colors={[COLORS.primary]} tintColor={COLORS.primary} />
         }

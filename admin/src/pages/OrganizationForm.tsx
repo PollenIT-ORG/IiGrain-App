@@ -235,10 +235,9 @@ export default function OrganizationForm() {
                 id="contactPhone"
                 value={contactPhone}
                 onChange={setContactPhone}
+                label="Contact number"
+                error={errors.contactPhone}
               />
-              {errors.contactPhone && (
-                <p className="field-error">{errors.contactPhone}</p>
-              )}
             </div>
           </div>
 

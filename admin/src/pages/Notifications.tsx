@@ -30,8 +30,8 @@ function timeAgo(iso: string): string {
 function adminRouteFor(n: AppNotification): string | null {
   const r = n.redirect;
   if (!r) return null;
-  if (r.submissionId) return `/eligibility/${r.submissionId}`;
-  if (r.screen === "eligibility") return "/eligibility";
+  if (r.submissionId) return `/survey-submissions/${r.submissionId}`;
+  if (r.screen === "eligibility") return "/survey-submissions";
   if (r.visitId) return "/live-visits";
   if (r.fieldId) return `/fields/${r.fieldId}`;
   if (r.programId) return `/programs/${r.programId}`;

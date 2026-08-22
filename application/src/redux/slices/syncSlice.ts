@@ -1,20 +1,7 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { logout } from './authSlice';
-import { Tags } from '../syncTags';
+import { Tags, tagsForSync } from '../syncTags';
 
-/**
- * The invalidation registry.
- *
- * Every cache tag has a version counter. Screens read the sum of the versions of
- * the tags they depend on (their "stamp") and refetch only when that sum moves.
- * The socket bumps tags when the server reports a change, so data stays live
- * without any screen polling on mount/focus.
- *
- * `epoch` is a global bump added to every stamp. It exists for reconnects:
- * `sync` events are fire-and-forget, so a device that was offline may have
- * missed some. Bumping the epoch on RE-connect invalidates everything at once,
- * which is the catch-up refetch the backend guide asks for.
- */
 export interface SyncState {
   tags: Record<string, number>;
   epoch: number;
@@ -39,8 +26,13 @@ const isFulfilledWrite = (action: unknown): action is FulfilledAction => {
 
 const writeKey = (type: string): string => type.slice(0, -'/fulfilled'.length);
 
-/** Thunk args are plain objects or a bare id string; read ids defensively. */
-type WriteArg = { fieldId?: unknown; farmId?: unknown; id?: unknown };
+type WriteArg = {
+  fieldId?: unknown;
+  farmId?: unknown;
+  programId?: unknown;
+  id?: unknown;
+  module?: unknown;
+};
 
 const argOf = (action: FulfilledAction): WriteArg => {
   const arg = action.meta?.arg;
@@ -50,7 +42,12 @@ const argOf = (action: FulfilledAction): WriteArg => {
 const str = (value: unknown): string | null =>
   typeof value === 'string' && value.length > 0 ? value : null;
 
-const FARM_SHAPE_TAGS = [Tags.farms, Tags.dashboard, Tags.enrollableFields];
+const FARM_SHAPE_TAGS = [
+  Tags.farms,
+  Tags.dashboard,
+  Tags.enrollableFields,
+  Tags.programs,
+];
 
 const ENROLMENT_TAGS = [
   Tags.programs,
@@ -61,9 +58,23 @@ const ENROLMENT_TAGS = [
   Tags.dashboard,
 ];
 
+const assessmentWrite = (arg: WriteArg): string[] =>
+  tagsForSync({
+    resource: 'assessment',
+    action: 'updated',
+    programId: str(arg.programId) ?? undefined,
+    fieldId: str(arg.fieldId) ?? undefined,
+  });
+
 const WRITE_INVALIDATIONS: Record<string, (arg: WriteArg) => string[]> = {
-  'enrollment/enrollSelf': () => ENROLMENT_TAGS,
-  'enrollment/unenrollField': () => ENROLMENT_TAGS,
+  'assessment/saveAnswer': assessmentWrite,
+  'assessment/submit': assessmentWrite,
+  'assessment/discard': assessmentWrite,
+  'assessor/saveAnswer': assessmentWrite,
+  'assessor/submit': assessmentWrite,
+
+  'enrollment/enrollSelf': arg => withMonitoringPrograms(ENROLMENT_TAGS, arg),
+  'enrollment/unenrollField': arg => withMonitoringPrograms(ENROLMENT_TAGS, arg),
 
   'farm/createFarm': () => FARM_SHAPE_TAGS,
   'farm/updateFarm': () => FARM_SHAPE_TAGS,
@@ -82,7 +93,33 @@ const WRITE_INVALIDATIONS: Record<string, (arg: WriteArg) => string[]> = {
 
   'fieldDetails/uploadDocument': arg => withField([], arg),
   'fieldDetails/deleteDocument': arg => withField([], arg),
+
+  'monitoring/createRecord': monitoringWrite,
+  'monitoring/seedFieldPoints': monitoringWrite,
+  'monitoring/updateRecord': monitoringWrite,
+  'monitoring/deleteRecord': monitoringWrite,
+  'monitoring/uploadDocument': monitoringWrite,
+  'monitoring/deleteDocument': monitoringWrite,
 };
+
+const withMonitoringPrograms = (base: string[], arg: WriteArg): string[] => {
+  const farmId = str(arg.farmId);
+  return farmId ? [...base, Tags.monitoringPrograms(farmId)] : base;
+};
+
+function monitoringWrite(arg: WriteArg): string[] {
+  const programId = str(arg.programId);
+  const fieldId = str(arg.fieldId);
+  if (!programId || !fieldId) {
+    return [];
+  }
+  const module = str(arg.module);
+  const tags = [Tags.monitoring(programId, fieldId)];
+  if (module) {
+    tags.push(Tags.monitoringModule(programId, fieldId, module));
+  }
+  return tags;
+}
 
 const withFarm = (base: string[], arg: WriteArg): string[] => {
   const farmId = str(arg.farmId);
@@ -103,7 +140,6 @@ const syncSlice = createSlice({
         state.tags[tag] = (state.tags[tag] ?? 0) + 1;
       }
     },
-    /** Catch-up after a reconnect: invalidate every cache at once. */
     bumpSyncEpoch(state) {
       state.epoch += 1;
     },
@@ -114,14 +150,6 @@ const syncSlice = createSlice({
   extraReducers: builder => {
     builder
       .addCase(logout, () => initialState)
-      // Local writes invalidate the same tags the socket would, so the user's
-      // own device updates instantly and still behaves correctly when the
-      // socket is down. Matched by action type so no thunk has to be imported
-      // here (and no import cycle is possible).
-      //
-      // Assessment writes are deliberately absent: they already propagate
-      // through `answerVersion` and `staleFarmIds`, and adding them here would
-      // just double-fetch on the hottest path in the app.
       .addMatcher(isFulfilledWrite, (state, action) => {
         const tags = WRITE_INVALIDATIONS[writeKey(action.type)]?.(argOf(action));
         if (!tags) {
@@ -143,10 +171,6 @@ interface HasSync {
 
 export const selectSocketConnected = (s: HasSync): boolean => s.sync.connected;
 
-/**
- * The stamp for a set of tags: the epoch plus each tag's version. Returns a
- * plain number so `useSelector` never sees a new reference and re-renders.
- */
 export const selectTagStamp = (s: HasSync, tags: readonly string[]): number => {
   let stamp = s.sync.epoch;
   for (const tag of tags) {

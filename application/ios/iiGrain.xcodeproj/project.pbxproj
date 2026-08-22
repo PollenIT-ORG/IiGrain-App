@@ -7,15 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		05405085046B4C3FB5312F89 /* Inter-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 241B09E9931946ACB2D4D6BC /* Inter-SemiBold.ttf */; };
 		0C80B921A6F3F58F76C31292 /* libPods-iiGrain.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-iiGrain.a */; };
+		0FA49308961E8959A1E9EF4B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		52F43772D994418D96719650 /* Inter-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3399C493C0F24C67B1BD0F24 /* Inter-SemiBold.ttf */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
-		995E9DCD1DB346448B8C2D59 /* Inter-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 415B58E702A046C8A529F68B /* Inter-Regular.ttf */; };
-		BF283F0E884C4C5BBC5F387A /* Inter-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 82D851D67B3A491FA553962F /* Inter-Bold.ttf */; };
-		C0A3429854BEB78379AC047C /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
-		F20D6FD07BAF4EEB8B658C32 /* Inter-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CB223779E838462481F7282C /* Inter-Medium.ttf */; };
+		B87B0BD3AA564ABD9F3EC5FD /* Inter-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91C94A50356D41A2961E7A1A /* Inter-Bold.ttf */; };
+		DEEBDEF9A9974730A0F1566A /* Inter-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 53FC2D3858CD487786739906 /* Inter-Regular.ttf */; };
+		F0EF94E8F69C41B28B3A2E62 /* Inter-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E2C8F4D3234E413EACC4DDBF /* Inter-Medium.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -23,15 +23,15 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = iiGrain/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = iiGrain/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = iiGrain/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		241B09E9931946ACB2D4D6BC /* Inter-SemiBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = "Inter-SemiBold.ttf"; path = "../src/assets/fonts/Inter-SemiBold.ttf"; sourceTree = "<group>"; };
+		3399C493C0F24C67B1BD0F24 /* Inter-SemiBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Inter-SemiBold.ttf"; path = "../src/assets/fonts/Inter-SemiBold.ttf"; sourceTree = "<group>"; };
 		3B4392A12AC88292D35C810B /* Pods-iiGrain.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-iiGrain.debug.xcconfig"; path = "Target Support Files/Pods-iiGrain/Pods-iiGrain.debug.xcconfig"; sourceTree = "<group>"; };
-		415B58E702A046C8A529F68B /* Inter-Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = "Inter-Regular.ttf"; path = "../src/assets/fonts/Inter-Regular.ttf"; sourceTree = "<group>"; };
+		53FC2D3858CD487786739906 /* Inter-Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Inter-Regular.ttf"; path = "../src/assets/fonts/Inter-Regular.ttf"; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-iiGrain.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-iiGrain.release.xcconfig"; path = "Target Support Files/Pods-iiGrain/Pods-iiGrain.release.xcconfig"; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-iiGrain.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-iiGrain.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = iiGrain/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = iiGrain/LaunchScreen.storyboard; sourceTree = "<group>"; };
-		82D851D67B3A491FA553962F /* Inter-Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = "Inter-Bold.ttf"; path = "../src/assets/fonts/Inter-Bold.ttf"; sourceTree = "<group>"; };
-		CB223779E838462481F7282C /* Inter-Medium.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = "Inter-Medium.ttf"; path = "../src/assets/fonts/Inter-Medium.ttf"; sourceTree = "<group>"; };
+		91C94A50356D41A2961E7A1A /* Inter-Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Inter-Bold.ttf"; path = "../src/assets/fonts/Inter-Bold.ttf"; sourceTree = "<group>"; };
+		E2C8F4D3234E413EACC4DDBF /* Inter-Medium.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Inter-Medium.ttf"; path = "../src/assets/fonts/Inter-Medium.ttf"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -59,15 +59,16 @@
 			name = iiGrain;
 			sourceTree = "<group>";
 		};
-		13F6DD018ECA4C1C952D2356 /* Resources */ = {
+		1F8D396677B5440EB1710146 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				82D851D67B3A491FA553962F /* Inter-Bold.ttf */,
-				CB223779E838462481F7282C /* Inter-Medium.ttf */,
-				415B58E702A046C8A529F68B /* Inter-Regular.ttf */,
-				241B09E9931946ACB2D4D6BC /* Inter-SemiBold.ttf */,
+				91C94A50356D41A2961E7A1A /* Inter-Bold.ttf */,
+				E2C8F4D3234E413EACC4DDBF /* Inter-Medium.ttf */,
+				53FC2D3858CD487786739906 /* Inter-Regular.ttf */,
+				3399C493C0F24C67B1BD0F24 /* Inter-SemiBold.ttf */,
 			);
 			name = Resources;
+			path = "";
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
@@ -94,7 +95,7 @@
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				BBD78D7AC51CEA395F1C20DB /* Pods */,
-				13F6DD018ECA4C1C952D2356 /* Resources */,
+				1F8D396677B5440EB1710146 /* Resources */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -180,11 +181,11 @@
 			files = (
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
-				C0A3429854BEB78379AC047C /* PrivacyInfo.xcprivacy in Resources */,
-				BF283F0E884C4C5BBC5F387A /* Inter-Bold.ttf in Resources */,
-				F20D6FD07BAF4EEB8B658C32 /* Inter-Medium.ttf in Resources */,
-				995E9DCD1DB346448B8C2D59 /* Inter-Regular.ttf in Resources */,
-				05405085046B4C3FB5312F89 /* Inter-SemiBold.ttf in Resources */,
+				B87B0BD3AA564ABD9F3EC5FD /* Inter-Bold.ttf in Resources */,
+				F0EF94E8F69C41B28B3A2E62 /* Inter-Medium.ttf in Resources */,
+				DEEBDEF9A9974730A0F1566A /* Inter-Regular.ttf in Resources */,
+				52F43772D994418D96719650 /* Inter-SemiBold.ttf in Resources */,
+				0FA49308961E8959A1E9EF4B /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -215,13 +216,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-iiGrain/Pods-iiGrain-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-iiGrain/Pods-iiGrain-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -258,13 +255,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-iiGrain/Pods-iiGrain-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-iiGrain/Pods-iiGrain-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -292,7 +285,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = SADMK33W84;
 				ENABLE_BITCODE = NO;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -325,7 +318,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = SADMK33W84;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = iiGrain/Info.plist;
@@ -426,7 +419,6 @@
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
-				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				USE_HERMES = true;
 			};
 			name = Debug;
@@ -499,7 +491,6 @@
 				);
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
-				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				USE_HERMES = true;
 				VALIDATE_PRODUCT = YES;
 			};

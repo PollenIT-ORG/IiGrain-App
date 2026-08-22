@@ -16,7 +16,9 @@ import { moderateScale, scale } from '../../utils';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
   applyVisitUpdate,
+  fetchVisitTrackThunk,
   selectIncomingVisit,
+  selectVisitTrail,
   setIncomingVisit,
 } from '../../redux/slices/visitSlice';
 import {
@@ -26,7 +28,8 @@ import {
   type RawVisit,
 } from '../../api/visitApi';
 import { connectSocket, getSocket, joinVisitRoom, leaveVisitRoom } from '../../services/socket';
-import type { Visit, VisitOutcome } from '../../types/visit';
+import { isVisitTerminal } from '../../types/visit';
+import type { Visit, VisitStatus } from '../../types/visit';
 import type { AppScreenProps } from '../../navigation/navigationTypes';
 
 const FarmerVisitTrackingScreen: React.FC<AppScreenProps<'FarmerVisitTracking'>> = ({
@@ -36,10 +39,11 @@ const FarmerVisitTrackingScreen: React.FC<AppScreenProps<'FarmerVisitTracking'>>
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const reduxVisit = useAppSelector(selectIncomingVisit);
+  const trail = useAppSelector(selectVisitTrail);
   const routeVisitId = route.params?.visitId;
 
   const [visit, setVisit] = useState<Visit | null>(reduxVisit);
-  const [ended, setEnded] = useState<VisitOutcome | null>(null);
+  const [ended, setEnded] = useState<VisitStatus | null>(null);
   const visitId = visit?.id ?? routeVisitId;
 
   useEffect(() => {
@@ -66,6 +70,12 @@ const FarmerVisitTrackingScreen: React.FC<AppScreenProps<'FarmerVisitTracking'>>
   }, [visit, routeVisitId, dispatch]);
 
   useEffect(() => {
+    if (visitId) {
+      dispatch(fetchVisitTrackThunk(visitId));
+    }
+  }, [dispatch, visitId]);
+
+  useEffect(() => {
     if (!visitId) {
       return;
     }
@@ -84,7 +94,7 @@ const FarmerVisitTrackingScreen: React.FC<AppScreenProps<'FarmerVisitTracking'>>
       const v = mapVisit(raw as RawVisit);
       setVisit(v);
       dispatch(applyVisitUpdate(v));
-      if (v.status === 'completed' || v.status === 'cancelled') {
+      if (isVisitTerminal(v.status)) {
         setEnded(v.status);
       }
     };
@@ -130,12 +140,28 @@ const FarmerVisitTrackingScreen: React.FC<AppScreenProps<'FarmerVisitTracking'>>
   const arrived = visit.status === 'arrived';
   const subtitle = [visit.farmName, visit.fieldName].filter(Boolean).join(' - ');
   const completed = ended === 'completed';
+  const endedTitle =
+    ended === 'completed' ? 'Visit completed' : ended === 'expired' ? 'Visit timed out' : 'Visit cancelled';
+  const endedBody =
+    ended === 'completed'
+      ? `${visit.assessorName} has finished the visit to your farm.`
+      : ended === 'expired'
+        ? `We stopped tracking ${visit.assessorName} after a long gap with no location.`
+        : `${visit.assessorName} called off the visit.`;
 
   return (
     <View style={styles.safe}>
       <AppHeader variant="back" title="Live tracking" onBack={() => navigation.goBack()} />
 
-      <VisitMap assessor={assessorPos} destination={destination} style={styles.map} />
+      <VisitMap
+        assessor={assessorPos}
+        destination={destination}
+        trail={trail}
+        boundary={visit.fieldBoundary}
+        fieldName={visit.fieldName}
+        lastSeenISO={visit.lastLocationAtISO}
+        style={styles.map}
+      />
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing[3] }]}>
         {ended ? (
@@ -150,12 +176,10 @@ const FarmerVisitTrackingScreen: React.FC<AppScreenProps<'FarmerVisitTracking'>>
               </View>
               <View style={styles.rowTexts}>
                 <AppText style={styles.name} numberOfLines={1}>
-                  {completed ? 'Visit completed' : 'Visit cancelled'}
+                  {endedTitle}
                 </AppText>
                 <AppText style={styles.sub} numberOfLines={2}>
-                  {completed
-                    ? `${visit.assessorName} has finished the visit to your farm.`
-                    : `${visit.assessorName} called off the visit.`}
+                  {endedBody}
                 </AppText>
               </View>
             </View>

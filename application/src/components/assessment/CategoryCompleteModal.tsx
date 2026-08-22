@@ -15,21 +15,13 @@ import Button from '../Button/Button';
 
 export interface CategoryCompleteModalProps {
   visible: boolean;
-  /** Category the user has just finished. */
   categoryName: string;
-  /** Field-wide answered / total question counts. */
   answered: number;
   total: number;
-  /** Categories in this field that still have unanswered questions. */
   categoriesRemaining: number;
   onOk: () => void;
 }
 
-/**
- * Shown when the user answers the last open question of a category. Instead of
- * silently chaining into the next category, it reports how far the FIELD has
- * come and hands control back so the user picks what to do next.
- */
 const CategoryCompleteModal: React.FC<CategoryCompleteModalProps> = ({
   visible,
   categoryName,
@@ -123,12 +115,6 @@ const CategoryCompleteModal: React.FC<CategoryCompleteModalProps> = ({
       visible={visible}
       transparent
       animationType="fade"
-      // Deliberately NOT statusBarTranslucent/navigationBarTranslucent. Those
-      // flags make Android re-lay-out the window edge-to-edge while the modal is
-      // up, which changes the measured safe-area insets. This modal's OK button
-      // resets the navigation stack, so the screen tree is torn down in the same
-      // frame — and the inset change sticks, leaving the gradient header padded
-      // to the wrong height and the status bar unpainted.
       onRequestClose={onOk}>
       <View style={styles.backdrop}>
         <View style={styles.card}>

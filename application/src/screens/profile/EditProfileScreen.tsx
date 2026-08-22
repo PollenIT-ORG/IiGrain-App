@@ -132,8 +132,6 @@ const EditProfileScreen: React.FC = () => {
     );
 
     if (updateProfileThunk.fulfilled.match(action)) {
-      // No refetch: updateProfileThunk.fulfilled already stores the updated
-      // profile, and authSlice mirrors it onto the auth user.
       showSuccess('Profile updated successfully');
       navigation.goBack();
     }

@@ -11,7 +11,7 @@ const log = (...args: unknown[]): void => {
   }
 };
 
-const attachLogging = (s: Socket): void => {
+const attachRoomRejoin = (s: Socket): void => {
   s.on('connect', () => {
     log('✅ connected · id =', s.id);
     rooms.forEach((_count, visitId) => {
@@ -19,6 +19,12 @@ const attachLogging = (s: Socket): void => {
       s.emit('visit:join', { visitId });
     });
   });
+};
+
+const attachLogging = (s: Socket): void => {
+  if (!Env.IS_DEV) {
+    return;
+  }
   s.on('connect_error', (e: Error) => log('❌ connect_error:', e.message));
   s.on('disconnect', (reason: string) => log('🔌 disconnected:', reason));
   s.io.on('reconnect_attempt', (n: number) => log('♻️  reconnect attempt', n));
@@ -49,25 +55,22 @@ export const connectSocket = async (): Promise<Socket> => {
   log('creating new socket →', `${Env.API_HOST}/socket.io`);
   socket = io(Env.API_HOST, {
     path: '/socket.io',
-    transports: ['polling', 'websocket'],
+    transports: ['websocket', 'polling'],
     auth: { token },
     autoConnect: true,
     reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
   });
+  attachRoomRejoin(socket);
   attachLogging(socket);
   return socket;
 };
 
 export const getSocket = (): Socket | null => socket;
 
-/**
- * Re-hands the socket its new access token after an HTTP refresh.
- *
- * The handshake auth is only read when a connection is established, so a socket
- * that is already up keeps running on the old token — but the next reconnect
- * would present an expired one and be refused. Updating `auth` in place fixes
- * that; a socket that has already dropped is reconnected immediately.
- */
 export const reauthSocket = (token: string): void => {
   if (!socket) {
     return;

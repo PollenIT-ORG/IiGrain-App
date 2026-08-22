@@ -6,8 +6,6 @@ export type NotificationType =
   | 'assessment_submitted'
   | string;
 
-/** Stable key the backend sends so the app knows which screen to open. It is
- *  always present; the worst case is `'notifications'`. */
 export type NotificationScreenKey =
   | 'available_programs'
   | 'my_assessments'

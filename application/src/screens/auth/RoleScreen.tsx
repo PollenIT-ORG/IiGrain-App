@@ -1,18 +1,24 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppIcon, ICONS } from '../../components/AppIcon';
-import { AppStatusBar, AppText, AuthHeader, Button } from '../../components';
-import type { DropdownOption } from '../../components';
+import {
+  AppStatusBar,
+  AppText,
+  AuthHeader,
+  Button,
+  NoticeCard,
+} from '../../components';
+import type { DropdownOption, NoticeTone } from '../../components';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
   clearError,
-  selectAuthError,
   selectAuthLoading,
   signupThunk,
 } from '../../redux/slices/authSlice';
 import { getRoles } from '../../api/authApi';
+import type { StandardizedError } from '../../utils/handleApiError';
 import { COLORS } from '../../constants';
 import { moderateScale } from '../../utils';
 import type { AuthScreenProps } from '../../navigation/navigationTypes';
@@ -30,6 +36,62 @@ const ROLE_META: Record<string, { icon: string; description: string }> = {
 };
 const DEFAULT_META = { icon: 'account-outline', description: '' };
 
+type Recovery = 'editEnrollmentId' | 'editDetails' | 'login' | 'none';
+
+interface FailureView {
+  tone: NoticeTone;
+  icon: string;
+  title: string;
+  recovery: Recovery;
+}
+
+const FAILURES: Record<string, FailureView> = {
+  ALREADY_REGISTERED: {
+    tone: 'info',
+    icon: ICONS.USER_CIRCLE,
+    title: 'You already have an account',
+    recovery: 'login',
+  },
+  ACCOUNT_ALREADY_EXISTS: {
+    tone: 'info',
+    icon: ICONS.USER_CIRCLE,
+    title: 'You already have an account',
+    recovery: 'login',
+  },
+  ENROLLMENT_ID_NOT_FOUND: {
+    tone: 'warning',
+    icon: ICONS.ID_CARD,
+    title: "We couldn't find that Enrollment ID",
+    recovery: 'editEnrollmentId',
+  },
+  ENROLLMENT_ID_REQUIRED: {
+    tone: 'warning',
+    icon: ICONS.ID_CARD,
+    title: 'Enrollment ID needed',
+    recovery: 'editEnrollmentId',
+  },
+  ENROLLMENT_ID_EMAIL_MISMATCH: {
+    tone: 'warning',
+    icon: ICONS.EMAIL,
+    title: 'That ID was issued to another email',
+    recovery: 'editDetails',
+  },
+};
+
+const GENERIC_FAILURE: FailureView = {
+  tone: 'danger',
+  icon: ICONS.ERROR,
+  title: "We couldn't create your account",
+  recovery: 'none',
+};
+
+const RECOVERY_LABEL: Record<Recovery, string | null> = {
+  editEnrollmentId: 'Check my Enrollment ID',
+  editDetails: 'Edit my details',
+  login: 'Go to login',
+  none: null,
+};
+
 const toRows = <T,>(items: T[]): T[][] => {
   const rows: T[][] = [];
   for (let i = 0; i < items.length; i += 2) {
@@ -39,13 +101,13 @@ const toRows = <T,>(items: T[]): T[][] => {
 };
 
 const RoleScreen: React.FC<AuthScreenProps<'Role'>> = ({ route, navigation }) => {
-  const { fullName, email, phone, password } = route.params;
+  const { fullName, email, phone, password, enrollmentId } = route.params;
   const dispatch = useAppDispatch();
   const loading = useAppSelector(selectAuthLoading);
-  const serverError = useAppSelector(selectAuthError);
 
   const [roles, setRoles] = useState<DropdownOption[]>(FALLBACK_ROLES);
   const [selected, setSelected] = useState<string | null>(null);
+  const [failure, setFailure] = useState<StandardizedError | null>(null);
 
   const loadRoles = useCallback(async () => {
     try {
@@ -65,12 +127,28 @@ const RoleScreen: React.FC<AuthScreenProps<'Role'>> = ({ route, navigation }) =>
     loadRoles();
   }, [dispatch, loadRoles]);
 
+  const backToSignup = useCallback(
+    (enrollmentError?: string) => {
+      navigation.navigate(
+        'Authentication',
+        { mode: 'signup', enrollmentError },
+        { pop: true },
+      );
+    },
+    [navigation],
+  );
+
+  const goToLogin = useCallback(() => {
+    navigation.navigate('Authentication', { mode: 'login' }, { pop: true });
+  }, [navigation]);
+
   const handleCreate = useCallback(async () => {
     if (loading || !selected) {
       return;
     }
+    setFailure(null);
     const action = await dispatch(
-      signupThunk({ fullName, email, phone, password, role: selected }),
+      signupThunk({ fullName, email, phone, password, role: selected, enrollmentId }),
     );
     if (signupThunk.fulfilled.match(action)) {
       navigation.navigate('Otp', {
@@ -78,8 +156,46 @@ const RoleScreen: React.FC<AuthScreenProps<'Role'>> = ({ route, navigation }) =>
         code: action.payload.code,
         mode: 'verify',
       });
+      return;
     }
-  }, [loading, selected, dispatch, fullName, email, phone, password, navigation]);
+    setFailure(action.payload ?? null);
+  }, [
+    loading,
+    selected,
+    dispatch,
+    fullName,
+    email,
+    phone,
+    password,
+    enrollmentId,
+    navigation,
+  ]);
+
+  const notice = useMemo(() => {
+    if (!failure) {
+      return null;
+    }
+    const view = FAILURES[failure.code] ?? GENERIC_FAILURE;
+    const label = RECOVERY_LABEL[view.recovery];
+    if (!label) {
+      return { view, primary: undefined, secondary: undefined };
+    }
+    const primary = {
+      label,
+      onPress:
+        view.recovery === 'login'
+          ? goToLogin
+          : () =>
+              backToSignup(
+                view.recovery === 'editEnrollmentId' ? failure.message : undefined,
+              ),
+    };
+    const secondary =
+      view.recovery === 'login'
+        ? { label: 'Use a different email', onPress: () => backToSignup() }
+        : undefined;
+    return { view, primary, secondary };
+  }, [failure, goToLogin, backToSignup]);
 
   const renderCard = (role: DropdownOption, fullWidth: boolean) => {
     const meta = ROLE_META[role.value] ?? DEFAULT_META;
@@ -102,7 +218,7 @@ const RoleScreen: React.FC<AuthScreenProps<'Role'>> = ({ route, navigation }) =>
           </View>
         ) : null}
 
-        <View style={[styles.iconCircle, 
+        <View style={[styles.iconCircle,
           isActive ?
           styles.iconCircleActive:
           styles.iconCircleInActive
@@ -153,10 +269,16 @@ const RoleScreen: React.FC<AuthScreenProps<'Role'>> = ({ route, navigation }) =>
           ))}
         </View>
 
-        {serverError ? (
-          <View style={styles.errorBanner}>
-            <AppText style={styles.errorText}>{serverError}</AppText>
-          </View>
+        {notice && failure ? (
+          <NoticeCard
+            tone={notice.view.tone}
+            icon={notice.view.icon}
+            title={notice.view.title}
+            message={failure.message}
+            primaryAction={notice.primary}
+            secondaryAction={notice.secondary}
+            style={styles.notice}
+          />
         ) : null}
 
         <Button

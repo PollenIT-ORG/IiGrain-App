@@ -109,10 +109,15 @@ const env: AppEnv = {
 
   // Base URL where the public survey lives (the admin app, which serves the
   // survey at /survey). Emails build their survey, status and contract links
-  // from this.
-  surveyAppUrl: getEnv("SURVEY_APP_URL", {
-    default: "http://localhost:3001",
-  }).replace(/\/+$/, ""),
+  // from this. The survey shares the admin origin, so when SURVEY_APP_URL is
+  // not set we fall back to APP_URL before the local dev default - that way one
+  // env var (APP_URL) is enough in production and survey emails never point at
+  // localhost.
+  surveyAppUrl: (
+    getEnv("SURVEY_APP_URL", { default: "" }) ||
+    getEnv("APP_URL", { default: "" }) ||
+    "http://localhost:3001"
+  ).replace(/\/+$/, ""),
 
   // Where the producer downloads the mobile app, sent with the Enrollment ID.
   mobileAppUrl: getEnv("MOBILE_APP_URL", { default: "" }).replace(/\/+$/, ""),
@@ -124,6 +129,21 @@ const env: AppEnv = {
       10
     ),
     max: parseInt(getEnv("RATE_LIMIT_MAX", { default: "100" }), 10),
+  },
+
+  // Arrival geofence. Tolerances are metres; keep them in sync with the mobile
+  // app so its warning predicts the server verdict. Enforcement is opt-in - the
+  // default records the verdict without blocking a weak-GPS assessor.
+  visitArrival: {
+    enforce: getEnv("VISIT_ARRIVAL_ENFORCE", { default: "false" }) === "true",
+    boundaryToleranceM: parseInt(
+      getEnv("VISIT_ARRIVAL_BOUNDARY_TOLERANCE_M", { default: "150" }),
+      10
+    ),
+    pointToleranceM: parseInt(
+      getEnv("VISIT_ARRIVAL_POINT_TOLERANCE_M", { default: "300" }),
+      10
+    ),
   },
 
   isProduction: false,

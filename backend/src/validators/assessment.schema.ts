@@ -92,7 +92,7 @@ export const saveAnswerSchema = z.object({
 export const createCategorySchema = z.object({
   name: z.string().min(1).max(150),
   description: z.string().max(500).optional().nullable(),
-  sortOrder: z.coerce.number().int().min(0).optional(),
+  sortOrder: z.coerce.number().int().min(0).max(100000).optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -100,7 +100,7 @@ export const updateCategorySchema = z
   .object({
     name: z.string().min(1).max(150).optional(),
     description: z.string().max(500).optional().nullable(),
-    sortOrder: z.coerce.number().int().min(0).optional(),
+    sortOrder: z.coerce.number().int().min(0).max(100000).optional(),
     isActive: z.boolean().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, {
@@ -112,22 +112,27 @@ export const reorderSchema = z.object({
     .array(
       z.object({
         id: z.string().uuid(),
-        sortOrder: z.coerce.number().int().min(0),
+        sortOrder: z.coerce.number().int().min(0).max(100000),
       })
     )
     .min(1),
 });
 
+// The guidance and score notes are prose, so they get a ceiling rather than
+// being left open - the boxes in the panel stop at the same length.
+const describes = (max: number) =>
+  z.string().max(max, `This text is too long (limit ${max}).`).optional().nullable();
+
 export const createQuestionSchema = z.object({
   categoryId: z.string().uuid(),
   questionCode: z.string().max(20).optional().nullable(),
-  questionText: z.string().min(1),
-  guidanceNote: z.string().optional().nullable(),
-  score0Description: z.string().optional().nullable(),
-  score1Description: z.string().optional().nullable(),
-  score2Description: z.string().optional().nullable(),
-  score3Description: z.string().optional().nullable(),
-  sortOrder: z.coerce.number().int().min(0).optional(),
+  questionText: z.string().min(1).max(500, "Question text is too long."),
+  guidanceNote: describes(1000),
+  score0Description: describes(500),
+  score1Description: describes(500),
+  score2Description: describes(500),
+  score3Description: describes(500),
+  sortOrder: z.coerce.number().int().min(0).max(100000).optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -135,13 +140,17 @@ export const updateQuestionSchema = z
   .object({
     categoryId: z.string().uuid().optional(),
     questionCode: z.string().max(20).optional().nullable(),
-    questionText: z.string().min(1).optional(),
-    guidanceNote: z.string().optional().nullable(),
-    score0Description: z.string().optional().nullable(),
-    score1Description: z.string().optional().nullable(),
-    score2Description: z.string().optional().nullable(),
-    score3Description: z.string().optional().nullable(),
-    sortOrder: z.coerce.number().int().min(0).optional(),
+    questionText: z
+      .string()
+      .min(1)
+      .max(500, "Question text is too long.")
+      .optional(),
+    guidanceNote: describes(1000),
+    score0Description: describes(500),
+    score1Description: describes(500),
+    score2Description: describes(500),
+    score3Description: describes(500),
+    sortOrder: z.coerce.number().int().min(0).max(100000).optional(),
     isActive: z.boolean().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, {
@@ -160,5 +169,5 @@ export const listQuestionsQuerySchema = z.object({
       if (v === "false") return false;
       return undefined;
     }),
-  search: z.string().optional(),
+  search: z.string().trim().max(100).optional(),
 });

@@ -1,17 +1,14 @@
-/**
- * SimpleMapScreen — the most minimal map + polyline possible.
- *
- * ⚠️ DEBUG ONLY. Normal Google map, two points, one polyline A → B. No state,
- * no hooks, no wrappers, no engine, no redux. Just proves a plain line renders.
- */
-
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { processColor, StyleSheet, View } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 
-// Point A → Point B
-const POINT_A = { latitude: 20.596, longitude: 78.961 };
-const POINT_B = { latitude: 20.5915, longitude: 78.966 };
+const A1 = { latitude: 20.598, longitude: 78.9585 };
+const A2 = { latitude: 20.598, longitude: 78.9675 };
+
+const B1 = { latitude: 20.5895, longitude: 78.9585 };
+const B2 = { latitude: 20.5895, longitude: 78.9675 };
+
+const NUMERIC_GREEN = processColor('#00FF00') as unknown as string;
 
 const SimpleMapScreen: React.FC = () => {
   return (
@@ -25,16 +22,13 @@ const SimpleMapScreen: React.FC = () => {
           latitudeDelta: 0.02,
           longitudeDelta: 0.02,
         }}>
-        {/* Two endpoints */}
-        <Marker coordinate={POINT_A} title="Point A" />
-        <Marker coordinate={POINT_B} title="Point B" />
+        <Marker coordinate={A1} title="A1" />
+        <Marker coordinate={A2} title="A2" />
+        <Polyline coordinates={[A1, A2]} strokeColor="#FF00FF" strokeWidth={8} />
 
-        {/* One line from A to B */}
-        <Polyline
-          coordinates={[POINT_A, POINT_B]}
-          strokeColor="#136F3F"
-          strokeWidth={6}
-        />
+        <Marker coordinate={B1} title="B1" />
+        <Marker coordinate={B2} title="B2" />
+        <Polyline coordinates={[B1, B2]} strokeColor={NUMERIC_GREEN} strokeWidth={8} />
       </MapView>
     </View>
   );

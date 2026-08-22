@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppIcon } from '../../components/AppIcon';
+import { AppIcon, ICONS } from '../../components/AppIcon';
 import { AppHeader, AppText, Button } from '../../components';
-import { VisitMap } from '../../maps';
+import { VisitMap, checkArrival, formatDistance } from '../../maps';
+import { ensureTrackingLocation } from '../../services/locationGate';
+import { confirm } from '../../services/confirmService';
 import {
   COLORS,
   borderRadius,
@@ -12,14 +14,21 @@ import {
   shadows,
   spacing,
 } from '../../constants';
-import { moderateScale, scale } from '../../utils';
+import { addAlpha, moderateScale, scale } from '../../utils';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
   arriveVisitThunk,
   endVisitThunk,
+  fetchVisitTrackThunk,
   selectActiveVisit,
   selectVisitEnding,
+  selectVisitTrail,
 } from '../../redux/slices/visitSlice';
+import {
+  fetchAssessorFieldsThunk,
+  selectAssessorFieldsOverview,
+} from '../../redux/slices/assessorSlice';
+import { isVisitTerminal } from '../../types/visit';
 import type { AssessorScreenProps } from '../../navigation/navigationTypes';
 
 const AssessorVisitScreen: React.FC<AssessorScreenProps<'AssessorVisit'>> = ({
@@ -29,37 +38,140 @@ const AssessorVisitScreen: React.FC<AssessorScreenProps<'AssessorVisit'>> = ({
   const dispatch = useAppDispatch();
   const visit = useAppSelector(selectActiveVisit);
   const ending = useAppSelector(selectVisitEnding);
+  const trail = useAppSelector(selectVisitTrail);
   const visitId = visit?.id;
 
   useEffect(() => {
-    if (visit && (visit.status === 'completed' || visit.status === 'cancelled')) {
+    if (visitId) {
+      dispatch(fetchVisitTrackThunk(visitId));
+    }
+  }, [dispatch, visitId]);
+
+  useEffect(() => {
+    if (visit && isVisitTerminal(visit.status)) {
       navigation.goBack();
     }
   }, [visit, navigation]);
 
-  const onArrive = useCallback(() => {
-    if (visitId) {
-      dispatch(arriveVisitThunk(visitId));
+  const overview = useAppSelector(selectAssessorFieldsOverview);
+  useEffect(() => {
+    if (!overview) {
+      dispatch(fetchAssessorFieldsThunk());
     }
-  }, [dispatch, visitId]);
+  }, [overview, dispatch]);
 
-  const confirmEnd = useCallback(() => {
+  const fieldId = visit?.fieldId;
+  const entry = useMemo(
+    () =>
+      fieldId ? overview?.fields.find(f => f.field.id === fieldId) ?? null : null,
+    [overview, fieldId],
+  );
+
+  const [checkingArrival, setCheckingArrival] = useState(false);
+
+  const onArrive = useCallback(async () => {
     if (!visitId) {
       return;
     }
-    Alert.alert('End visit', 'End this visit and stop sharing your location?', [
-      { text: 'Keep tracking', style: 'cancel' },
-      {
-        text: 'End visit',
-        style: 'destructive',
-        onPress: () => {
-          dispatch(endVisitThunk({ visitId, outcome: 'completed' })).finally(() =>
-            navigation.goBack(),
-          );
-        },
-      },
-    ]);
-  }, [dispatch, visitId, navigation]);
+    setCheckingArrival(true);
+    const fix = await ensureTrackingLocation({
+      purpose: 'confirm you have reached the field',
+    });
+    setCheckingArrival(false);
+    if (!fix) {
+      return;
+    }
+
+    const result = checkArrival({
+      position: fix,
+      boundary: visit?.fieldBoundary,
+      destination:
+        visit?.destLat != null && visit?.destLng != null
+          ? { latitude: visit.destLat, longitude: visit.destLng }
+          : null,
+    });
+
+    const position = {
+      latitude: fix.latitude,
+      longitude: fix.longitude,
+      accuracyM: fix.accuracyM,
+      isMock: fix.isMock,
+    };
+
+    if (result.atField) {
+      dispatch(arriveVisitThunk({ visitId, position }));
+      return;
+    }
+
+    const away =
+      result.distanceM === null
+        ? ''
+        : ` — you look about ${formatDistance(result.distanceM)} away`;
+    const proceed = await confirm({
+      title: 'You may not be at the field yet',
+      message: `This visit is for ${visit?.fieldName ?? 'this field'}${away}. Mark it as arrived anyway?`,
+      icon: 'map-marker-alert-outline',
+      confirmLabel: 'Mark arrived',
+      cancelLabel: 'Not yet',
+    });
+    if (proceed) {
+      dispatch(arriveVisitThunk({ visitId, position }));
+    }
+  }, [dispatch, visitId, visit]);
+
+  const openAssessment = useCallback(() => {
+    if (!entry) {
+      return;
+    }
+    navigation.navigate('AssessorAssessmentSummary', {
+      programId: entry.program.id,
+      fieldId: entry.field.id,
+      fieldName: entry.field.name,
+    });
+  }, [navigation, entry]);
+
+  const arrived = visit?.status === 'arrived';
+  const assessmentSubmitted = !!entry?.assessment.completed;
+  const mustAssess = arrived && !!entry && !assessmentSubmitted;
+
+  const confirmEnd = useCallback(async () => {
+    if (!visitId) {
+      return;
+    }
+
+    if (mustAssess && entry) {
+      const a = entry.assessment;
+      const open = await confirm({
+        title: 'Submit the assessment first',
+        message: `You are marked as arrived at ${
+          entry.field.name || 'this field'
+        }. This visit stays open until its assessment is submitted — ${
+          a.answered
+        } of ${a.totalQuestions} questions scored so far.`,
+        icon: 'clipboard-text-outline',
+        confirmLabel: 'Open assessment',
+        cancelLabel: 'Not now',
+      });
+      if (open) {
+        openAssessment();
+      }
+      return;
+    }
+
+    const ended = await confirm({
+      title: 'End visit',
+      message: 'End this visit and stop sharing your location?',
+      icon: 'map-marker-check-outline',
+      tone: 'danger',
+      confirmLabel: 'End visit',
+      cancelLabel: 'Keep tracking',
+    });
+    if (ended) {
+      dispatch(endVisitThunk({ visitId, outcome: 'completed' })).finally(() =>
+        navigation.goBack(),
+      );
+    }
+  }, [dispatch, visitId, navigation, mustAssess, entry, openAssessment]);
 
   if (!visit) {
     return (
@@ -81,14 +193,21 @@ const AssessorVisitScreen: React.FC<AssessorScreenProps<'AssessorVisit'>> = ({
     visit.assessorLat != null && visit.assessorLng != null
       ? { latitude: visit.assessorLat, longitude: visit.assessorLng }
       : null;
-  const arrived = visit.status === 'arrived';
   const subtitle = [visit.farmName, visit.fieldName].filter(Boolean).join(' · ');
 
   return (
     <View style={styles.safe}>
       <AppHeader variant="back" title="Visit in progress" onBack={() => navigation.goBack()} />
 
-      <VisitMap assessor={assessorPos} destination={destination} style={styles.map} />
+      <VisitMap
+        assessor={assessorPos}
+        destination={destination}
+        trail={trail}
+        boundary={visit.fieldBoundary}
+        fieldName={visit.fieldName}
+        lastSeenISO={visit.lastLocationAtISO}
+        style={styles.map}
+      />
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing[3] }]}>
         <View style={styles.row}>
@@ -110,11 +229,75 @@ const AssessorVisitScreen: React.FC<AssessorScreenProps<'AssessorVisit'>> = ({
           </View>
         </View>
 
+        {arrived && entry ? (
+          <Pressable
+            onPress={assessmentSubmitted ? undefined : openAssessment}
+            disabled={assessmentSubmitted}
+            accessibilityRole={assessmentSubmitted ? undefined : 'button'}
+            accessibilityLabel={
+              assessmentSubmitted ? undefined : 'Open the assessment for this field'
+            }
+            style={({ pressed }) => [
+              styles.assessStrip,
+              assessmentSubmitted ? styles.assessDone : styles.assessPending,
+              pressed && styles.assessPressed,
+            ]}>
+            <AppIcon
+              name={assessmentSubmitted ? 'check-decagram' : ICONS.ASSESSMENT}
+              size={moderateScale(18)}
+              color={assessmentSubmitted ? COLORS.success : COLORS.accent}
+            />
+            <View style={styles.assessTexts}>
+              <AppText
+                style={[
+                  styles.assessTitle,
+                  { color: assessmentSubmitted ? COLORS.success : COLORS.accent },
+                ]}
+                numberOfLines={1}>
+                {assessmentSubmitted ? 'Assessment submitted' : 'Assessment pending'}
+              </AppText>
+              <AppText style={styles.assessHint} numberOfLines={1}>
+                {assessmentSubmitted
+                  ? 'You can end this visit now.'
+                  : `${entry.assessment.answered}/${entry.assessment.totalQuestions} scored — submit it to end this visit`}
+              </AppText>
+            </View>
+            {assessmentSubmitted ? null : (
+              <AppIcon
+                name={ICONS.CHEVRON_RIGHT}
+                size={moderateScale(18)}
+                color={COLORS.gray500}
+              />
+            )}
+          </Pressable>
+        ) : null}
+
         <View style={styles.actions}>
           {!arrived ? (
-            <Button title="Mark as arrived" onPress={onArrive} variant="outline" style={styles.flexBtn} />
+            <Button
+              title="Mark as arrived"
+              onPress={onArrive}
+              loading={checkingArrival}
+              variant="outline"
+              style={styles.flexBtn}
+            />
           ) : null}
-          <Button title="End visit" onPress={confirmEnd} loading={ending} style={styles.flexBtn} />
+          <Button
+            title="End visit"
+            onPress={confirmEnd}
+            loading={ending}
+            variant={mustAssess ? 'outline' : 'primary'}
+            leftIcon={
+              mustAssess ? (
+                <AppIcon
+                  name={ICONS.LOCK}
+                  size={moderateScale(16)}
+                  color={COLORS.primary}
+                />
+              ) : undefined
+            }
+            style={styles.flexBtn}
+          />
         </View>
       </View>
     </View>
@@ -161,4 +344,27 @@ const styles = StyleSheet.create({
   chipTextArrived: { color: COLORS.white },
   actions: { flexDirection: 'row', gap: spacing[3] },
   flexBtn: { flex: 1 },
+
+  assessStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2.5],
+    borderRadius: borderRadius.lg,
+    borderWidth: borderWidth.thin,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2.5],
+    marginTop: -spacing[1],
+  },
+  assessPending: {
+    borderColor: COLORS.accent,
+    backgroundColor: addAlpha(COLORS.accent, 0.1),
+  },
+  assessDone: {
+    borderColor: COLORS.success,
+    backgroundColor: addAlpha(COLORS.success, 0.1),
+  },
+  assessPressed: { opacity: 0.75 },
+  assessTexts: { flex: 1, gap: spacing[0.5] },
+  assessTitle: { ...presets.labelSM },
+  assessHint: { ...presets.caption, color: COLORS.gray600 },
 });

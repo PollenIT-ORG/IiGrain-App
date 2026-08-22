@@ -20,8 +20,6 @@ interface MenuItem {
 const MENU: MenuItem[] = [
   { icon: 'account-circle-outline', label: 'Profile', target: 'Profile' },
   { icon: 'account-outline', label: 'Account', target: 'Account' },
-  { icon: 'account-edit-outline', label: 'Edit Profile', target: 'EditProfile' },
-  { icon: 'lock-outline', label: 'Change Password', target: 'ChangePassword' },
   { icon: 'help-circle-outline', label: 'Help & Support' },
 ];
 
@@ -87,15 +85,6 @@ const AssessorMoreScreen: React.FC = () => {
           ))}
         </View>
 
-        <TouchableOpacity
-          style={styles.logoutBtn}
-          activeOpacity={0.8}
-          onPress={handleLogout}
-          accessibilityRole="button"
-          accessibilityLabel="Log out">
-          <AppIcon name={ICONS.LOGOUT} size={moderateScale(20)} color={COLORS.danger} />
-          <AppText style={styles.logoutText}>Logout</AppText>
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );

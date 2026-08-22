@@ -6,6 +6,7 @@ export type NotificationType =
   | "enrolled_in_program"
   | "assessor_assigned"
   | "assessor_visit_started"
+  | "assessor_visit_arrived"
   | "assessment_submitted"
   // Admin-facing: the eligibility survey flow.
   | "survey_submitted"
@@ -28,6 +29,7 @@ const DEFAULT_SCREEN: Record<string, string> = {
   enrolled_in_program: "my_assessments",
   assessor_assigned: "my_assessments",
   assessor_visit_started: "visit_tracking",
+  assessor_visit_arrived: "visit_tracking",
   assessment_submitted: "assessment_history",
   // Admin panel routes (used by the web notification dropdown, not the app).
   survey_submitted: "eligibility",

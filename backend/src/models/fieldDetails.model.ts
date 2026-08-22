@@ -81,8 +81,8 @@ export async function isFieldSoilUnlocked(fieldId: string): Promise<boolean> {
      WHERE pef.field_id = ${fieldId}::uuid
        AND pef.deleted_at IS NULL
        AND p.is_active = true
-       AND (p.start_date IS NULL OR p.start_date <= CURRENT_DATE)
-       AND (p.end_date IS NULL OR p.end_date >= CURRENT_DATE)
+       AND (p.start_date IS NULL OR p.start_date <= org_today())
+       AND (p.end_date IS NULL OR p.end_date >= org_today())
      LIMIT 1;`);
   return rows.length > 0;
 }

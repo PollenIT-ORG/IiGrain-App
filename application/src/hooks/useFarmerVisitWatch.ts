@@ -7,37 +7,62 @@ import {
   setIncomingVisit,
 } from '../redux/slices/visitSlice';
 import { mapVisit, type RawVisit } from '../api/visitApi';
+import { isVisitTerminal } from '../types/visit';
 import { connectSocket, getSocket, joinVisitRoom, leaveVisitRoom } from '../services/socket';
+import { Env } from '../config/env';
 
-export const useFarmerVisitWatch = (): void => {
+const log = (...args: unknown[]): void => {
+  if (Env.IS_DEV) {
+    console.log('[farmerWatch]', ...args);
+  }
+};
+
+export const useFarmerVisitWatch = (enabled: boolean = true): void => {
   const dispatch = useAppDispatch();
   const incoming = useAppSelector(selectIncomingVisit);
-  const visitId = incoming?.id;
+  const visitId = enabled ? incoming?.id : undefined;
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
     let alive = true;
-    dispatch(fetchMyFarmerVisitThunk());
+
+    const refresh = () => {
+      if (alive) {
+        dispatch(fetchMyFarmerVisitThunk());
+      }
+    };
+
+    refresh();
 
     const onIncoming = (raw: unknown) => {
       if (alive && raw && typeof raw === 'object') {
         const v = mapVisit(raw as RawVisit);
-        console.log('[farmerWatch] 🔔 visit:incoming · assessor =', v.assessorName, '· id =', v.id);
+        log('🔔 visit:incoming · assessor =', v.assessorName, '· id =', v.id);
         dispatch(setIncomingVisit(v));
       }
     };
     connectSocket()
       .then(socket => {
-        if (alive) {
-          socket.on('visit:incoming', onIncoming);
+        if (!alive) {
+          return;
+        }
+        socket.on('visit:incoming', onIncoming);
+        socket.on('connect', refresh);
+        if (socket.connected) {
+          refresh();
         }
       })
       .catch(() => {});
 
     return () => {
       alive = false;
-      getSocket()?.off('visit:incoming', onIncoming);
+      const s = getSocket();
+      s?.off('visit:incoming', onIncoming);
+      s?.off('connect', refresh);
     };
-  }, [dispatch]);
+  }, [dispatch, enabled]);
 
   useEffect(() => {
     if (!visitId) {
@@ -49,8 +74,8 @@ export const useFarmerVisitWatch = (): void => {
         return;
       }
       const v = mapVisit(raw as RawVisit);
-      console.log('[farmerWatch] ⬇️ live update · status =', v.status, '· assessor pos =', v.assessorLat, v.assessorLng);
-      if (v.status === 'completed' || v.status === 'cancelled') {
+      log('⬇️ live update · status =', v.status, '· assessor pos =', v.assessorLat, v.assessorLng);
+      if (isVisitTerminal(v.status)) {
         dispatch(setIncomingVisit(null));
       } else {
         dispatch(applyVisitUpdate(v));

@@ -30,7 +30,6 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const FieldCard: React.FC<FieldCardProps> = ({ field, onPress }) => {
   const handlePress = useCallback(() => onPress(field.id), [onPress, field.id]);
 
-  // Scale lives in a ref-held Animated.Value so pressing never re-renders.
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const animateTo = useCallback(
     (toValue: number, duration: number) => {
@@ -47,8 +46,6 @@ const FieldCard: React.FC<FieldCardProps> = ({ field, onPress }) => {
     [animateTo],
   );
   const handlePressOut = useCallback(() => animateTo(1, PRESS_OUT_MS), [animateTo]);
-
-  // const healthMeta = FIELD_HEALTH_META[field.status];
 
   return (
     <AnimatedPressable
@@ -71,7 +68,6 @@ const FieldCard: React.FC<FieldCardProps> = ({ field, onPress }) => {
           <AppText style={styles.name} numberOfLines={1}>
             {field.name}
           </AppText>
-          {/* <StatusBadge label={healthMeta.label} tone={healthMeta.tone} /> */}
         </View>
 
         <View style={styles.chipRow}>

@@ -12,9 +12,8 @@ export type ChangedResource =
   | "users"
   | "programs"
   | "organizations"
-  | "eligibility"
   | "survey_questions"
-  | "contact_enquiries";
+  | "program_admin_survey";
 
 export function useLiveData(
   resources: ChangedResource[],

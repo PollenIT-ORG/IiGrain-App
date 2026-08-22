@@ -8,13 +8,6 @@ import { presentationFor } from '../utils/resolveError';
 import { setErrorHandler } from '../services/errorService';
 import type { ErrorPresentation, ErrorSeverity } from '../config/errorMessages';
 
-/**
- * Accent colour per severity.
- *
- * `validation` is deliberately its own colour rather than reusing success
- * green or warning amber: a validation prompt must never look like a
- * confirmation, and must be distinguishable from a system warning.
- */
 const ACCENT: Record<ErrorSeverity, string> = {
   error: COLORS.danger,
   warning: COLORS.warning,
@@ -23,7 +16,6 @@ const ACCENT: Record<ErrorSeverity, string> = {
   success: COLORS.success,
 };
 
-/** Soft background behind the icon, matching the accent at low opacity. */
 const ICON_BG: Record<ErrorSeverity, string> = {
   error: 'rgba(229, 72, 77, 0.12)',
   warning: 'rgba(244, 183, 64, 0.16)',

@@ -18,12 +18,21 @@ export const createUser = asyncHandler(async (req, res) => {
   return ApiResponse.send(res, 201, "User created successfully.", { user });
 });
 
+// The accounts a program administrator looks after.
+const PROGRAM_ADMIN_ROLES = ["assessor", "farmer"];
+
 export const listUsers = asyncHandler(async (req, res) => {
   const q = req.query as unknown as ListUsersQuery;
+  const limited = req.user!.role === "program_administrator";
+  // Asking for a role they do not manage returns nothing, not everything.
+  const role = limited && q.role && !PROGRAM_ADMIN_ROLES.includes(q.role)
+    ? "__none__"
+    : q.role;
   const { users, meta } = await userService.getUsers({
     page: q.page,
     limit: q.limit,
-    role: q.role,
+    role,
+    roles: limited ? PROGRAM_ADMIN_ROLES : undefined,
     status: q.status,
     search: q.search,
     assessor: q.assessor,
@@ -45,20 +54,21 @@ export const updateUser = asyncHandler(async (req, res) => {
   return ApiResponse.send(res, 200, "User updated successfully.", { user });
 });
 
+/** What deleting this person takes with them, so the panel can spell it out. */
+export const userDeletionSummary = asyncHandler(async (req, res) => {
+  const items = await userService.getUserDeletionSummary(req.params.id, {
+    id: req.user!.sub,
+    role: req.user!.role,
+  });
+  return ApiResponse.send(res, 200, "Deletion summary.", { items });
+});
+
 export const deleteUser = asyncHandler(async (req, res) => {
   await userService.removeUser(req.params.id, {
     id: req.user!.sub,
     role: req.user!.role,
   });
   return ApiResponse.send(res, 200, "User deleted successfully.");
-});
-
-export const restoreUser = asyncHandler(async (req, res) => {
-  const user = await userService.restoreUserById(req.params.id, {
-    id: req.user!.sub,
-    role: req.user!.role,
-  });
-  return ApiResponse.send(res, 200, "User restored successfully.", { user });
 });
 
 export const setUserStatus = asyncHandler(async (req, res) => {

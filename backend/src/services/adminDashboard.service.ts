@@ -1,5 +1,6 @@
 import {
   getAdminKpis,
+  getProgramKpis,
   getAcreageOverTime,
   getProgramSplit,
   getAssessmentTrends,
@@ -84,5 +85,63 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
       score: t.score,
     })),
     rhiByProgram: rhi.map((r) => ({ region: r.program, rhi: r.rhi })),
+  };
+}
+
+export interface ProgramDashboard {
+  totalPrograms: number;
+  enrolledFarmers: number;
+  fieldsEnrolled: number;
+  assessmentSubmissions: number;
+  farmersWithAssessor: number;
+  farmersFullyAssessed: number;
+  acreageEnrolled: Array<{ month: string; acres: number }>;
+  programSplit: Array<{
+    name: string;
+    acres: number;
+    value: number;
+    color: string;
+  }>;
+  assessmentTrends: Array<{
+    month: string;
+    completion: number;
+    score: number | null;
+  }>;
+}
+
+/**
+ * The Programs section of the dashboard. With an owner it covers only the
+ * programs that person runs, so a program administrator sees their own numbers.
+ */
+export async function getProgramDashboard(
+  ownerId?: string | null
+): Promise<ProgramDashboard> {
+  const [row, acreage, split, trends] = await Promise.all([
+    getProgramKpis(ownerId),
+    getAcreageOverTime(MONTHS_WINDOW, ownerId),
+    getProgramSplit(DONUT_COLORS.length - 1, ownerId),
+    getAssessmentTrends(MONTHS_WINDOW, ownerId),
+  ]);
+
+  const totalAcres = split.reduce((sum, p) => sum + p.acres, 0);
+  return {
+    totalPrograms: row.total_programs,
+    enrolledFarmers: row.enrolled_farmers,
+    fieldsEnrolled: row.fields_enrolled,
+    assessmentSubmissions: row.assessment_submissions,
+    farmersWithAssessor: row.farmers_with_assessor,
+    farmersFullyAssessed: row.farmers_fully_assessed,
+    acreageEnrolled: acreage,
+    programSplit: split.map((p, i) => ({
+      name: p.name,
+      acres: p.acres,
+      value: totalAcres > 0 ? Math.round((p.acres / totalAcres) * 100) : 0,
+      color: DONUT_COLORS[i % DONUT_COLORS.length],
+    })),
+    assessmentTrends: trends.map((t) => ({
+      month: t.month,
+      completion: t.submitted,
+      score: t.score,
+    })),
   };
 }

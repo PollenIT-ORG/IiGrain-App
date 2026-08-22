@@ -4,7 +4,9 @@ import {
   listPrograms,
   getProgram,
   updateProgram,
+  setProgramVisibility,
   deleteProgram,
+  programDeletionSummary,
   listEnrollments,
   listEnrollmentsPaged,
   enrollFarmer,
@@ -14,6 +16,7 @@ import {
   getProgramProgress,
   unenroll,
   listSubmissions,
+  suggestCode,
   myAvailablePrograms,
   myEnrollableFields,
   selfEnroll,
@@ -24,12 +27,14 @@ import { validate } from "../middlewares/validate.js";
 import {
   createProgramSchema,
   updateProgramSchema,
+  setProgramVisibilitySchema,
   listProgramsQuerySchema,
   enrollFarmerSchema,
   updateEnrollmentFieldsSchema,
   setEnrollmentAssessorSchema,
   listSubmissionsQuerySchema,
   listEnrollmentsQuerySchema,
+  codeSuggestionQuerySchema,
   selfEnrollSchema,
   programIdParamSchema,
   enrollmentParamsSchema,
@@ -79,6 +84,15 @@ router.get(
   listSubmissions
 );
 
+// Before ":id", or the id route would swallow it.
+router.get(
+  "/code-suggestion",
+  authenticate,
+  programManagers,
+  validate(codeSuggestionQuerySchema, "query"),
+  suggestCode
+);
+
 router.post("/", authenticate, programManagers, validate(createProgramSchema), createProgram);
 router.get(
   "/",
@@ -101,6 +115,22 @@ router.patch(
   validate(programIdParamSchema, "params"),
   validate(updateProgramSchema),
   updateProgram
+);
+// The toggle that offers a program to farmers already on the platform.
+router.patch(
+  "/:id/visibility",
+  authenticate,
+  programManagers,
+  validate(programIdParamSchema, "params"),
+  validate(setProgramVisibilitySchema),
+  setProgramVisibility
+);
+router.get(
+  "/:id/deletion-summary",
+  authenticate,
+  programManagers,
+  validate(programIdParamSchema, "params"),
+  programDeletionSummary
 );
 router.delete(
   "/:id",

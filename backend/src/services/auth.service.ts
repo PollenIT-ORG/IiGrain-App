@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import ApiError from "../utils/ApiError.js";
 import { signToken } from "../utils/jwt.js";
 import { generateOtp, otpExpiry } from "../utils/otp.js";
+import { findEnrollmentId } from "../models/enrollmentId.model.js";
 import {
   sendVerifyEmail,
   sendSignInCodeEmail,
@@ -76,6 +77,8 @@ interface RegisterParams {
   email: string;
   phone?: string;
   password: string;
+  /** From the acceptance email. Nobody registers without one. */
+  enrollmentId: string;
 }
 
 /** Self-registration only ever creates a farmer. */
@@ -123,7 +126,26 @@ export async function register(
       await sendVerifyEmail({ to: email, fullName: existing.full_name, code });
       return { email, verificationRequired: true, code };
     }
-    throw ApiError.conflict("An account with this email already exists.");
+    // Somebody coming back with the Enrollment ID for a second program does
+    // not need another account, so say so plainly rather than "email taken".
+    throw ApiError.conflict(
+      "You are already registered. Please log in instead."
+    );
+  }
+
+  // An Enrollment ID is what proves this person completed a survey and was
+  // accepted. It has to exist, and it has to belong to the address they are
+  // registering with, otherwise anyone could sign up with someone else's ID.
+  const holder = await findEnrollmentId(params.enrollmentId);
+  if (!holder) {
+    throw ApiError.badRequest(
+      "That Enrollment ID was not found. Please check the ID in your email."
+    );
+  }
+  if (holder.email !== email) {
+    throw ApiError.badRequest(
+      "That Enrollment ID belongs to a different email address. Register with the address the ID was sent to."
+    );
   }
 
   const role = await findRoleByName(SELF_REGISTER_ROLE);
@@ -356,6 +378,33 @@ export async function resetPassword(
   await updatePassword(user.id, passwordHash);
 
   void sendPasswordChangedEmail({ to: normalizedEmail, fullName: user.full_name });
+}
+
+// Checks a password-reset code WITHOUT consuming it, so the app can keep the user
+// on the OTP screen when the code is wrong instead of advancing to the new
+// password screen and only failing on submit. reset-password re-checks and
+// consumes the same code when the new password is finally submitted.
+export async function verifyResetCode(
+  email: string,
+  code: string
+): Promise<void> {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const otp = await findActiveOtp(normalizedEmail);
+  if (!otp || otp.code !== code) {
+    throw ApiError.unauthorized("Invalid or expired code.");
+  }
+
+  const user = await findByEmail(normalizedEmail);
+  if (!user) {
+    throw ApiError.notFound("No account found with this email.");
+  }
+  if (!user.is_active) {
+    throw ApiError.forbidden(
+      "Your account is inactive. Please contact an administrator to reactivate it."
+    );
+  }
+  // Deliberately does not consume the OTP - reset-password will.
 }
 
 export async function refreshAccessToken(

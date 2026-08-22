@@ -1,4 +1,7 @@
 import { z } from "zod";
+// "max" metadata validates real number length and prefix per country (the
+// default metadata is lenient and accepts, e.g., an over-long Indian number).
+import { isValidPhoneNumber } from "libphonenumber-js/max";
 
 // The standalone survey: basic details + 0-3 scale answers. Email is the
 // producer's only identity in this flow.
@@ -20,6 +23,20 @@ const nameField = (label: string) =>
 const optionalText = (max: number) =>
   z.string().trim().max(max).optional().nullable().or(z.literal(""));
 
+// A real, country-aware phone number (E.164, what the app's phone input emits).
+// Uses libphonenumber so, e.g., an Indian number that starts with 3 - or any
+// wrong-length / wrong-prefix number - is rejected, not just a format check.
+// Optional: empty/null pass.
+const optionalPhone = z
+  .string()
+  .trim()
+  .refine((v) => isValidPhoneNumber(v), {
+    message: "Enter a valid phone number with country code, e.g. +919876543210.",
+  })
+  .optional()
+  .nullable()
+  .or(z.literal(""));
+
 // { questionId: 0 | 1 | 2 | 3 }
 const answersField = z.record(
   z.string().uuid("Invalid question id."),
@@ -35,10 +52,23 @@ const optionalAcres = z.coerce
 
 export const emailCheckSchema = z.object({ email: emailField });
 
+export const sendOtpSchema = z.object({ email: emailField });
+
+export const verifyOtpSchema = z.object({
+  email: emailField,
+  code: z
+    .string({ error: "Enter the code." })
+    .trim()
+    .min(4, "Enter the code.")
+    .max(10, "That code is too long."),
+});
+
 export const saveDraftSchema = z.object({
   firstName: nameField("First name"),
   lastName: nameField("Last name"),
   email: emailField,
+  // Lenient on a draft (may hold a half-typed number); the final submit is
+  // where the phone is strictly validated.
   phone: optionalText(20),
   farmName: optionalText(200),
   referralSource: optionalText(200),
@@ -51,7 +81,7 @@ export const standaloneSubmitSchema = z.object({
   firstName: nameField("First name"),
   lastName: nameField("Last name"),
   email: emailField,
-  phone: optionalText(20),
+  phone: optionalPhone,
   farmName: optionalText(200),
   referralSource: optionalText(200),
   state: z
@@ -78,3 +108,5 @@ export const statusTokenParamSchema = z.object({
 export type EmailCheckBody = z.infer<typeof emailCheckSchema>;
 export type SaveDraftBody = z.infer<typeof saveDraftSchema>;
 export type StandaloneSubmitBody = z.infer<typeof standaloneSubmitSchema>;
+export type SendOtpBody = z.infer<typeof sendOtpSchema>;
+export type VerifyOtpBody = z.infer<typeof verifyOtpSchema>;

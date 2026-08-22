@@ -1,51 +1,102 @@
-/**
- * src/maps/boundary/engine/boundaryReducer.ts — the pure heart of the module.
- *
- * `(draft, action) → draft`. No React, no map SDK, no Redux, no I/O. This is
- * deterministic and unit-testable with zero mocks — which is the entire reason
- * the geometry and edit logic live here rather than in a component.
- *
- * See docs/maps/FarmBoundary/DRAWING_ENGINE.md for the design this implements.
- */
-
 import type { LatLng } from '../../types';
-import { isSameSpot, roundCoordinate } from '../../utils/geo';
+import { distanceMeters, roundCoordinate } from '../../utils/geo';
 import { COORDINATE_PRECISION } from '../../config/mapDefaults';
-import type { BoundarySnapshot, DraftBoundary } from '../types';
-import { DUPLICATE_VERTEX_EPSILON, MIN_VERTICES, UNDO_LIMIT } from './boundaryConfig';
+import type {
+  BoundaryRejection,
+  BoundaryRejectionCode,
+  BoundarySnapshot,
+  BoundaryVertex,
+  DraftBoundary,
+} from '../types';
+import { MIN_EDGE_METERS, MIN_VERTICES, UNDO_LIMIT } from './boundaryConfig';
 import type { BoundaryAction } from './boundaryActions';
 import { emptyDraft } from './boundaryActions';
+import { nextVertexId } from './boundaryIds';
+import { BOUNDARY_REJECTION_MESSAGES } from './boundaryMessages';
+import {
+  appendCreatesCrossing,
+  closingCreatesCrossing,
+  deletedVertexCreatesCrossing,
+  insertedVertexCreatesCrossing,
+  movedVertexCreatesCrossing,
+  toRing,
+  tooCloseToNeighbours,
+} from './boundaryGeometry';
 
-/** Round a point to storage precision the moment it enters the ring, so what is
- *  drawn equals what is stored (matches AppMapView's own rounding). */
+let rejectionSeq = 0;
+
+const reject = (
+  draft: DraftBoundary,
+  code: BoundaryRejectionCode,
+): DraftBoundary => {
+  rejectionSeq += 1;
+  const rejection: BoundaryRejection = {
+    seq: rejectionSeq,
+    code,
+    message: BOUNDARY_REJECTION_MESSAGES[code],
+  };
+  return { ...draft, rejection };
+};
+
 const normalize = (point: LatLng): LatLng => ({
   latitude: roundCoordinate(point.latitude, COORDINATE_PRECISION),
   longitude: roundCoordinate(point.longitude, COORDINATE_PRECISION),
 });
 
 const snapshot = (draft: DraftBoundary): BoundarySnapshot => ({
-  ring: draft.ring,
+  vertices: draft.vertices,
   closed: draft.closed,
 });
 
-/**
- * Commit a mutation: push the CURRENT state onto the undo stack (capped), clear
- * redo, and apply the change. Every geometry edit goes through here so undo is
- * uniform and nothing forgets to record history.
- */
-const commit = (
-  draft: DraftBoundary,
-  next: Pick<DraftBoundary, 'ring' | 'closed'> & Partial<DraftBoundary>,
-): DraftBoundary => {
-  const past = [...draft.past, snapshot(draft)].slice(-UNDO_LIMIT);
+interface CommitOptions {
+  readonly vertices: readonly BoundaryVertex[];
+  readonly closed?: boolean;
+  readonly selectedId?: string | null;
+  readonly commitKey?: string | null;
+}
+
+const commit = (draft: DraftBoundary, next: CommitOptions): DraftBoundary => {
+  const commitKey = next.commitKey ?? null;
+  const coalesce = commitKey !== null && draft.commitKey === commitKey;
+  const past = coalesce
+    ? draft.past
+    : [...draft.past, snapshot(draft)].slice(-UNDO_LIMIT);
+
   return {
-    ring: next.ring,
-    closed: next.closed,
-    selected: next.selected ?? null,
+    vertices: next.vertices,
+    closed: next.closed ?? draft.closed,
+    selectedId: next.selectedId !== undefined ? next.selectedId : draft.selectedId,
     past,
     future: [],
+    commitKey,
+    rejection: null,
   };
 };
+
+const restore = (
+  draft: DraftBoundary,
+  target: BoundarySnapshot,
+  past: readonly BoundarySnapshot[],
+  future: readonly BoundarySnapshot[],
+): DraftBoundary => {
+  const stillThere =
+    draft.selectedId !== null &&
+    target.vertices.some(v => v.id === draft.selectedId);
+  return {
+    vertices: target.vertices,
+    closed: target.closed,
+    selectedId: stillThere ? draft.selectedId : null,
+    past,
+    future,
+    commitKey: null,
+    rejection: null,
+  };
+};
+
+const indexOfId = (
+  vertices: readonly BoundaryVertex[],
+  id: string,
+): number => vertices.findIndex(v => v.id === id);
 
 export const boundaryReducer = (
   draft: DraftBoundary,
@@ -53,77 +104,116 @@ export const boundaryReducer = (
 ): DraftBoundary => {
   switch (action.type) {
     case 'ADD_VERTEX': {
-      // Ignore a tap coincident with the last vertex (double-tap guard).
-      const last = draft.ring[draft.ring.length - 1];
       const point = normalize(action.point);
-      if (last && isSameSpot(last, point, DUPLICATE_VERTEX_EPSILON)) {
-        return draft;
+      const ring = toRing(draft.vertices);
+      const last = ring[ring.length - 1];
+      if (last && distanceMeters(last, point) < MIN_EDGE_METERS) {
+        return reject(draft, 'too-close');
       }
-      // Adding after closing re-opens the ring (the user chose to keep drawing).
-      return commit(draft, { ring: [...draft.ring, point], closed: false });
-    }
-
-    case 'MOVE_VERTEX': {
-      if (!isIndex(draft.ring, action.index)) {
-        return draft;
+      if (appendCreatesCrossing(ring, point)) {
+        return reject(draft, 'crossing');
       }
-      const ring = draft.ring.slice();
-      ring[action.index] = normalize(action.point);
-      return commit(draft, { ring, closed: draft.closed, selected: draft.selected });
-    }
-
-    case 'INSERT_VERTEX': {
-      // Insert AFTER edgeIndex, i.e. between edgeIndex and edgeIndex+1.
-      if (!isIndex(draft.ring, action.edgeIndex)) {
-        return draft;
-      }
-      const ring = draft.ring.slice();
-      ring.splice(action.edgeIndex + 1, 0, normalize(action.point));
+      const vertex: BoundaryVertex = { id: nextVertexId(), ...point };
       return commit(draft, {
-        ring,
-        closed: draft.closed,
-        // Select the freshly inserted vertex so the user can immediately drag it.
-        selected: action.edgeIndex + 1,
+        vertices: [...draft.vertices, vertex],
+        closed: false,
+        selectedId: null,
       });
     }
 
+    case 'MOVE_VERTEX': {
+      const index = indexOfId(draft.vertices, action.id);
+      if (index < 0) {
+        return draft;
+      }
+      const point = normalize(action.point);
+      const ring = toRing(draft.vertices);
+      const current = ring[index];
+      if (current.latitude === point.latitude && current.longitude === point.longitude) {
+        return draft;
+      }
+      if (draft.vertices.length >= 3 && tooCloseToNeighbours(ring, index, point)) {
+        return reject(draft, 'too-close');
+      }
+      if (movedVertexCreatesCrossing(ring, index, point, draft.closed)) {
+        return reject(draft, 'crossing');
+      }
+      const vertices = draft.vertices.slice();
+      vertices[index] = { id: action.id, ...point };
+      return commit(draft, {
+        vertices,
+        selectedId: draft.selectedId,
+        commitKey: action.commitKey ?? null,
+      });
+    }
+
+    case 'INSERT_VERTEX': {
+      const n = draft.vertices.length;
+      if (n < 3 || action.edgeIndex < 0 || action.edgeIndex >= n) {
+        return draft;
+      }
+      const point = normalize(action.point);
+      const ring = toRing(draft.vertices);
+      if (insertedVertexCreatesCrossing(ring, action.edgeIndex, point, draft.closed)) {
+        return reject(draft, 'crossing');
+      }
+      const vertex: BoundaryVertex = { id: nextVertexId(), ...point };
+      const vertices = draft.vertices.slice();
+      vertices.splice(action.edgeIndex + 1, 0, vertex);
+      return commit(draft, { vertices, selectedId: vertex.id });
+    }
+
     case 'DELETE_VERTEX': {
-      if (!isIndex(draft.ring, action.index)) {
+      const index = indexOfId(draft.vertices, action.id);
+      if (index < 0) {
         return draft;
       }
-      // Refuse to drop below the minimum — the UI surfaces why.
-      if (draft.ring.length <= MIN_VERTICES) {
-        return draft;
+      if (draft.vertices.length <= MIN_VERTICES) {
+        return reject(draft, 'min-vertices');
       }
-      const ring = draft.ring.filter((_, i) => i !== action.index);
-      return commit(draft, { ring, closed: draft.closed, selected: null });
+      const ring = toRing(draft.vertices);
+      if (deletedVertexCreatesCrossing(ring, index)) {
+        return reject(draft, 'crossing');
+      }
+      return commit(draft, {
+        vertices: draft.vertices.filter(v => v.id !== action.id),
+        selectedId: null,
+      });
     }
 
     case 'CLOSE': {
-      if (draft.closed || draft.ring.length < MIN_VERTICES) {
+      if (draft.closed) {
         return draft;
       }
-      return commit(draft, { ring: draft.ring, closed: true });
+      if (draft.vertices.length < MIN_VERTICES) {
+        return reject(draft, 'not-closed');
+      }
+      if (closingCreatesCrossing(toRing(draft.vertices))) {
+        return reject(draft, 'crossing');
+      }
+      return commit(draft, {
+        vertices: draft.vertices,
+        closed: true,
+        selectedId: null,
+      });
     }
 
     case 'SELECT':
-      // Pure UI state — not an undo step.
-      return draft.selected === action.index
+      return draft.selectedId === action.id
         ? draft
-        : { ...draft, selected: action.index };
+        : { ...draft, selectedId: action.id, commitKey: null };
 
     case 'UNDO': {
       if (draft.past.length === 0) {
         return draft;
       }
       const previous = draft.past[draft.past.length - 1];
-      return {
-        ring: previous.ring,
-        closed: previous.closed,
-        selected: null,
-        past: draft.past.slice(0, -1),
-        future: [...draft.future, snapshot(draft)].slice(-UNDO_LIMIT),
-      };
+      return restore(
+        draft,
+        previous,
+        draft.past.slice(0, -1),
+        [...draft.future, snapshot(draft)].slice(-UNDO_LIMIT),
+      );
     }
 
     case 'REDO': {
@@ -131,25 +221,38 @@ export const boundaryReducer = (
         return draft;
       }
       const next = draft.future[draft.future.length - 1];
+      return restore(
+        draft,
+        next,
+        [...draft.past, snapshot(draft)].slice(-UNDO_LIMIT),
+        draft.future.slice(0, -1),
+      );
+    }
+
+    case 'LOAD': {
+      const vertices: BoundaryVertex[] = [];
+      for (const raw of action.ring) {
+        const point = normalize(raw);
+        const last = vertices[vertices.length - 1];
+        if (last && distanceMeters(last, point) < MIN_EDGE_METERS) {
+          continue;
+        }
+        vertices.push({ id: nextVertexId(), ...point });
+      }
+      const first = vertices[0];
+      const last = vertices[vertices.length - 1];
+      if (vertices.length > 3 && first && last && distanceMeters(first, last) < MIN_EDGE_METERS) {
+        vertices.pop();
+      }
       return {
-        ring: next.ring,
-        closed: next.closed,
-        selected: null,
-        past: [...draft.past, snapshot(draft)].slice(-UNDO_LIMIT),
-        future: draft.future.slice(0, -1),
+        ...emptyDraft,
+        vertices,
+        closed: vertices.length >= MIN_VERTICES,
       };
     }
 
-    case 'LOAD':
-      // Loading a saved boundary is a fresh history root, not an undo step —
-      // the user should not be able to "undo" past the state they opened.
-      return {
-        ring: action.ring.map(normalize),
-        closed: true,
-        selected: null,
-        past: [],
-        future: [],
-      };
+    case 'CLEAR_REJECTION':
+      return draft.rejection === null ? draft : { ...draft, rejection: null };
 
     case 'RESET':
       return emptyDraft;
@@ -158,6 +261,3 @@ export const boundaryReducer = (
       return draft;
   }
 };
-
-const isIndex = (ring: readonly LatLng[], index: number): boolean =>
-  Number.isInteger(index) && index >= 0 && index < ring.length;

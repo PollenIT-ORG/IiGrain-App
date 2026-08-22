@@ -4,6 +4,7 @@ import {
   useRemoveMyAvatarMutation,
 } from "../store/endpoints/profileApi";
 import { showSuccess, showError } from "../lib/toast";
+import Portal from "./ui/Portal";
 
 function errMsg(err: unknown): string {
   return (
@@ -204,6 +205,7 @@ function CameraModal({
   }
 
   return (
+    <Portal>
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal-panel card w-full max-w-md p-5"
@@ -242,5 +244,6 @@ function CameraModal({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

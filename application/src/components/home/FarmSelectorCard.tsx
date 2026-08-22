@@ -7,11 +7,8 @@ import { moderateScale } from '../../utils';
 import { styles } from './FarmSelectorCardStyle';
 
 export interface FarmSelectorCardProps {
-  /** Name of the farm the dashboard is currently showing. */
   farmName: string;
-  /** Field count of the selected farm; hidden when not known yet. */
   fieldCount?: number;
-  /** How many farms the farmer has in total, across all pages. */
   farmCount: number;
   loading?: boolean;
   onPress: () => void;
@@ -24,8 +21,6 @@ const FarmSelectorCard: React.FC<FarmSelectorCardProps> = ({
   loading = false,
   onPress,
 }) => {
-  // With a single farm there is nothing to switch to, so the card stays as a
-  // read-only summary rather than pretending to be a picker.
   const switchable = farmCount > 1 && !loading;
 
   const meta = loading

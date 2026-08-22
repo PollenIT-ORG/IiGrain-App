@@ -6,8 +6,27 @@ import pool, { checkConnection } from "./db/pool.js";
 import prisma from "./db/prisma.js";
 import { runMigrations } from "./db/sync.js";
 import { runSeed } from "./db/seed.js";
+import {
+  seedProgramAdminGlobalTemplate,
+  seedGlobalContractTemplate,
+} from "./db/seedProgramAdminGlobal.js";
 import { initSocket } from "./socket/index.js";
+import { runVisitMaintenance } from "./services/visit.service.js";
 import "./config/cloudinary.js";
+
+const VISIT_MAINTENANCE_INTERVAL_MS = 15 * 60 * 1000;
+
+// Periodic housekeeping: close abandoned visits and prune old location history.
+// A missed run is harmless - the next one catches up - so failures only log.
+function startVisitMaintenance(): void {
+  const run = (): void => {
+    void runVisitMaintenance().catch((err) =>
+      logger.error("Visit maintenance failed", err)
+    );
+  };
+  run();
+  setInterval(run, VISIT_MAINTENANCE_INTERVAL_MS).unref();
+}
 
 async function connectWithRetry(attempts = 5, delayMs = 3000): Promise<void> {
   for (let i = 1; i <= attempts; i++) {
@@ -36,6 +55,21 @@ async function start(): Promise<void> {
       await runSeed();
     }
 
+    // The Program Admin Survey module needs its shared "Global" survey template
+    // and contract to exist. Both are idempotent (a no-op once seeded), so this
+    // runs on every boot and no manual step is needed after a deploy. Failures
+    // here (e.g. migrations not applied yet) must never stop the server.
+    try {
+      const [survey, contract] = await Promise.all([
+        seedProgramAdminGlobalTemplate(),
+        seedGlobalContractTemplate(),
+      ]);
+      if (survey.created) logger.info("✅ Seeded the global survey template");
+      if (contract.created) logger.info("✅ Seeded the global contract");
+    } catch (err) {
+      logger.warn("Could not ensure the Program Admin global templates", err);
+    }
+
     const server = app.listen(env.port, () => {
       logger.info(
         `🚜 Farmer App backend running in ${env.nodeEnv} mode on port ${env.port}`
@@ -49,6 +83,7 @@ async function start(): Promise<void> {
     });
 
     initSocket(server);
+    startVisitMaintenance();
 
     setupGracefulShutdown(server);
   } catch (err) {

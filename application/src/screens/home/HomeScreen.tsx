@@ -44,7 +44,7 @@ import {
   setSelectedFarmId,
 } from '../../redux/slices/dashboardSlice';
 import { selectIncomingVisit } from '../../redux/slices/visitSlice';
-import { useFarmerVisitWatch } from '../../hooks/useFarmerVisitWatch';
+import { useOnboardingGate } from '../onboarding/useOnboardingGate';
 import type { AppStackParamList, AppTabParamList } from '../../navigation/navigationTypes';
 import {
   regenStatusLabel,
@@ -56,7 +56,6 @@ import {
   toUpcomingPrograms,
 } from './dashboardPresenters';
 import { styles } from './HomeScreenStyle';
-import { tokenStorage } from '../../services/tokenStorage';
 
 const HomeScreen: React.FC = () => {
   const navigation =
@@ -69,6 +68,8 @@ const HomeScreen: React.FC = () => {
   const dispatch = useAppDispatch();
   const user = useAppSelector(selectAuthUser);
   const firstName = (user?.fullName ?? '').trim().split(' ')[0] || 'there';
+
+  useOnboardingGate();
 
   const farms = useAppSelector(selectDashboardFarms);
   const selectedFarmId = useAppSelector(selectSelectedFarmId);
@@ -85,7 +86,6 @@ const HomeScreen: React.FC = () => {
   const dashboardError = useAppSelector(selectDashboardError);
   const selectedFarmIsStale = useAppSelector(selectSelectedFarmIsStale);
 
-  useFarmerVisitWatch();
   const incomingVisit = useAppSelector(selectIncomingVisit);
 
   const [sheetVisible, setSheetVisible] = useState(false);
@@ -100,11 +100,6 @@ const HomeScreen: React.FC = () => {
     }
   }, [dispatch, selectedFarmId]);
 
-  // An assessment answered elsewhere in the app flags its farm as stale. Coming
-  // back to Home with that farm selected refetches the regen health index so the
-  // card reflects the answer. First focus is skipped — the effect above covers
-  // mount — and a farm switch is covered by the same effect, so this only fires
-  // for a genuine "left, answered, came back" round trip.
   const isFirstFocus = useRef(true);
   useFocusEffect(
     useCallback(() => {
@@ -117,17 +112,6 @@ const HomeScreen: React.FC = () => {
       }
     }, [dispatch, selectedFarmId, selectedFarmIsStale]),
   );
-
-  useEffect(() => {
-    (async () => {
-      const [accessToken, refreshToken] = await Promise.all([
-        tokenStorage.get(),
-        tokenStorage.getRefresh(),
-      ]);
-      console.log('🔑 ACCESS TOKEN =>', accessToken);
-      console.log('🔁 REFRESH TOKEN =>', refreshToken);
-    })();
-  }, []);
 
   const goAssessment = useCallback(() => navigation.navigate('Assessment'), [navigation]);
   const goEnroll = useCallback(() => navigation.navigate('EnrollNow'), [navigation]);
@@ -188,12 +172,6 @@ const HomeScreen: React.FC = () => {
   const hasUpcoming = Boolean(upcomingAssessment) || upcomingPrograms.length > 0;
   const activityItems = dashboard ? toActivityItems(dashboard.recentActivity) : [];
   const summaryRows = dashboard ? toSummaryRows(dashboard.summary) : [];
-
-  console.log("metrics - trend  - next  -  activityItems  - summaryRows" , "metrics  --------  " ,  metrics ,  "trend   -----   ---- - ",  trend  , "next ------- -- -- - ---",
-     
-      "activityItems-- -- -- - ---- --- -- -", activityItems  , "summaryRows   ----------------   ", summaryRows,
-    "token - - - - " , tokenStorage.peek(),
-    )
 
   const visitBanner = incomingVisit ? (
     <TouchableOpacity

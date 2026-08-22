@@ -19,7 +19,6 @@ export interface BusinessInfoCardProps {
   orgName?: string | null;
   ownerName?: string | null;
   ownerEmail?: string | null;
-  /** Opens the farm editor so the missing details can be filled in. */
   onEdit?: () => void;
 }
 
@@ -27,11 +26,6 @@ const EDIT_HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 } as const;
 
 const hasText = (value?: string | null): boolean => !!value && value.trim().length > 0;
 
-/**
- * Business side of a farm — the legal entity it trades as and who it belongs to.
- * These come from the farm editor and are frequently left blank, so the card
- * leads with a proper empty state rather than showing four "Not added" rows.
- */
 const BusinessInfoCard: React.FC<BusinessInfoCardProps> = ({
   businessEntity,
   orgName,
@@ -39,9 +33,6 @@ const BusinessInfoCard: React.FC<BusinessInfoCardProps> = ({
   ownerEmail,
   onEdit,
 }) => {
-  // Owner is always populated on a farm, so it cannot decide this. The empty
-  // state keys off the business identity itself — the part users actually leave
-  // blank — and the owner rows still render underneath it.
   const hasEntity = hasText(businessEntity) || hasText(orgName);
   const isEmpty = useMemo(
     () => ![businessEntity, orgName, ownerName, ownerEmail].some(hasText),

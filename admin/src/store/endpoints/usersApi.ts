@@ -88,7 +88,10 @@ export const usersApi = apiSlice.injectEndpoints({
         res.data.assessors,
     }),
 
-    assignAssessor: build.mutation<User, { id: string; assessorId: string }>({
+    // Named distinctly from assignmentsApi's assignAssessor/unassignAssessor -
+    // both inject onto the same apiSlice, so a shared endpoint name would
+    // collide and one would silently shadow the other.
+    assignUserAssessor: build.mutation<User, { id: string; assessorId: string }>({
       query: ({ id, assessorId }) => ({
         url: `/users/${id}/assessor`,
         method: "PUT",
@@ -98,7 +101,7 @@ export const usersApi = apiSlice.injectEndpoints({
       invalidatesTags: (_r, _e, { id }) => ["Users", { type: "User", id }],
     }),
 
-    unassignAssessor: build.mutation<User, string>({
+    unassignUserAssessor: build.mutation<User, string>({
       query: (id) => ({ url: `/users/${id}/assessor`, method: "DELETE" }),
       transformResponse: (res: ApiSuccess<{ user: User }>) => res.data.user,
       invalidatesTags: (_r, _e, id) => ["Users", { type: "User", id }],
@@ -114,6 +117,6 @@ export const {
   useSetUserStatusMutation,
   useDeleteUserMutation,
   useListAssessorsQuery,
-  useAssignAssessorMutation,
-  useUnassignAssessorMutation,
+  useAssignUserAssessorMutation,
+  useUnassignUserAssessorMutation,
 } = usersApi;

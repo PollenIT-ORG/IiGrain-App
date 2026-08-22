@@ -215,8 +215,6 @@ const mapAssessment = (raw: RawAssessment): AssessmentInfo => ({
     totalQuestions: raw.totalQuestions ?? 0,
     answered: raw.answered ?? 0,
     percentage: raw.percentage ?? 0,
-    // `mapAssessmentStatus` folds 'submitted' into COMPLETED, so keep the
-    // distinction here — it is what separates "View & Submit" from "View".
     submitted: raw.status === 'submitted',
 });
 
@@ -506,8 +504,6 @@ interface RawDiscardPayload {
     discarded_answers?: number;
 }
 
-/** Clears every saved answer + the draft for a (field, program) so the
- *  assessment can be started fresh. Rejects with 409 once submitted. */
 export const discardAssessment = async (
     programId: string,
     fieldId: string,
@@ -665,15 +661,6 @@ export const uploadEvidence = async (
     return res.data.data.urls ?? [];
 };
 
-/**
- * Evidence can be a video up to 50 MB, which on a mobile connection takes far
- * longer than the 15s default request timeout and would otherwise abort. The
- * abort reads as a network error, which the http retry interceptor treats as
- * retryable — re-sending the whole file from 0% and making the progress bar
- * restart after it already hit 100%. A long timeout + `skipRetry` stops both:
- * the upload gets the time it needs, and a genuine failure surfaces once (as a
- * retryable tile) instead of silently looping.
- */
 const EVIDENCE_UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
 const EVIDENCE_UPLOAD_CONFIG = {
     timeout: EVIDENCE_UPLOAD_TIMEOUT_MS,

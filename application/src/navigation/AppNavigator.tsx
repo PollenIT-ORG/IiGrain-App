@@ -1,5 +1,4 @@
 import React from 'react';
-import { LogBox } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { enableScreens } from 'react-native-screens';
 import AppDrawer from './drawer/AppDrawer';
@@ -20,30 +19,43 @@ import FarmerVisitTrackingScreen from '../screens/home/FarmerVisitTrackingScreen
 import HelpScreen from '../screens/help/HelpScreen';
 import FieldMapScreen from '../screens/help/FieldMapScreen';
 import BoundaryEditorScreen from '../screens/farms/BoundaryEditorScreen';
+import MonitoringModuleScreen from '../screens/monitoring/MonitoringModuleScreen';
+import MonitoringRecordScreen from '../screens/monitoring/MonitoringRecordScreen';
+import MonitoringRecordFormScreen from '../screens/monitoring/MonitoringRecordFormScreen';
 import SimpleMapScreen from '../screens/help/SimpleMapScreen';
+import AndroidLinesScreen from '../screens/help/AndroidLinesScreen';
 import AssessorNavigator from './AssessorNavigator';
 import NotificationsScreen from '../screens/notifications/NotificationsScreen';
+import OnboardingWelcomeScreen from '../screens/onboarding/OnboardingWelcomeScreen';
+import OnboardingChecklistScreen from '../screens/onboarding/OnboardingChecklistScreen';
+import ProgramInfoScreen from '../screens/onboarding/ProgramInfoScreen';
 import { useAppSelector } from '../redux/hooks';
 import { selectAuthUser } from '../redux/slices/authSlice';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
+import { useFarmerVisitWatch } from '../hooks/useFarmerVisitWatch';
 import type { AppStackParamList } from './navigationTypes';
 
 enableScreens(true);
-LogBox.ignoreAllLogs(true);
 
 const Stack = createNativeStackNavigator<AppStackParamList>();
 
 const AppNavigator: React.FC = () => {
   const user = useAppSelector(selectAuthUser);
-  useRealtimeSync();
+  const isAssessor = user?.role === 'assessor';
 
-  if (user?.role === 'assessor') {
+  useRealtimeSync();
+  useFarmerVisitWatch(!isAssessor);
+
+  if (isAssessor) {
     return <AssessorNavigator />;
   }
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Shell" component={AppDrawer} />
+      <Stack.Screen name="OnboardingWelcome" component={OnboardingWelcomeScreen} />
+      <Stack.Screen name="OnboardingChecklist" component={OnboardingChecklistScreen} />
+      <Stack.Screen name="OnboardingProgramInfo" component={ProgramInfoScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="Account" component={AccountScreen} />
       <Stack.Screen name="Reports" component={ReportsScreen} />
@@ -68,7 +80,11 @@ const AppNavigator: React.FC = () => {
       <Stack.Screen name="Help" component={HelpScreen} />
       <Stack.Screen name="FieldMap" component={FieldMapScreen} />
       <Stack.Screen name="BoundaryEditor" component={BoundaryEditorScreen} />
+      <Stack.Screen name="MonitoringModule" component={MonitoringModuleScreen} />
+      <Stack.Screen name="MonitoringRecord" component={MonitoringRecordScreen} />
+      <Stack.Screen name="MonitoringRecordForm" component={MonitoringRecordFormScreen} />
       <Stack.Screen name="SimpleMap" component={SimpleMapScreen} />
+      <Stack.Screen name="AndroidLines" component={AndroidLinesScreen} />
     </Stack.Navigator>
   );
 };

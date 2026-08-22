@@ -12,6 +12,7 @@ export const Endpoints = {
     refreshToken: '/auth/refresh-token',
     logout: '/auth/logout',
     forgotPassword: '/auth/forgot-password',
+    verifyResetCode: '/auth/verify-reset-code',
     resetPassword: '/auth/reset-password',
     me: '/auth/me',
   },
@@ -26,6 +27,7 @@ export const Endpoints = {
     mineAssessor: '/visits/mine/assessor',
     mineFarmer: '/visits/mine/farmer',
     byId: (visitId: string): string => `/visits/${visitId}`,
+    track: (visitId: string): string => `/visits/${visitId}/track`,
   },
   profile: {
     me: '/profile/me',
@@ -42,6 +44,8 @@ export const Endpoints = {
       `/farms/${farmId}/fields/${fieldId}`,
     resetField: (farmId: string, fieldId: string): string =>
       `/farms/${farmId}/fields/${fieldId}/reset`,
+    fieldBoundary: (farmId: string, fieldId: string): string =>
+      `/farms/${farmId}/fields/${fieldId}/boundary`,
   },
   dashboard: {
     farms: '/dashboard/my/farms',
@@ -132,13 +136,39 @@ export const Endpoints = {
     unenrollField: (programId: string, fieldId: string): string =>
       `/programs/${programId}/fields/${fieldId}/unenroll`,
   },
+  fieldMonitoring: {
+    farmPrograms: (farmId: string): string =>
+      `/field-monitoring/farms/${farmId}/programs`,
+
+    modules: (programId: string, fieldId: string): string =>
+      `/field-monitoring/programs/${programId}/fields/${fieldId}/modules`,
+
+    records: (programId: string, fieldId: string, module: string): string =>
+      `/field-monitoring/programs/${programId}/fields/${fieldId}/modules/${module}`,
+
+    record: (
+      programId: string,
+      fieldId: string,
+      module: string,
+      recordId: string,
+    ): string =>
+      `/field-monitoring/programs/${programId}/fields/${fieldId}/modules/${module}/${recordId}`,
+
+    documents: (programId: string, fieldId: string): string =>
+      `/field-monitoring/programs/${programId}/fields/${fieldId}/documents`,
+
+    documentUpload: (programId: string, fieldId: string): string =>
+      `/field-monitoring/programs/${programId}/fields/${fieldId}/documents/upload`,
+
+    document: (programId: string, fieldId: string, documentId: string): string =>
+      `/field-monitoring/programs/${programId}/fields/${fieldId}/documents/${documentId}`,
+  },
   notifications: {
     list: '/notifications',
     unreadCount: '/notifications/unread-count',
     markRead: (id: string): string => `/notifications/${id}/read`,
     markAllRead: '/notifications/read-all',
     remove: (id: string): string => `/notifications/${id}`,
-    // Bulk delete is a POST because a DELETE body is not reliably sent.
     removeMany: '/notifications/delete',
     removeAll: '/notifications',
   },
@@ -152,6 +182,7 @@ export const PUBLIC_AUTH_PATHS: readonly string[] = [
   Endpoints.auth.refreshToken,
   Endpoints.auth.logout,
   Endpoints.auth.forgotPassword,
+  Endpoints.auth.verifyResetCode,
   Endpoints.auth.resetPassword,
   Endpoints.roles.list,
   Endpoints.health.liveness,

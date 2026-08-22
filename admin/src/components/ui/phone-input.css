@@ -17,6 +17,15 @@
   box-shadow: 0 0 0 2px rgba(19, 111, 63, 0.2);
 }
 
+/* Invalid state - matches .input-error (danger #E53935). */
+.fa-phone-input.fa-phone-error {
+  border-color: #e53935;
+}
+.fa-phone-input.fa-phone-error:focus-within {
+  border-color: #e53935;
+  box-shadow: 0 0 0 2px rgba(229, 57, 53, 0.2);
+}
+
 /* The number input. */
 .fa-phone-input .PhoneInputInput {
   flex: 1;
@@ -32,17 +41,6 @@
 
 .fa-phone-input .PhoneInputInput::placeholder {
   color: #adb5bd;
-}
-
-/* Country select wrapper (flag + chevron). */
-.fa-phone-input .PhoneInputCountry {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0 0.6rem 0 0.75rem;
-  margin: 0;
-  border-right: 1px solid #dee2e6;
-  position: relative;
 }
 
 .fa-phone-input .PhoneInputCountryIcon {
@@ -78,4 +76,45 @@
 /* The native country <select> overlay sits invisibly over the flag. */
 .fa-phone-input .PhoneInputCountrySelect {
   cursor: pointer;
+}
+
+/* Custom country picker button (flag + chevron). This is a DIRECT child of
+   .fa-phone-input - the library renders no .PhoneInputCountry wrapper - so the
+   flag's left padding and the divider both live here. */
+.fa-phone-input .fa-country-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  align-self: stretch;
+  padding: 0 0.75rem 0 0.875rem;
+  border-right: 1px solid #dee2e6;
+  color: #adb5bd;
+  cursor: pointer;
+}
+.fa-phone-input .fa-country-btn:disabled {
+  cursor: not-allowed;
+}
+.fa-phone-input:focus-within .fa-country-btn {
+  color: #136f3f;
+}
+
+/* Flag thumbnail inside the dropdown list rows. */
+.fa-country-flag {
+  display: flex;
+  align-items: center;
+  width: 1.5em;
+  height: 1.1em;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 2px;
+}
+.fa-country-flag .PhoneInputCountryIcon {
+  width: 100%;
+  height: 100%;
+  box-shadow: none;
+}
+.fa-country-flag .PhoneInputCountryIconImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }

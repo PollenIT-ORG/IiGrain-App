@@ -25,6 +25,7 @@ import { AppIcon, ICON_SIZE, ICONS } from '../AppIcon';
 import AppText from '../AppText/AppText';
 import {
   COLORS,
+  LIST_PERF,
   borderRadius,
   borderWidth,
   presets,
@@ -48,12 +49,9 @@ export interface FarmSelectorSheetProps {
   visible: boolean;
   farms: DashboardFarm[];
   selectedFarmId: string | null;
-  /** The farmer's most-recent farm; badged so the default is recognisable. */
   defaultFarmId?: string | null;
   loading?: boolean;
-  /** True while an extra page of farms is being appended. */
   loadingMore?: boolean;
-  /** True when the backend reports pages beyond the loaded farms. */
   hasMore?: boolean;
   total?: number;
   onLoadMore?: () => void;
@@ -131,6 +129,8 @@ const FarmSelectorSheet: React.FC<FarmSelectorSheetProps> = ({
   }));
   const backdropStyle = useAnimatedStyle(() => ({ opacity: backdrop.value }));
 
+  const keyExtractor = useCallback((item: DashboardFarm) => item.id, []);
+
   const renderItem = useCallback(
     ({ item }: { item: DashboardFarm }) => {
       const selected = item.id === selectedFarmId;
@@ -151,11 +151,6 @@ const FarmSelectorSheet: React.FC<FarmSelectorSheetProps> = ({
                 numberOfLines={1}>
                 {item.name}
               </AppText>
-              {/* {item.id === defaultFarmId ? (
-                <View style={styles.defaultChip}>
-                  <AppText style={styles.defaultChipText}>Default</AppText>
-                </View>
-              ) : null} */}
             </View>
             <AppText style={styles.rowMeta} numberOfLines={1}>
               {item.fieldCount} {item.fieldCount === 1 ? 'field' : 'fields'}
@@ -170,8 +165,6 @@ const FarmSelectorSheet: React.FC<FarmSelectorSheetProps> = ({
     [onSelect, selectedFarmId, defaultFarmId],
   );
 
-  // The loaded list is the canonical, unfiltered one (the dashboard header reads
-  // it too), so filtering stays local to the sheet.
   const visibleFarms = useMemo(() => {
     const q = query.trim().toLowerCase();
     return q ? farms.filter(f => f.name.toLowerCase().includes(q)) : farms;
@@ -238,12 +231,13 @@ const FarmSelectorSheet: React.FC<FarmSelectorSheetProps> = ({
             ) : (
               <FlatList
                 data={visibleFarms}
-                keyExtractor={f => f.id}
+                keyExtractor={keyExtractor}
                 renderItem={renderItem}
                 style={styles.list}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 ItemSeparatorComponent={Separator}
+                {...LIST_PERF}
                 onEndReached={onLoadMore}
                 onEndReachedThreshold={0.4}
                 contentContainerStyle={[
@@ -287,7 +281,6 @@ const styles = StyleSheet.create({
   anchor: {
     flex: 1,
     justifyContent: 'flex-end',
-
   },
   sheet: {
     backgroundColor: COLORS.white,
@@ -327,7 +320,6 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
     paddingBottom:190,
-
   },
   searchWrap: {
     flexDirection: 'row',
@@ -361,7 +353,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.lightPrimary,
     alignItems: 'center',
     justifyContent: 'center',
- 
   },
   rowIconSelected: {
     backgroundColor: COLORS.white,
@@ -378,7 +369,6 @@ const styles = StyleSheet.create({
   rowNameSelected: {
     color: COLORS.primaryDark,
     width:"98%",
-
   },
   rowMeta: {
     ...presets.bodyXS,

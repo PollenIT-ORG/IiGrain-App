@@ -44,7 +44,6 @@ import {
   SHEET_SPRING,
 } from '../account/animations';
 
-/** Shape shared by the per-program field list and the flat fallback list. */
 export interface SelectableField {
   id: string;
   name: string;
@@ -53,29 +52,30 @@ export interface SelectableField {
   enrolled: boolean;
 }
 
+export interface FieldSheetEmptyState {
+  icon?: string;
+  title?: string;
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}
+
 export interface FieldSelectSheetProps {
   visible: boolean;
   programName: string;
-  /** True when the user is adding fields to a program they already joined. */
   alreadyEnrolled: boolean;
   fields: SelectableField[];
   selectedIds: string[];
   loading?: boolean;
   enrolling?: boolean;
-  /** Field currently being removed, so its row can show a spinner. */
   unenrollingFieldId?: string | null;
   errorMessage?: string | null;
-  /**
-   * Rendered on top of the sheet, inside the SAME native modal — confirmation
-   * dialogs must go here rather than beside the sheet, because iOS does not
-   * reliably present two sibling modals at once.
-   */
+  emptyState?: FieldSheetEmptyState;
   overlay?: React.ReactNode;
   onRetry?: () => void;
   onToggle: (fieldId: string) => void;
   onRemove: (field: SelectableField) => void;
   onEnroll: () => void;
-  onGoToFarms?: () => void;
   onClose: () => void;
 }
 
@@ -93,28 +93,17 @@ const FieldSelectSheet: React.FC<FieldSelectSheetProps> = ({
   enrolling = false,
   unenrollingFieldId,
   errorMessage,
+  emptyState,
   overlay,
   onRetry,
   onToggle,
   onRemove,
   onEnroll,
-  onGoToFarms,
   onClose,
 }) => {
   const insets = useSafeAreaInsets();
-  // Only used to park the sheet off-screen before it animates in. The sheet's
-  // own height is a percentage of the modal container (see styles.sheet) so it
-  // can never exceed the window and clip its own header.
   const { height } = useWindowDimensions();
 
-  // Bottom clearance differs by platform and must not be guessed:
-  //   iOS      - the modal always covers the full screen, so the home indicator
-  //              has to be cleared here via the inset.
-  //   Android  - this Modal deliberately omits statusBarTranslucent, so its
-  //              window already stops above the navigation bar. Adding the app
-  //              window's inset on top would either double-pad (edge-to-edge on
-  //              Android 15+) or, worse, read as 0 on older versions and leave
-  //              the Enroll button sitting under the nav buttons.
   const bottomInset = Platform.OS === 'ios' ? insets.bottom : 0;
 
   const [mounted, setMounted] = useState(visible);
@@ -147,8 +136,6 @@ const FieldSelectSheet: React.FC<FieldSelectSheetProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted]);
 
-  // Dragging is disabled mid-request so the sheet cannot vanish under a
-  // half-finished enrollment.
   const pan = Gesture.Pan()
     .enabled(!enrolling)
     .onUpdate(e => {
@@ -310,20 +297,28 @@ const FieldSelectSheet: React.FC<FieldSelectSheetProps> = ({
       );
     }
     if (fields.length === 0) {
+      const empty: FieldSheetEmptyState = emptyState ?? {
+        message:
+          "You don't have any fields yet. Add a field to one of your farms to join this program.",
+      };
       return (
         <View style={styles.center}>
-          <AppIcon name={ICONS.FIELD} size={scale(40)} color={COLORS.gray500} />
-          <AppText style={styles.stateText}>
-            You don't have any fields yet. Add a field to one of your farms to
-            join this program.
-          </AppText>
-          {onGoToFarms ? (
+          <AppIcon
+            name={empty.icon ?? ICONS.FIELD}
+            size={scale(40)}
+            color={COLORS.gray500}
+          />
+          {empty.title ? (
+            <AppText style={styles.stateTitle}>{empty.title}</AppText>
+          ) : null}
+          <AppText style={styles.stateText}>{empty.message}</AppText>
+          {empty.actionLabel && empty.onAction ? (
             <Button
-              title="Go to Farms"
+              title={empty.actionLabel}
               variant="outline"
               size="sm"
               fullWidth={false}
-              onPress={onGoToFarms}
+              onPress={empty.onAction}
               style={styles.retryBtn}
             />
           ) : null}
@@ -357,9 +352,6 @@ const FieldSelectSheet: React.FC<FieldSelectSheetProps> = ({
       visible
       transparent
       animationType="none"
-      // No statusBarTranslucent/navigationBarTranslucent on purpose — letting
-      // the Android window respect the system bars is what keeps the footer
-      // clear of the navigation buttons. See `bottomInset` above.
       onRequestClose={handleBackdropPress}>
       <GestureHandlerRootView style={styles.root}>
         <AnimatedPressable
@@ -448,8 +440,6 @@ const styles = StyleSheet.create({
   },
   anchor: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
-    // Relative to the modal container, so it adapts to whatever height the
-    // window actually has on each platform.
     height: '82%',
     backgroundColor: COLORS.white,
     borderTopLeftRadius: borderRadius['2xl'],
@@ -559,6 +549,12 @@ const styles = StyleSheet.create({
     gap: spacing[3],
     paddingHorizontal: spacing[6],
     paddingVertical: spacing[8],
+  },
+  stateTitle: {
+    ...presets.headingXS,
+    color: COLORS.gray900,
+    textAlign: 'center',
+    marginTop: spacing[3],
   },
   stateText: {
     ...presets.bodySM,

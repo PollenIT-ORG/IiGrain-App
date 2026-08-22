@@ -115,7 +115,6 @@ const AddFarmScreen: React.FC<AppScreenProps<'AddFarm'>> = ({ route, navigation 
           farmId,
           input: {
             name: name.trim(),
-            // Sent even when empty so clearing the field clears it server-side.
             businessEntity: entity,
             areaAcres: area,
             location: loc,
@@ -219,8 +218,6 @@ const AddFarmScreen: React.FC<AppScreenProps<'AddFarm'>> = ({ route, navigation 
           onChangeText={setLocation}
           autoCapitalize="words"
           multiline
-          // A map-picked address can be long — wrap it inside the field instead
-          // of overflowing the box (iOS doesn't clip overflow like Android).
           blurOnSubmit
           returnKeyType="done"
           onSubmitEditing={handleSave}

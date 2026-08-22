@@ -34,6 +34,7 @@ function ScoreField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        maxLength={500}
       />
     </div>
   );
@@ -198,6 +199,7 @@ export default function QuestionForm() {
               value={questionText}
               onChange={(e) => setQuestionText(e.target.value)}
               placeholder="e.g. Pollinator habitat - Presence of flowering plant strips..."
+              maxLength={500}
             />
             {errors.questionText && (
               <p className="field-error">{errors.questionText}</p>
@@ -214,6 +216,7 @@ export default function QuestionForm() {
               value={guidanceNote}
               onChange={(e) => setGuidanceNote(e.target.value)}
               placeholder="How the farmer should understand or measure this question"
+              maxLength={1000}
             />
           </div>
 

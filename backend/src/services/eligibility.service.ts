@@ -10,6 +10,8 @@ import { notifyOrgManagers } from "./notification.service.js";
 import {
   contractToSignEmail,
   enrollmentWelcomeEmail,
+  surveyQualifiedEmail,
+  surveyNotQualifiedEmail,
 } from "./emailTemplates.js";
 import { sendMail } from "./mailer.service.js";
 import env from "../config/env.js";
@@ -47,6 +49,15 @@ function mailQuietly(to: string, content: { subject: string; text: string; html:
   void sendMail({ to, ...content }).catch((err) => {
     logger.warn(`Could not send email to ${to}`, err);
   });
+}
+
+// The producer's status page link, so result emails can carry a "check status"
+// button. Only the standalone survey has its own hosted status page.
+function statusLinkFor(submission: PublicSubmission): string | undefined {
+  if (submission.channel === "standalone" && submission.status_token) {
+    return `${env.surveyAppUrl}/survey/status/${submission.status_token}`;
+  }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -228,17 +239,39 @@ export async function signContractByToken(
 export interface ListInput {
   page: number;
   limit: number;
-  status?: SubmissionStatus;
+  status?: string;
   category?: SurveyCategory;
   channel?: "website" | "standalone";
+  referral?: string;
+  createdFrom?: string;
+  createdTo?: string;
   search?: string;
 }
 
+// A status filter can be a granular status or a grouped one (Under Review folds
+// submitted + qualified; Contract Sent folds contract_sent + contract_signed).
+const STATUS_FILTER_GROUPS: Record<string, SubmissionStatus[]> = {
+  registered: ["draft"],
+  under_review: ["submitted", "qualified"],
+  contract_sent: ["contract_sent", "contract_signed"],
+  enrolled: ["enrolled"],
+  not_qualified: ["not_qualified"],
+  withdrawn: ["withdrawn"],
+};
+
 export async function getSubmissions(input: ListInput) {
+  const statuses = input.status
+    ? (STATUS_FILTER_GROUPS[input.status] ?? [input.status as SubmissionStatus])
+    : undefined;
+  const toEnd = input.createdTo ? new Date(input.createdTo) : undefined;
+  if (toEnd) toEnd.setHours(23, 59, 59, 999);
   const { rows, total } = await listSubmissions({
-    status: input.status,
+    statuses,
     category: input.category,
     channel: input.channel,
+    referral: input.referral,
+    createdFrom: input.createdFrom ? new Date(input.createdFrom) : undefined,
+    createdTo: toEnd,
     search: input.search,
     limit: input.limit,
     offset: (input.page - 1) * input.limit,
@@ -269,7 +302,8 @@ export function getSubmissionStats(): Promise<Record<string, number>> {
 export async function setCategory(
   id: string,
   category: SurveyCategory,
-  adminId: string
+  adminId: string,
+  reason: string | null = null
 ): Promise<PublicSubmission> {
   const submission = await findSubmissionById(id);
   if (!submission) throw ApiError.notFound("Submission not found.");
@@ -290,10 +324,33 @@ export async function setCategory(
   const updated = await updateSubmission(id, {
     final_category: category,
     status,
+    override_reason: reason?.trim() || null,
     reviewed_by: adminId,
     reviewed_at: new Date(),
   });
   if (!updated) throw ApiError.notFound("Submission not found.");
+
+  // Email the producer their result straight away (the admin does this from the
+  // submission's Override panel), carrying the admin's reason when given.
+  // Fire-and-forget so it never blocks the save.
+  const link = statusLinkFor(updated);
+  const emailReason = reason?.trim() || undefined;
+  mailQuietly(
+    updated.email,
+    category === "not_qualified"
+      ? surveyNotQualifiedEmail({
+          fullName: updated.full_name,
+          link,
+          reason: emailReason,
+        })
+      : surveyQualifiedEmail({
+          fullName: updated.full_name,
+          category,
+          link,
+          reason: emailReason,
+        })
+  );
+
   broadcastToAdmins("eligibility", { submissionId: id });
   notifyWebsiteUser(submission.website_user_id, "band_changed", {
     submissionId: id,
@@ -436,4 +493,16 @@ export async function deleteSubmission(id: string): Promise<void> {
   const ok = await softDeleteSubmission(id);
   if (!ok) throw ApiError.notFound("Submission not found.");
   broadcastToAdmins("eligibility", { submissionId: id });
+}
+
+/** Marks a submission as withdrawn (producer voluntarily left the program). */
+export async function withdrawSubmission(id: string) {
+  const submission = await findSubmissionById(id);
+  if (!submission) throw ApiError.notFound("Submission not found.");
+  if (submission.status === "withdrawn") return submission;
+  const updated = await updateSubmission(id, { status: "withdrawn" });
+  if (!updated) throw ApiError.notFound("Submission not found.");
+  broadcastToAdmins("eligibility", { submissionId: id });
+  notifySubmission(id, "withdrawn", { submissionId: id });
+  return updated;
 }

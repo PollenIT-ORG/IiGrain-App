@@ -23,10 +23,6 @@ const LR_START = { x: 0, y: 0 };
 const LR_END = { x: 1, y: 0 };
 const PROGRESS_MS = 900;
 
-/**
- * Percentages read as whole numbers unless the fraction actually matters —
- * "62%" not "62.00%", but "0.4%" stays visible instead of collapsing to "0%".
- */
 const formatPercent = (value: number): string => {
   if (value === 0 || Number.isInteger(value)) {
     return `${value}`;
@@ -70,7 +66,6 @@ const AreaSummaryCard: React.FC<AreaSummaryCardProps> = ({ total, used, availabl
       toValue: percentage,
       duration: PROGRESS_MS,
       easing: Easing.out(Easing.cubic),
-      // Width cannot be driven natively; the bar is a single short animation.
       useNativeDriver: false,
     }).start();
   }, [anim, percentage]);

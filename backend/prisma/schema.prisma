@@ -67,22 +67,22 @@ model assessment_responses {
 }
 
 model farms {
-  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name          String         @db.VarChar(150)
-  area_acres    Decimal?       @db.Decimal(10, 2)
-  location      String?
-  business_entity String?      @db.VarChar(200)
-  owner_id      String         @db.Uuid
-  org_id        String?        @db.Uuid
-  is_active     Boolean        @default(true)
-  created_at    DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime       @default(now()) @db.Timestamptz(6)
-  deleted_at    DateTime?      @db.Timestamptz(6)
-  latitude      Decimal?       @db.Decimal(9, 6)
-  longitude     Decimal?       @db.Decimal(9, 6)
-  organizations organizations? @relation(fields: [org_id], references: [id], onUpdate: NoAction)
-  users         users          @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  fields        fields[]
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String         @db.VarChar(150)
+  area_acres      Decimal?       @db.Decimal(10, 2)
+  location        String?
+  owner_id        String         @db.Uuid
+  org_id          String?        @db.Uuid
+  is_active       Boolean        @default(true)
+  created_at      DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime       @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime?      @db.Timestamptz(6)
+  latitude        Decimal?       @db.Decimal(9, 6)
+  longitude       Decimal?       @db.Decimal(9, 6)
+  business_entity String?        @db.VarChar(200)
+  organizations   organizations? @relation(fields: [org_id], references: [id], onUpdate: NoAction)
+  users           users          @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  fields          fields[]
 
   @@index([org_id], map: "idx_farms_org_id")
   @@index([owner_id], map: "idx_farms_owner_id")
@@ -130,10 +130,26 @@ model fields {
   deleted_at                DateTime?                   @db.Timestamptz(6)
   latitude                  Decimal?                    @db.Decimal(9, 6)
   longitude                 Decimal?                    @db.Decimal(9, 6)
+  /// Surveyed field outline as a GeoJSON Polygon, e.g.
+  /// { "type": "Polygon", "coordinates": [[[lng,lat], ..., [lng,lat]]] }
+  /// The ring is closed (last point repeats the first) per the GeoJSON spec.
+  /// Null until the farmer has drawn one in the boundary editor.
+  boundary                  Json?
+  boundary_updated_at       DateTime?                   @db.Timestamptz(6)
   assessment_responses      assessment_responses[]
+  field_amendments          field_amendments[]
   field_assessments         field_assessments[]
+  field_crop_records        field_crop_records[]
   field_documents           field_documents[]
+  field_fertilizers         field_fertilizers[]
+  field_irrigations         field_irrigations[]
+  field_module_documents    field_module_documents[]
+  field_nutrient_events     field_nutrient_events[]
+  field_pesticides          field_pesticides[]
   field_soil                field_soil[]
+  field_soil_samples        field_soil_samples[]
+  field_tillage_records     field_tillage_records[]
+  field_trainings           field_trainings[]
   field_visits              field_visits[]
   farms                     farms                       @relation(fields: [farm_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   program_enrollment_fields program_enrollment_fields[]
@@ -163,14 +179,16 @@ model organizations {
   description          String?
   contact_email        String?                @db.VarChar(255)
   contact_phone        String?                @db.VarChar(20)
-  contact_hours        String?                @db.VarChar(200)
   address              String?
-  logo_url             String?
-  favicon_url          String?
   is_active            Boolean                @default(true)
   created_at           DateTime               @default(now()) @db.Timestamptz(6)
   updated_at           DateTime               @default(now()) @db.Timestamptz(6)
   deleted_at           DateTime?              @db.Timestamptz(6)
+  logo_url             String?
+  favicon_url          String?
+  contact_hours        String?                @db.VarChar(200)
+  timezone             String                 @default("America/Chicago") @db.VarChar(64)
+  time_format          String                 @default("12h") @db.VarChar(3)
   assessor_assignments assessor_assignments[]
   farms                farms[]
   programs             programs[]
@@ -211,41 +229,52 @@ model roles {
 }
 
 model users {
-  id                                                           String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                                                           String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   role_id                                                      Int
-  full_name                                                    String?                @db.VarChar(150)
-  email                                                        String                 @db.VarChar(255)
-  phone                                                        String?                @db.VarChar(20)
-  avatar_url                                                   String?
-  enrollment_id                                                String?                @db.VarChar(30)
+  full_name                                                    String?                   @db.VarChar(150)
+  email                                                        String                    @db.VarChar(255)
+  phone                                                        String?                   @db.VarChar(20)
   password_hash                                                String?
-  is_active                                                    Boolean                @default(true)
-  is_email_verified                                            Boolean                @default(false)
-  last_login_at                                                DateTime?              @db.Timestamptz(6)
-  created_at                                                   DateTime               @default(now()) @db.Timestamptz(6)
-  updated_at                                                   DateTime               @default(now()) @db.Timestamptz(6)
-  deleted_at                                                   DateTime?              @db.Timestamptz(6)
-  org_id                                                       String?                @db.Uuid
+  is_active                                                    Boolean                   @default(true)
+  is_email_verified                                            Boolean                   @default(false)
+  last_login_at                                                DateTime?                 @db.Timestamptz(6)
+  created_at                                                   DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at                                                   DateTime                  @default(now()) @db.Timestamptz(6)
+  deleted_at                                                   DateTime?                 @db.Timestamptz(6)
+  org_id                                                       String?                   @db.Uuid
+  avatar_url                                                   String?
+  enrollment_id                                                String?                   @db.VarChar(30)
   assessment_responses                                         assessment_responses[]
-  assessor_assignments_assessor_assignments_assessor_idTousers assessor_assignments[] @relation("assessor_assignments_assessor_idTousers")
-  assessor_assignments_assessor_assignments_assigned_byTousers assessor_assignments[] @relation("assessor_assignments_assigned_byTousers")
-  assessor_assignments_assessor_assignments_farmer_idTousers   assessor_assignments[] @relation("assessor_assignments_farmer_idTousers")
+  assessor_assignments_assessor_assignments_assessor_idTousers assessor_assignments[]    @relation("assessor_assignments_assessor_idTousers")
+  assessor_assignments_assessor_assignments_assigned_byTousers assessor_assignments[]    @relation("assessor_assignments_assigned_byTousers")
+  assessor_assignments_assessor_assignments_farmer_idTousers   assessor_assignments[]    @relation("assessor_assignments_farmer_idTousers")
+  contracts_accepted                                           contracts[]               @relation("contract_acceptor")
+  eligibility_submissions_reviewed                             eligibility_submissions[] @relation("eligibility_reviewer")
+  email_settings                                               email_settings[]
   farms                                                        farms[]
+  field_amendments                                             field_amendments[]
   field_assessments                                            field_assessments[]
+  field_crop_records                                           field_crop_records[]
   field_documents                                              field_documents[]
-  field_visits_field_visits_assessor_idTousers                 field_visits[]         @relation("field_visits_assessor_idTousers")
-  field_visits_field_visits_farmer_idTousers                   field_visits[]         @relation("field_visits_farmer_idTousers")
+  field_fertilizers                                            field_fertilizers[]
+  field_irrigations                                            field_irrigations[]
+  field_module_documents                                       field_module_documents[]
+  field_nutrient_events                                        field_nutrient_events[]
+  field_pesticides                                             field_pesticides[]
+  field_soil_samples                                           field_soil_samples[]
+  field_tillage_records                                        field_tillage_records[]
+  field_trainings                                              field_trainings[]
+  field_visits_field_visits_assessor_idTousers                 field_visits[]            @relation("field_visits_assessor_idTousers")
+  field_visits_field_visits_farmer_idTousers                   field_visits[]            @relation("field_visits_farmer_idTousers")
   login_logs                                                   login_logs[]
   notifications                                                notifications[]
-  program_enrollments_program_enrollments_assessor_idTousers   program_enrollments[]  @relation("program_enrollments_assessor_idTousers")
-  program_enrollments_program_enrollments_enrolled_byTousers   program_enrollments[]  @relation("program_enrollments_enrolled_byTousers")
-  program_enrollments_program_enrollments_farmer_idTousers     program_enrollments[]  @relation("program_enrollments_farmer_idTousers")
+  program_enrollments_program_enrollments_assessor_idTousers   program_enrollments[]     @relation("program_enrollments_assessor_idTousers")
+  program_enrollments_program_enrollments_enrolled_byTousers   program_enrollments[]     @relation("program_enrollments_enrolled_byTousers")
+  program_enrollments_program_enrollments_farmer_idTousers     program_enrollments[]     @relation("program_enrollments_farmer_idTousers")
   programs                                                     programs[]
   refresh_tokens                                               refresh_tokens[]
-  eligibility_submissions_reviewed                             eligibility_submissions[] @relation("eligibility_reviewer")
-  contracts_accepted                                           contracts[] @relation("contract_acceptor")
-  organizations                                                organizations?         @relation(fields: [org_id], references: [id], onUpdate: NoAction)
-  roles                                                        roles                  @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  organizations                                                organizations?            @relation(fields: [org_id], references: [id], onUpdate: NoAction)
+  roles                                                        roles                     @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([email], map: "idx_users_email")
   @@index([org_id], map: "idx_users_org_id")
@@ -325,62 +354,97 @@ model program_enrollments {
   updated_at                                   DateTime                    @default(now()) @db.Timestamptz(6)
   deleted_at                                   DateTime?                   @db.Timestamptz(6)
   assessor_id                                  String?                     @db.Uuid
+  enrollment_id                                String?                     @db.VarChar(32)
   program_enrollment_fields                    program_enrollment_fields[]
   users_program_enrollments_assessor_idTousers users?                      @relation("program_enrollments_assessor_idTousers", fields: [assessor_id], references: [id], onUpdate: NoAction)
   users_program_enrollments_enrolled_byTousers users?                      @relation("program_enrollments_enrolled_byTousers", fields: [enrolled_by], references: [id], onUpdate: NoAction)
   users_program_enrollments_farmer_idTousers   users                       @relation("program_enrollments_farmer_idTousers", fields: [farmer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   programs                                     programs                    @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([enrollment_id], map: "idx_program_enrollments_enrollment_id")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model programs {
-  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  org_id               String                 @db.Uuid
-  name                 String                 @db.VarChar(150)
-  code                 String?                @db.VarChar(50)
-  description          String?
-  type                 String?                @db.VarChar(50)
-  start_date           DateTime?              @db.Date
-  end_date             DateTime?              @db.Date
-  user_limit           Int?
-  is_active            Boolean                @default(true)
-  created_by           String?                @db.Uuid
-  created_at           DateTime               @default(now()) @db.Timestamptz(6)
-  updated_at           DateTime               @default(now()) @db.Timestamptz(6)
-  deleted_at           DateTime?              @db.Timestamptz(6)
-  assessment_responses assessment_responses[]
-  field_assessments    field_assessments[]
-  field_visits         field_visits[]
-  program_enrollments  program_enrollments[]
-  users                users?                 @relation(fields: [created_by], references: [id], onUpdate: NoAction)
-  organizations        organizations          @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_id                 String                   @db.Uuid
+  name                   String                   @db.VarChar(150)
+  code                   String?                  @db.VarChar(50)
+  description            String?
+  type                   String?                  @db.VarChar(50)
+  start_date             DateTime?                @db.Date
+  end_date               DateTime?                @db.Date
+  user_limit             Int?
+  is_active              Boolean                  @default(true)
+  created_by             String?                  @db.Uuid
+  created_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  deleted_at             DateTime?                @db.Timestamptz(6)
+  show_to_farmers        Boolean                  @default(false)
+  assessment_responses   assessment_responses[]
+  field_amendments       field_amendments[]
+  field_assessments      field_assessments[]
+  field_crop_records     field_crop_records[]
+  field_fertilizers      field_fertilizers[]
+  field_irrigations      field_irrigations[]
+  field_module_documents field_module_documents[]
+  field_nutrient_events  field_nutrient_events[]
+  field_pesticides       field_pesticides[]
+  field_soil_samples     field_soil_samples[]
+  field_tillage_records  field_tillage_records[]
+  field_trainings        field_trainings[]
+  field_visits           field_visits[]
+  program_admin_surveys  program_admin_surveys[]
+  program_enrollments    program_enrollments[]
+  users                  users?                   @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  organizations          organizations            @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model field_visits {
-  id                                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  assessor_id                           String    @db.Uuid
-  farmer_id                             String    @db.Uuid
-  program_id                            String?   @db.Uuid
-  field_id                              String?   @db.Uuid
-  status                                String    @default("en_route") @db.VarChar(20)
-  dest_latitude                         Decimal?  @db.Decimal(9, 6)
-  dest_longitude                        Decimal?  @db.Decimal(9, 6)
-  last_latitude                         Decimal?  @db.Decimal(9, 6)
-  last_longitude                        Decimal?  @db.Decimal(9, 6)
-  last_location_at                      DateTime? @db.Timestamptz(6)
-  started_at                            DateTime  @default(now()) @db.Timestamptz(6)
-  arrived_at                            DateTime? @db.Timestamptz(6)
-  ended_at                              DateTime? @db.Timestamptz(6)
-  created_at                            DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at                            DateTime  @default(now()) @db.Timestamptz(6)
-  users_field_visits_assessor_idTousers users     @relation("field_visits_assessor_idTousers", fields: [assessor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  users_field_visits_farmer_idTousers   users     @relation("field_visits_farmer_idTousers", fields: [farmer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  fields                                fields?   @relation(fields: [field_id], references: [id], onUpdate: NoAction)
-  programs                              programs? @relation(fields: [program_id], references: [id], onUpdate: NoAction)
+  id                                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessor_id                           String                  @db.Uuid
+  farmer_id                             String                  @db.Uuid
+  program_id                            String?                 @db.Uuid
+  field_id                              String?                 @db.Uuid
+  status                                String                  @default("en_route") @db.VarChar(20)
+  dest_latitude                         Decimal?                @db.Decimal(9, 6)
+  dest_longitude                        Decimal?                @db.Decimal(9, 6)
+  last_latitude                         Decimal?                @db.Decimal(9, 6)
+  last_longitude                        Decimal?                @db.Decimal(9, 6)
+  last_location_at                      DateTime?               @db.Timestamptz(6)
+  started_at                            DateTime                @default(now()) @db.Timestamptz(6)
+  arrived_at                            DateTime?               @db.Timestamptz(6)
+  ended_at                              DateTime?               @db.Timestamptz(6)
+  created_at                            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at                            DateTime                @default(now()) @db.Timestamptz(6)
+  arrival_latitude                      Decimal?                @db.Decimal(9, 6)
+  arrival_longitude                     Decimal?                @db.Decimal(9, 6)
+  arrival_accuracy_m                    Decimal?                @db.Decimal(6, 1)
+  arrival_distance_m                    Decimal?                @db.Decimal(10, 1)
+  arrival_verified                      Boolean?
+  location_flag                         String?                 @db.VarChar(40)
+  field_visit_locations                 field_visit_locations[]
+  users_field_visits_assessor_idTousers users                   @relation("field_visits_assessor_idTousers", fields: [assessor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_field_visits_farmer_idTousers   users                   @relation("field_visits_farmer_idTousers", fields: [farmer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  fields                                fields?                 @relation(fields: [field_id], references: [id], onUpdate: NoAction)
+  programs                              programs?               @relation(fields: [program_id], references: [id], onUpdate: NoAction)
 
   @@index([assessor_id, status], map: "idx_field_visits_assessor")
   @@index([farmer_id, status], map: "idx_field_visits_farmer")
+}
+
+model field_visit_locations {
+  id           BigInt       @id @default(autoincrement())
+  visit_id     String       @db.Uuid
+  latitude     Decimal      @db.Decimal(9, 6)
+  longitude    Decimal      @db.Decimal(9, 6)
+  accuracy_m   Decimal?     @db.Decimal(6, 1)
+  is_mock      Boolean      @default(false)
+  recorded_at  DateTime     @default(now()) @db.Timestamptz(6)
+  field_visits field_visits @relation(fields: [visit_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([visit_id, recorded_at], map: "idx_fvl_visit_time")
 }
 
 model notifications {
@@ -398,17 +462,18 @@ model notifications {
 }
 
 model website_users {
-  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  full_name               String                    @db.VarChar(150)
-  email                   String                    @db.VarChar(255)
-  password_hash           String
-  phone                   String?                   @db.VarChar(20)
-  is_email_verified       Boolean                   @default(false)
-  last_login_at           DateTime?                 @db.Timestamptz(6)
-  created_at              DateTime                  @default(now()) @db.Timestamptz(6)
-  updated_at              DateTime                  @default(now()) @db.Timestamptz(6)
-  deleted_at              DateTime?                 @db.Timestamptz(6)
-  eligibility_submissions eligibility_submissions[]
+  id                               String                             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  full_name                        String                             @db.VarChar(150)
+  email                            String                             @db.VarChar(255)
+  password_hash                    String
+  phone                            String?                            @db.VarChar(20)
+  is_email_verified                Boolean                            @default(false)
+  last_login_at                    DateTime?                          @db.Timestamptz(6)
+  created_at                       DateTime                           @default(now()) @db.Timestamptz(6)
+  updated_at                       DateTime                           @default(now()) @db.Timestamptz(6)
+  deleted_at                       DateTime?                          @db.Timestamptz(6)
+  eligibility_submissions          eligibility_submissions[]
+  program_admin_survey_submissions program_admin_survey_submissions[]
 }
 
 model survey_categories {
@@ -426,10 +491,8 @@ model survey_categories {
 
 model survey_questions {
   id                      String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  category_id             String?            @db.Uuid
   question_text           String
   help_text               String?
-  weight                  Int                @default(1)
   score_yes               Int                @default(0)
   score_no                Int                @default(0)
   parent_question_id      String?            @db.Uuid
@@ -439,8 +502,14 @@ model survey_questions {
   created_at              DateTime           @default(now()) @db.Timestamptz(6)
   updated_at              DateTime           @default(now()) @db.Timestamptz(6)
   deleted_at              DateTime?          @db.Timestamptz(6)
-  category                survey_categories? @relation(fields: [category_id], references: [id], onDelete: Cascade)
-  parent                  survey_questions?  @relation("survey_question_followups", fields: [parent_question_id], references: [id], onDelete: Cascade)
+  category_id             String?            @db.Uuid
+  weight                  Int                @default(1)
+  option_0                String?
+  option_1                String?
+  option_2                String?
+  option_3                String?
+  category                survey_categories? @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  parent                  survey_questions?  @relation("survey_question_followups", fields: [parent_question_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   followups               survey_questions[] @relation("survey_question_followups")
 }
 
@@ -457,10 +526,6 @@ model survey_scoring_rules {
 model eligibility_submissions {
   id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   website_user_id String        @db.Uuid
-  first_name      String?       @db.VarChar(150)
-  last_name       String?       @db.VarChar(150)
-  farm_name       String?       @db.VarChar(200)
-  referral_source String?       @db.VarChar(200)
   state           String?       @db.VarChar(100)
   total_acres     Decimal?      @db.Decimal(10, 2)
   answers         Json          @default("[]")
@@ -468,23 +533,28 @@ model eligibility_submissions {
   auto_category   String        @db.VarChar(20)
   final_category  String        @db.VarChar(20)
   status          String        @default("submitted") @db.VarChar(30)
-  channel         String        @default("website") @db.VarChar(20)
-  status_token    String?       @db.VarChar(64)
   reviewed_by     String?       @db.Uuid
   reviewed_at     DateTime?     @db.Timestamptz(6)
   enrollment_id   String?       @db.VarChar(30)
   created_at      DateTime      @default(now()) @db.Timestamptz(6)
   updated_at      DateTime      @default(now()) @db.Timestamptz(6)
   deleted_at      DateTime?     @db.Timestamptz(6)
+  channel         String        @default("website") @db.VarChar(20)
+  status_token    String?       @db.VarChar(64)
+  first_name      String?       @db.VarChar(150)
+  last_name       String?       @db.VarChar(150)
+  farm_name       String?       @db.VarChar(200)
+  referral_source String?       @db.VarChar(200)
+  override_reason String?
   contracts       contracts[]
-  reviewer        users?        @relation("eligibility_reviewer", fields: [reviewed_by], references: [id])
-  website_user    website_users @relation(fields: [website_user_id], references: [id], onDelete: Cascade)
+  reviewer        users?        @relation("eligibility_reviewer", fields: [reviewed_by], references: [id], onUpdate: NoAction)
+  website_user    website_users @relation(fields: [website_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 model contracts {
   id                String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   submission_id     String                  @db.Uuid
-  token             String                  @db.VarChar(64)
+  token             String                  @unique(map: "uq_contracts_token") @db.VarChar(64)
   token_expires_at  DateTime                @db.Timestamptz(6)
   template_version  String                  @default("v1") @db.VarChar(20)
   signed_name       String?                 @db.VarChar(150)
@@ -496,8 +566,183 @@ model contracts {
   accepted_at       DateTime?               @db.Timestamptz(6)
   created_at        DateTime                @default(now()) @db.Timestamptz(6)
   updated_at        DateTime                @default(now()) @db.Timestamptz(6)
-  acceptor          users?                  @relation("contract_acceptor", fields: [accepted_by], references: [id])
-  submission        eligibility_submissions @relation(fields: [submission_id], references: [id], onDelete: Cascade)
+  acceptor          users?                  @relation("contract_acceptor", fields: [accepted_by], references: [id], onUpdate: NoAction)
+  submission        eligibility_submissions @relation(fields: [submission_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([submission_id], map: "idx_contracts_submission")
+}
+
+model program_admin_survey_templates {
+  id            String                               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_id      String?                              @db.Uuid
+  is_global     Boolean                              @default(false)
+  name          String                               @db.VarChar(150)
+  description   String?
+  is_active     Boolean                              @default(true)
+  created_by    String?                              @db.Uuid
+  created_at    DateTime                             @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime                             @default(now()) @db.Timestamptz(6)
+  deleted_at    DateTime?                            @db.Timestamptz(6)
+  categories    program_admin_survey_categories[]
+  questions     program_admin_survey_questions[]
+  scoring_rules program_admin_survey_scoring_rules[]
+  surveys       program_admin_surveys[]
+
+  @@index([is_global], map: "idx_pas_templates_global")
+  @@index([owner_id], map: "idx_pas_templates_owner")
+}
+
+model program_admin_survey_categories {
+  id          String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  template_id String                           @db.Uuid
+  name        String                           @db.VarChar(150)
+  description String?
+  icon        String?                          @db.VarChar(50)
+  sort_order  Int                              @default(0)
+  is_active   Boolean                          @default(true)
+  created_at  DateTime                         @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime                         @default(now()) @db.Timestamptz(6)
+  deleted_at  DateTime?                        @db.Timestamptz(6)
+  template    program_admin_survey_templates   @relation(fields: [template_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  questions   program_admin_survey_questions[]
+
+  @@index([template_id], map: "idx_pas_categories_template")
+}
+
+model program_admin_survey_questions {
+  id            String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  template_id   String                           @db.Uuid
+  category_id   String?                          @db.Uuid
+  question_text String
+  help_text     String?
+  option_0      String?
+  option_1      String?
+  option_2      String?
+  option_3      String?
+  weight        Int                              @default(1)
+  sort_order    Int                              @default(0)
+  is_active     Boolean                          @default(true)
+  created_at    DateTime                         @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime                         @default(now()) @db.Timestamptz(6)
+  deleted_at    DateTime?                        @db.Timestamptz(6)
+  category      program_admin_survey_categories? @relation(fields: [category_id], references: [id], onUpdate: NoAction)
+  template      program_admin_survey_templates   @relation(fields: [template_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([category_id], map: "idx_pas_questions_category")
+  @@index([template_id], map: "idx_pas_questions_template")
+}
+
+model program_admin_survey_scoring_rules {
+  id          String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  template_id String                         @db.Uuid
+  category    String                         @db.VarChar(20)
+  min_score   Int
+  max_score   Int
+  is_active   Boolean                        @default(true)
+  created_at  DateTime                       @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime                       @default(now()) @db.Timestamptz(6)
+  template    program_admin_survey_templates @relation(fields: [template_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([template_id], map: "idx_pas_scoring_template")
+}
+
+model program_admin_surveys {
+  id                   String                             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_id             String                             @db.Uuid
+  name                 String?                            @db.VarChar(150)
+  description          String?
+  template_id          String                             @db.Uuid
+  token                String                             @unique @db.VarChar(64)
+  is_active            Boolean                            @default(true)
+  created_at           DateTime                           @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime                           @default(now()) @db.Timestamptz(6)
+  deleted_at           DateTime?                          @db.Timestamptz(6)
+  contract_template_id String?                            @db.Uuid
+  program_id           String?                            @db.Uuid
+  submissions          program_admin_survey_submissions[]
+  contract_template    program_admin_contract_templates?  @relation(fields: [contract_template_id], references: [id], onUpdate: NoAction)
+  program              programs?                          @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  template             program_admin_survey_templates     @relation(fields: [template_id], references: [id], onUpdate: NoAction)
+
+  @@index([contract_template_id], map: "idx_pas_surveys_contract_tpl")
+  @@index([owner_id], map: "idx_pas_surveys_owner")
+  @@index([template_id], map: "idx_pas_surveys_template")
+}
+
+model program_admin_contract_templates {
+  id         String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_id   String?                 @db.Uuid
+  is_global  Boolean                 @default(false)
+  name       String                  @db.VarChar(150)
+  intro      String?
+  clauses    Json                    @default("[]")
+  is_active  Boolean                 @default(true)
+  created_by String?                 @db.Uuid
+  created_at DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at DateTime                @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime?               @db.Timestamptz(6)
+  pdf_url    String?
+  pdf_name   String?                 @db.VarChar(255)
+  source     String                  @default("designed") @db.VarChar(20)
+  surveys    program_admin_surveys[]
+
+  @@index([is_global], map: "idx_pact_global")
+  @@index([owner_id], map: "idx_pact_owner")
+}
+
+model program_admin_survey_submissions {
+  id              String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  survey_id       String                           @db.Uuid
+  website_user_id String                           @db.Uuid
+  first_name      String?                          @db.VarChar(150)
+  last_name       String?                          @db.VarChar(150)
+  farm_name       String?                          @db.VarChar(200)
+  referral_source String?                          @db.VarChar(200)
+  state           String?                          @db.VarChar(100)
+  total_acres     Decimal?                         @db.Decimal(10, 2)
+  answers         Json                             @default("[]")
+  score           Int                              @default(0)
+  auto_category   String                           @default("not_qualified") @db.VarChar(20)
+  final_category  String                           @default("not_qualified") @db.VarChar(20)
+  status          String                           @default("submitted") @db.VarChar(30)
+  status_token    String?                          @db.VarChar(64)
+  override_reason String?
+  reviewed_by     String?                          @db.Uuid
+  reviewed_at     DateTime?                        @db.Timestamptz(6)
+  enrollment_id   String?                          @db.VarChar(30)
+  created_at      DateTime                         @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime                         @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime?                        @db.Timestamptz(6)
+  phone           String?                          @db.VarChar(30)
+  contracts       program_admin_survey_contracts[]
+  survey          program_admin_surveys            @relation(fields: [survey_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  website_user    website_users                    @relation(fields: [website_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([status_token], map: "idx_pas_submissions_status_token")
+  @@index([survey_id], map: "idx_pas_submissions_survey")
+  @@index([website_user_id], map: "idx_pas_submissions_user")
+}
+
+model program_admin_survey_contracts {
+  id                String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submission_id     String                           @db.Uuid
+  token             String                           @db.VarChar(64)
+  token_expires_at  DateTime                         @db.Timestamptz(6)
+  template_version  String                           @default("v1") @db.VarChar(20)
+  signed_name       String?                          @db.VarChar(150)
+  signature_url     String?
+  signed_at         DateTime?                        @db.Timestamptz(6)
+  signer_ip         String?                          @db.VarChar(64)
+  signer_user_agent String?
+  accepted_by       String?                          @db.Uuid
+  accepted_at       DateTime?                        @db.Timestamptz(6)
+  created_at        DateTime                         @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime                         @default(now()) @db.Timestamptz(6)
+  signed_pdf_url    String?
+  submission        program_admin_survey_submissions @relation(fields: [submission_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([submission_id], map: "idx_pas_contracts_submission")
+  @@index([token], map: "idx_pas_contracts_token")
 }
 
 model contact_enquiries {
@@ -511,4 +756,255 @@ model contact_enquiries {
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @default(now()) @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model email_settings {
+  id               Int      @id @default(1) @db.SmallInt
+  primary_provider String   @default("smtp") @db.VarChar(10)
+  fallback_enabled Boolean  @default(true)
+  from_name        String   @default("iiGrain") @db.VarChar(120)
+  from_email       String   @default("") @db.VarChar(200)
+  smtp_enabled     Boolean  @default(false)
+  smtp_host        String   @default("") @db.VarChar(200)
+  smtp_port        Int      @default(587)
+  smtp_secure      Boolean  @default(false)
+  smtp_user        String   @default("") @db.VarChar(200)
+  smtp_pass_enc    String?
+  resend_enabled   Boolean  @default(false)
+  resend_key_enc   String?
+  updated_by       String?  @db.Uuid
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @default(now()) @db.Timestamptz(6)
+  users            users?   @relation(fields: [updated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model field_amendments {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  field_id         String    @db.Uuid
+  program_id       String    @db.Uuid
+  status           String    @default("in_progress") @db.VarChar(20)
+  application_date DateTime? @db.Date
+  amendment_type   String?   @db.VarChar(150)
+  source           String?   @db.VarChar(100)
+  rate             Decimal?  @db.Decimal(10, 2)
+  rate_unit        String?   @db.VarChar(50)
+  n_pct            Decimal?  @db.Decimal(6, 2)
+  p2o5_pct         Decimal?  @db.Decimal(6, 2)
+  k2o_pct          Decimal?  @db.Decimal(6, 2)
+  incorporated     Boolean?
+  notes            String?
+  created_by       String?   @db.Uuid
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at       DateTime? @db.Timestamptz(6)
+  users            users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fields           fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  programs         programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model field_crop_records {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  field_id          String    @db.Uuid
+  program_id        String    @db.Uuid
+  status            String    @default("in_progress") @db.VarChar(20)
+  crop_species      String?   @db.VarChar(150)
+  crop_type         String?   @db.VarChar(50)
+  planting_date     DateTime? @db.Date
+  harvest_date      DateTime? @db.Date
+  seeding_rate      Decimal?  @db.Decimal(10, 2)
+  seeding_rate_unit String?   @db.VarChar(50)
+  yield_value       Decimal?  @db.Decimal(12, 2)
+  yield_unit        String?   @db.VarChar(50)
+  notes             String?
+  created_by        String?   @db.Uuid
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at        DateTime? @db.Timestamptz(6)
+  users             users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fields            fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  programs          programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model field_fertilizers {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  field_id           String    @db.Uuid
+  program_id         String    @db.Uuid
+  status             String    @default("in_progress") @db.VarChar(20)
+  application_date   DateTime? @db.Date
+  fertilizer_type    String?   @db.VarChar(150)
+  form               String?   @db.VarChar(50)
+  application_method String?   @db.VarChar(100)
+  rate_lbs_acre      Decimal?  @db.Decimal(10, 2)
+  n_pct              Decimal?  @db.Decimal(6, 2)
+  p2o5_pct           Decimal?  @db.Decimal(6, 2)
+  k2o_pct            Decimal?  @db.Decimal(6, 2)
+  notes              String?
+  created_by         String?   @db.Uuid
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at         DateTime? @db.Timestamptz(6)
+  users              users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fields             fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  programs           programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model field_irrigations {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  field_id          String    @db.Uuid
+  program_id        String    @db.Uuid
+  status            String    @default("in_progress") @db.VarChar(20)
+  irrigation_date   DateTime? @db.Date
+  irrigation_type   String?   @db.VarChar(100)
+  amount_inches     Decimal?  @db.Decimal(8, 2)
+  amount_gallons_ac Decimal?  @db.Decimal(12, 2)
+  source            String?   @db.VarChar(100)
+  notes             String?
+  created_by        String?   @db.Uuid
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at        DateTime? @db.Timestamptz(6)
+  users             users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fields            fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  programs          programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model field_module_documents {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  field_id    String    @db.Uuid
+  program_id  String    @db.Uuid
+  module      String    @db.VarChar(40)
+  record_id   String?   @db.Uuid
+  kind        String    @default("document") @db.VarChar(30)
+  name        String    @db.VarChar(200)
+  url         String
+  mime_type   String?   @db.VarChar(100)
+  size_bytes  BigInt?
+  uploaded_by String?   @db.Uuid
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at  DateTime? @db.Timestamptz(6)
+  fields      fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  programs    programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users       users?    @relation(fields: [uploaded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model field_nutrient_events {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  field_id            String    @db.Uuid
+  program_id          String    @db.Uuid
+  status              String    @default("in_progress") @db.VarChar(20)
+  event_date          DateTime? @db.Date
+  variable_rate       Boolean?
+  split_rate          Boolean?
+  enhanced_efficiency Boolean?
+  application_method  String?   @db.VarChar(100)
+  n_pct               Decimal?  @db.Decimal(6, 2)
+  p2o5_pct            Decimal?  @db.Decimal(6, 2)
+  k2o_pct             Decimal?  @db.Decimal(6, 2)
+  rate_lbs_acre       Decimal?  @db.Decimal(10, 2)
+  notes               String?
+  created_by          String?   @db.Uuid
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at          DateTime? @db.Timestamptz(6)
+  users               users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fields              fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  programs            programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model field_pesticides {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  field_id           String    @db.Uuid
+  program_id         String    @db.Uuid
+  status             String    @default("in_progress") @db.VarChar(20)
+  application_date   DateTime? @db.Date
+  product            String?   @db.VarChar(200)
+  product_type       String?   @db.VarChar(100)
+  rate               Decimal?  @db.Decimal(10, 3)
+  rate_unit          String?   @db.VarChar(50)
+  application_method String?   @db.VarChar(100)
+  notes              String?
+  created_by         String?   @db.Uuid
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at         DateTime? @db.Timestamptz(6)
+  users              users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fields             fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  programs           programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model field_soil_samples {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  field_id     String    @db.Uuid
+  program_id   String    @db.Uuid
+  status       String    @default("in_progress") @db.VarChar(20)
+  point_label  String    @db.VarChar(60)
+  latitude     Decimal?  @db.Decimal(9, 6)
+  longitude    Decimal?  @db.Decimal(9, 6)
+  sample_date  DateTime? @db.Date
+  soc_0_2      Decimal?  @db.Decimal(8, 3)
+  soc_2_6      Decimal?  @db.Decimal(8, 3)
+  was_0_2      Decimal?  @db.Decimal(8, 3)
+  soil_texture String?   @db.VarChar(100)
+  soil_series  String?   @db.VarChar(150)
+  notes        String?
+  created_by   String?   @db.Uuid
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  users        users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fields       fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  programs     programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model field_tillage_records {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  field_id           String    @db.Uuid
+  program_id         String    @db.Uuid
+  status             String    @default("in_progress") @db.VarChar(20)
+  tillage_date       DateTime? @db.Date
+  implement          String?   @db.VarChar(150)
+  tillage_type       String?   @db.VarChar(100)
+  depth_inches       Decimal?  @db.Decimal(6, 2)
+  residue_after_pct  Decimal?  @db.Decimal(5, 2)
+  residue_before_pct Decimal?  @db.Decimal(5, 2)
+  soil_moisture      String?   @db.VarChar(50)
+  notes              String?
+  created_by         String?   @db.Uuid
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at         DateTime? @db.Timestamptz(6)
+  users              users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fields             fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  programs           programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model field_trainings {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  field_id      String    @db.Uuid
+  program_id    String    @db.Uuid
+  status        String    @default("in_progress") @db.VarChar(20)
+  training_date DateTime? @db.Date
+  topic         String?   @db.VarChar(200)
+  organizer     String?   @db.VarChar(200)
+  hours         Decimal?  @db.Decimal(6, 2)
+  notes         String?
+  created_by    String?   @db.Uuid
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at    DateTime? @db.Timestamptz(6)
+  users         users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fields        fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  programs      programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }

@@ -6,6 +6,7 @@ import { getIO } from "../socket/index.js";
 import type {
   StartVisitBody,
   LocationBody,
+  ArriveBody,
   EndVisitBody,
 } from "../validators/visit.schema.js";
 import type { PublicVisit } from "../models/visit.model.js";
@@ -38,20 +39,35 @@ export const startVisit = asyncHandler(async (req, res) => {
 
 export const pushLocation = asyncHandler(async (req, res) => {
   const body = req.body as LocationBody;
-  const visit = await service.pushLocation(
-    req.params.id,
-    userId(req),
-    body.latitude,
-    body.longitude
-  );
+  const visit = await service.pushLocation(req.params.id, userId(req), {
+    lat: body.latitude,
+    lng: body.longitude,
+    accuracyM: body.accuracy_m ?? null,
+    isMock: body.is_mock ?? false,
+  });
   broadcast(visit, "visit:location");
   return ApiResponse.send(res, 200, "Location updated.", { visit });
 });
 
 export const arriveVisit = asyncHandler(async (req, res) => {
-  const visit = await service.arriveVisit(req.params.id, userId(req));
+  const body = req.body as ArriveBody;
+  const position =
+    body.latitude !== undefined && body.longitude !== undefined
+      ? {
+          latitude: body.latitude,
+          longitude: body.longitude,
+          accuracyM: body.accuracy_m ?? null,
+          isMock: body.is_mock ?? false,
+        }
+      : null;
+  const visit = await service.arriveVisit(req.params.id, userId(req), position);
   broadcast(visit, "visit:status");
   return ApiResponse.send(res, 200, "Marked as arrived.", { visit });
+});
+
+export const getVisitTrack = asyncHandler(async (req, res) => {
+  const points = await service.getVisitTrack(req.params.id, userId(req));
+  return ApiResponse.send(res, 200, "Visit track fetched.", { points });
 });
 
 export const endVisit = asyncHandler(async (req, res) => {

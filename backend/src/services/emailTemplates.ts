@@ -113,6 +113,30 @@ function details(rows: Array<{ label: string; value: string; mono?: boolean }>):
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border:1px solid ${COLORS.gray300};border-radius:8px;margin:8px 0 4px;">${cells}</table>`;
 }
 
+/**
+ * The setup checklist. Built as a table with inline styles rather than list
+ * markup, because that is what survives Outlook and the webmail clients.
+ */
+function checklist(steps: Array<{ label: string; done: boolean }>): string {
+  const rows = steps
+    .map((s) => {
+      const mark = s.done
+        ? `<span style="display:inline-block;width:18px;height:18px;line-height:18px;border-radius:9px;background:${COLORS.primary};color:${COLORS.white};text-align:center;font-size:11px;font-weight:700;">&#10003;</span>`
+        : `<span style="display:inline-block;width:18px;height:18px;line-height:18px;border-radius:9px;border:2px solid ${COLORS.gray300};"></span>`;
+      return `<tr>
+        <td style="padding:5px 10px 5px 0;width:24px;vertical-align:top;">${mark}</td>
+        <td style="padding:5px 0;color:${s.done ? COLORS.gray900 : COLORS.gray700};font-size:14px;line-height:1.5;${s.done ? "font-weight:600;" : ""}">${esc(s.label)}</td>
+      </tr>`;
+    })
+    .join("");
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:10px 0 4px;">${rows}</table>`;
+}
+
+/** A small bold line used to head a group inside the body. */
+function subHead(text: string): string {
+  return `<div style="margin:18px 0 0;color:${COLORS.gray900};font-size:15px;font-weight:700;">${esc(text)}</div>`;
+}
+
 const greet = (fullName: string | null): string =>
   `Hi ${esc(fullName?.trim() || "there")},`;
 
@@ -160,6 +184,27 @@ export function signInCodeEmail(codeValue: string): EmailContent {
   return {
     subject: `${codeValue} is your sign-in code`,
     html: layout(body, `Your sign-in code is ${codeValue}`),
+    text,
+  };
+}
+
+/* Survey email verification: the one-time code a producer enters to confirm
+   the email address they started the eligibility survey with. */
+export function surveyOtpEmail(codeValue: string): EmailContent {
+  const app = appName();
+  const mins = env.otp.expiryMinutes;
+  const body = `
+    ${h1("Verify your email")}
+    ${p(`Enter this code to verify your email and continue your ${esc(app)} eligibility survey. It expires in ${mins} minutes.`)}
+    ${code(codeValue)}
+    ${warning(`Never share this code with anyone. ${ignoreNote}`)}
+  `;
+  const text =
+    `Your ${app} survey verification code is ${codeValue}. It expires in ${mins} minutes.\n\n` +
+    `Never share this code with anyone. ${ignoreNote}\n`;
+  return {
+    subject: `${codeValue} is your verification code`,
+    html: layout(body, `Your verification code is ${codeValue}`),
     text,
   };
 }
@@ -445,21 +490,54 @@ function statusLine(link?: string): string {
   return link ? `\nCheck your status any time: ${link}\n` : "";
 }
 
+/**
+ * Which program, and which survey of that program, an email is about. Every
+ * message in the survey flow carries both, so a producer taking part in more
+ * than one always knows what they are reading.
+ */
+function programRows(params: {
+  programName?: string | null;
+  surveyName?: string | null;
+}): Array<{ label: string; value: string }> {
+  const rows: Array<{ label: string; value: string }> = [];
+  if (params.programName) rows.push({ label: "Program", value: params.programName });
+  if (params.surveyName) rows.push({ label: "Survey", value: params.surveyName });
+  return rows;
+}
+
+function programLines(params: {
+  programName?: string | null;
+  surveyName?: string | null;
+}): string {
+  return programRows(params)
+    .map((r) => `${r.label}: ${r.value}\n`)
+    .join("");
+}
+
 /* Invite a lead to take the eligibility survey. */
-export function surveyInviteEmail(params: { link: string }): EmailContent {
+export function surveyInviteEmail(params: {
+  link: string;
+  programName?: string | null;
+  surveyName?: string | null;
+}): EmailContent {
   const app = appName();
+  const rows = programRows(params);
   const body = `
     ${h1("Check if your farm qualifies")}
     ${p(`${esc(app)} runs a regenerative agriculture program for grain producers. Take a short eligibility survey to see whether your farm qualifies - it only takes a few minutes and your result is instant.`)}
+    ${rows.length ? details(rows) : ""}
     ${button("Start the survey", esc(params.link))}
     ${p("You can save your progress and come back any time using the same email.")}
   `;
   const text =
     `Check if your farm qualifies\n\n` +
     `${app} runs a regenerative agriculture program for grain producers. Take a short eligibility survey to see whether your farm qualifies:\n${params.link}\n\n` +
-    `You can save your progress and come back any time using the same email.\n`;
+    programLines(params) +
+    `\nYou can save your progress and come back any time using the same email.\n`;
   return {
-    subject: `You're invited to check your eligibility for the ${app} program`,
+    subject: params.programName
+      ? `You're invited to check your eligibility for ${params.programName}`
+      : `You're invited to check your eligibility for the ${app} program`,
     html: layout(body, "Take the eligibility survey to see if your farm qualifies"),
     text,
   };
@@ -469,18 +547,25 @@ export function surveyInviteEmail(params: { link: string }): EmailContent {
 export function surveyReceivedEmail(params: {
   fullName: string | null;
   link?: string;
+  programName?: string | null;
+  surveyName?: string | null;
 }): EmailContent {
+  const rows = programRows(params);
   const body = `
     ${h1("We have your survey")}
     ${p(`${greet(params.fullName)} thank you for completing the eligibility survey. Our team is reviewing your answers and will be in touch about the next steps.`)}
+    ${rows.length ? details(rows) : ""}
     ${statusButton(params.link)}
   `;
   const text =
     `We have your survey\n\n` +
     `Thank you for completing the eligibility survey. Our team is reviewing your answers and will be in touch about the next steps.\n` +
+    programLines(params) +
     statusLine(params.link);
   return {
-    subject: "We have received your eligibility survey",
+    subject: params.programName
+      ? `We have received your survey for ${params.programName}`
+      : "We have received your eligibility survey",
     html: layout(body, "Your eligibility survey has been received"),
     text,
   };
@@ -491,23 +576,32 @@ export function surveyQualifiedEmail(params: {
   fullName: string | null;
   category: string;
   link?: string;
+  reason?: string | null;
+  programName?: string | null;
+  surveyName?: string | null;
 }): EmailContent {
   const band = BAND_LABEL[params.category] ?? params.category;
+  const note = params.reason?.trim();
   const body = `
     ${h1("You qualify to enroll")}
     ${p(`${greet(params.fullName)} congratulations, you qualify to enroll in the program. A Greenfield representative will reach out for further enrollment steps.`)}
-    ${details([{ label: "Your band", value: band }])}
+    ${details([...programRows(params), { label: "Your band", value: band }])}
+    ${note ? details([{ label: "Note from our team", value: note }]) : ""}
     ${p("You are recorded as a Prospective Producer. You are not enrolled yet: enrollment happens once you sign the program contract and receive your Enrollment ID.")}
     ${statusButton(params.link)}
   `;
   const text =
     `You qualify to enroll\n\n` +
     `Congratulations, you qualify to enroll in the program. A Greenfield representative will reach out for further enrollment steps.\n\n` +
-    `Your band: ${band}\n\n` +
-    `You are recorded as a Prospective Producer. Enrollment happens once you sign the program contract and receive your Enrollment ID.\n` +
+    programLines(params) +
+    `Your band: ${band}\n` +
+    (note ? `Note from our team: ${note}\n` : "") +
+    `\nYou are recorded as a Prospective Producer. Enrollment happens once you sign the program contract and receive your Enrollment ID.\n` +
     statusLine(params.link);
   return {
-    subject: "You qualify for the program",
+    subject: params.programName
+      ? `You qualify for ${params.programName}`
+      : "You qualify for the program",
     html: layout(body, "You qualify to enroll in the program"),
     text,
   };
@@ -517,20 +611,31 @@ export function surveyQualifiedEmail(params: {
 export function surveyNotQualifiedEmail(params: {
   fullName: string | null;
   link?: string;
+  reason?: string | null;
+  programName?: string | null;
+  surveyName?: string | null;
 }): EmailContent {
+  const note = params.reason?.trim();
+  const rows = programRows(params);
   const body = `
     ${h1("Your survey result")}
     ${p(`${greet(params.fullName)} sorry, based on your responses, you are not qualified to enroll in this program.`)}
+    ${rows.length ? details(rows) : ""}
+    ${note ? details([{ label: "Reason", value: note }]) : ""}
     ${p("Farms change over time, so you are welcome to apply again if your situation changes.")}
     ${statusButton(params.link)}
   `;
   const text =
     `Your survey result\n\n` +
-    `Sorry, based on your responses, you are not qualified to enroll in this program.\n\n` +
-    `Farms change over time, so you are welcome to apply again if your situation changes.\n` +
+    `Sorry, based on your responses, you are not qualified to enroll in this program.\n` +
+    programLines(params) +
+    (note ? `Reason: ${note}\n` : "") +
+    `\nFarms change over time, so you are welcome to apply again if your situation changes.\n` +
     statusLine(params.link);
   return {
-    subject: "Your eligibility survey result",
+    subject: params.programName
+      ? `Your survey result for ${params.programName}`
+      : "Your eligibility survey result",
     html: layout(body, "Your eligibility survey result"),
     text,
   };
@@ -541,21 +646,27 @@ export function contractToSignEmail(params: {
   fullName: string | null;
   link: string;
   expiresAt: Date;
+  expiresLabel?: string;
+  programName?: string | null;
+  surveyName?: string | null;
 }): EmailContent {
-  const expiry = params.expiresAt.toDateString();
+  const expiry = params.expiresLabel ?? params.expiresAt.toDateString();
   const body = `
     ${h1("Your contract is ready to sign")}
     ${p(`${greet(params.fullName)} the next step is the program contract. Open the link below to read it and sign it online. Nothing needs to be printed or posted.`)}
     ${button("Read and sign the contract", esc(params.link))}
-    ${details([{ label: "Link valid until", value: expiry }])}
+    ${details([...programRows(params), { label: "Link valid until", value: expiry }])}
     ${warning("Do not share this link. It is unique to you.")}
   `;
   const text =
     `Your contract is ready to sign\n\n` +
     `The next step is the program contract. Open this link to read and sign it:\n${params.link}\n\n` +
+    programLines(params) +
     `Link valid until: ${expiry}\n\nDo not share this link, it is unique to you.\n`;
   return {
-    subject: "Your program contract is ready to sign",
+    subject: params.programName
+      ? `Your contract for ${params.programName} is ready to sign`
+      : "Your program contract is ready to sign",
     html: layout(body, "Read and sign your program contract"),
     text,
   };
@@ -566,8 +677,13 @@ export function enrollmentWelcomeEmail(params: {
   fullName: string | null;
   enrollmentId: string;
   appLink?: string;
+  programName?: string | null;
 }): EmailContent {
+  // The survey is behind them at this point: this email is about the program.
   const rows = [
+    ...(params.programName
+      ? [{ label: "Program", value: params.programName }]
+      : []),
     { label: "Enrollment ID", value: params.enrollmentId, mono: true },
   ];
   const body = `
@@ -581,13 +697,161 @@ export function enrollmentWelcomeEmail(params: {
   const text =
     `Welcome to the program\n\n` +
     `Your contract has been accepted and you are now enrolled as a Farmer/Producer.\n\n` +
+    (params.programName ? `Program: ${params.programName}\n` : "") +
     `Enrollment ID: ${params.enrollmentId}\n\n` +
     `Install the mobile app and enter this Enrollment ID the first time you register. After that you log in with your email and password.\n` +
     (params.appLink ? `\nGet the app: ${params.appLink}\n` : "") +
     `\nYour Enrollment ID is personal to you. Please do not share it.\n`;
   return {
-    subject: `You are enrolled - your Enrollment ID is ${params.enrollmentId}`,
+    subject: params.programName
+      ? `You are enrolled in ${params.programName} - your Enrollment ID is ${params.enrollmentId}`
+      : `You are enrolled - your Enrollment ID is ${params.enrollmentId}`,
     html: layout(body, "You are enrolled. Here is your Enrollment ID."),
     text,
+  };
+}
+
+/**
+ * Sent straight after the enrollment welcome, so the producer knows what to do
+ * next. The first step is already ticked; the rest are what they complete in
+ * the app.
+ */
+export function farmSetupEmail(params: {
+  fullName: string | null;
+  programName?: string | null;
+  classification?: string | null;
+  year: number;
+  appLink?: string;
+}): EmailContent {
+  const firstName = (params.fullName ?? "").trim().split(/\s+/)[0] || "there";
+  const band = params.classification
+    ? BAND_LABEL[params.classification] ?? null
+    : null;
+
+  const steps = [
+    { label: "Account Activated", done: true },
+    { label: "Complete Producer Profile", done: false },
+    { label: "Add Your Farms", done: false },
+    { label: "Add Your Fields", done: false },
+    { label: "Map Field Boundaries", done: false },
+    { label: `Complete ${params.year} Program Information`, done: false },
+  ];
+
+  const rows = [
+    ...(params.programName
+      ? [{ label: "Program", value: params.programName }]
+      : []),
+    ...(band ? [{ label: "Classification", value: band.toUpperCase() }] : []),
+  ];
+
+  const body = `
+    ${h1(`Welcome, ${esc(firstName)}`)}
+    ${p("You are enrolled. Here is what is left to set up, and you can do all of it from the app.")}
+    ${subHead("Complete your farm setup")}
+    ${checklist(steps)}
+    ${rows.length ? details(rows) : ""}
+    ${params.appLink ? button("Open the app", esc(params.appLink)) : ""}
+  `;
+
+  const text =
+    `Welcome, ${firstName}\n\n` +
+    "You are enrolled. Here is what is left to set up, and you can do all of " +
+    "it from the app.\n\n" +
+    "Complete your farm setup\n" +
+    steps.map((s) => `${s.done ? "[x]" : "[ ]"} ${s.label}`).join("\n") +
+    "\n\n" +
+    (params.programName ? `Program: ${params.programName}\n` : "") +
+    (band ? `Classification: ${band.toUpperCase()}\n` : "") +
+    (params.appLink ? `\nOpen the app: ${params.appLink}\n` : "");
+
+  return {
+    subject: params.programName
+      ? `Complete your farm setup for ${params.programName}`
+      : "Complete your farm setup",
+    html: layout(body, "Your next steps to finish setting up your farm."),
+    text,
+  };
+}
+
+/**
+ * For someone who already has an account, joining a further program. They do
+ * not register again and they have already set up their farms and fields, so
+ * this says only what changed: the ID for this program, and that they can log
+ * in and enrol.
+ */
+export function returningEnrollmentEmail(params: {
+  fullName: string | null;
+  enrollmentId: string;
+  programName?: string | null;
+  classification?: string | null;
+  appLink?: string;
+}): EmailContent {
+  const firstName = (params.fullName ?? "").trim().split(/\s+/)[0] || "there";
+  const band = params.classification
+    ? BAND_LABEL[params.classification] ?? null
+    : null;
+
+  const rows = [
+    ...(params.programName
+      ? [{ label: "Program", value: params.programName }]
+      : []),
+    { label: "Enrollment ID", value: params.enrollmentId, mono: true },
+    ...(band ? [{ label: "Classification", value: band.toUpperCase() }] : []),
+  ];
+
+  const forProgram = params.programName
+    ? `for ${esc(params.programName)}`
+    : "for this program";
+
+  const body = `
+    ${h1(`Welcome back, ${esc(firstName)}`)}
+    ${p(`Your Enrollment ID ${forProgram} has been generated.`)}
+    ${details(rows)}
+    ${p("You already have an account, so there is nothing to register again. Log in to the app and enrol in the program.")}
+    ${params.appLink ? button("Open the app", esc(params.appLink)) : ""}
+  `;
+
+  const forProgramText = params.programName
+    ? `for ${params.programName}`
+    : "for this program";
+
+  const text =
+    `Welcome back, ${firstName}\n\n` +
+    `Your Enrollment ID ${forProgramText} has been generated.\n\n` +
+    (params.programName ? `Program: ${params.programName}\n` : "") +
+    `Enrollment ID: ${params.enrollmentId}\n` +
+    (band ? `Classification: ${band.toUpperCase()}\n` : "") +
+    "\nYou already have an account, so there is nothing to register again. " +
+    "Log in to the app and enrol in the program.\n" +
+    (params.appLink ? `\nOpen the app: ${params.appLink}\n` : "");
+
+  return {
+    subject: params.programName
+      ? `Your Enrollment ID for ${params.programName}`
+      : "Your Enrollment ID has been generated",
+    html: layout(body, "Your Enrollment ID for this program is ready."),
+    text,
+  };
+}
+
+/** The message the Email settings screen sends to prove a provider works. */
+export function testEmailContent(provider?: "smtp" | "resend"): EmailContent {
+  const via = provider === "resend" ? "Resend" : provider === "smtp" ? "SMTP" : "";
+  const app = appName();
+  const through = via ? ` sent through ${via}` : "";
+  const body = `
+    ${h1("Email is working")}
+    ${p(`This is a test message${esc(through)}.`)}
+    ${p(`If you are reading it, email from ${esc(app)} is reaching people.`)}
+  `;
+  return {
+    subject: `Test email from ${app}`,
+    text:
+      `This is a test message${through}.
+
+` +
+      `If you are reading it, email from ${app} is reaching people.
+`,
+    html: layout(body, "Test email"),
   };
 }

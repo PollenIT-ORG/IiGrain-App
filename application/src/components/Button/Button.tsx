@@ -63,21 +63,26 @@ const Button: React.FC<ButtonProps> = ({
         <AppGradient variant="button" style={StyleSheet.absoluteFillObject} />
       ) : null}
 
-      {loading ? (
-        <ActivityIndicator size="small" color={foregroundColor} />
-      ) : (
-        <View style={styles.content}>
-          {leftIcon ? <View style={styles.iconWrap}>{leftIcon}</View> : null}
-          <AppText
-            style={[
-              size === 'sm' ? styles.textSM : styles.textLG,
-              styles[`${variant}Text`],
-            ]}
-            numberOfLines={1}>
-            {title}
-          </AppText>
-        </View>
-      )}
+      <View style={styles.content}>
+        {loading ? (
+          <ActivityIndicator
+            size="small"
+            color={foregroundColor}
+            style={styles.iconWrap}
+          />
+        ) : leftIcon ? (
+          <View style={styles.iconWrap}>{leftIcon}</View>
+        ) : null}
+        <AppText
+          style={[
+            size === 'sm' ? styles.textSM : styles.textLG,
+            styles[`${variant}Text`],
+            styles.label,
+          ]}
+          numberOfLines={1}>
+          {title}
+        </AppText>
+      </View>
     </TouchableOpacity>
   );
 };

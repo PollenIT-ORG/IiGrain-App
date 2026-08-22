@@ -52,8 +52,6 @@ const AssessorFarmerDetailScreen: React.FC<AssessorScreenProps<'AssessorFarmerDe
     [overview, farmerId],
   );
 
-  // Shared overview cache: fetch once, then refresh only when the socket says
-  // an assignment/assessment changed (or the TTL lapses). See the hook.
   useAssessorOverviewSync(!!overview);
 
   const onRefresh = useCallback(() => dispatch(fetchAssessorFieldsThunk()), [dispatch]);

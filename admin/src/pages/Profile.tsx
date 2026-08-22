@@ -5,6 +5,7 @@ import {
   useUpdateMyProfileMutation,
 } from "../store/endpoints/profileApi";
 import { showSuccess, showError } from "../lib/toast";
+import { phone as validatePhone } from "../lib/validation";
 import Loader from "../components/Loader";
 import PhoneInput from "../components/ui/PhoneInput";
 import AvatarUpload from "../components/AvatarUpload";
@@ -34,6 +35,11 @@ export default function Profile() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    const phoneErr = validatePhone(phone);
+    if (phoneErr) {
+      showError(phoneErr);
+      return;
+    }
     try {
       await updateMyProfile({
         fullName: fullName.trim(),

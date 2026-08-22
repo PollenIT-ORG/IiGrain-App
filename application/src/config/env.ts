@@ -18,15 +18,6 @@ export interface AppEnv {
   readonly API_BASE_URL: string;
   readonly API_TIMEOUT: number;
   readonly IS_DEV: boolean;
-  /**
-   * Google Maps Platform key, used from JS ONLY for the Directions API
-   * (see src/maps/services/directionsService.ts).
-   *
-   * The map tiles themselves never read this value: the native SDKs are keyed
-   * at build time through the AndroidManifest / Info.plist, because they are
-   * initialised before the JS bundle exists. Empty string when unset — callers
-   * must degrade gracefully rather than assume a key is present.
-   */
   readonly MAPS_API_KEY: string;
 }
 

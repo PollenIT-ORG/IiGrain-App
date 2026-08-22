@@ -8,7 +8,7 @@ import {
 } from "../store/endpoints/fieldsApi";
 import { useListFarmsQuery } from "../store/endpoints/farmsApi";
 import { showSuccess, showError } from "../lib/toast";
-import { useDialog } from "../components/ui/DialogProvider";
+import { useConfirmCascadeDelete } from "../lib/confirmDelete";
 import Select from "../components/ui/Select";
 import Loader from "../components/Loader";
 import {
@@ -45,7 +45,6 @@ function formatArea(area: string | null): string {
 
 export default function Fields() {
   const navigate = useNavigate();
-  const { confirm } = useDialog();
 
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
@@ -76,6 +75,7 @@ export default function Fields() {
   ];
 
   const [deleteField] = useDeleteFieldMutation();
+  const confirmDelete = useConfirmCascadeDelete();
 
   useEffect(() => {
     setPage(1);
@@ -87,11 +87,12 @@ export default function Fields() {
   }, [searchInput]);
 
   async function handleDelete(field: Field) {
-    const ok = await confirm({
-      title: "Delete field?",
-      message: `"${field.name}" and its soil records and documents will be removed.`,
-      confirmLabel: "Delete",
-      tone: "danger",
+    const ok = await confirmDelete({
+      title: "Delete this field and its record?",
+      message:
+        `"${field.name}" goes with its soil records, documents, assessments ` +
+        "and its place in any program.",
+      summaryPath: `/fields/${field.id}/deletion-summary`,
     });
     if (!ok) return;
     try {

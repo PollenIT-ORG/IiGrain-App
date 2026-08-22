@@ -20,15 +20,11 @@ import {
   SearchBar,
 } from '../../components';
 import { useDebouncedValue } from '../../hooks';
-import { COLORS, spacing } from '../../constants';
+import { COLORS, LIST_PERF, spacing } from '../../constants';
 import { GENERIC_ERROR_MESSAGE } from '../../config/errorMessages';
 import { moderateScale, scale } from '../../utils';
 import { EmptyState, FarmCard, FARM_CARD_TOTAL_HEIGHT } from '../../components/farms';
 import { AppShimmerList, FarmCardShimmer } from '../../components/Shimmer';
-// NOTE: the `LocationPicker` import was removed with the Leaflet→Google Maps
-// migration. Its only reference was inside the commented-out tab experiment
-// below, so it was a dead import. If that experiment is revived, import the
-// picker from '../../maps'.
 import { showToast } from '../../services/toastService';
 import type { Farm } from '../../types/farm';
 import type { AppStackParamList } from '../../navigation/navigationTypes';
@@ -45,6 +41,7 @@ import {
   selectFarmsLoading,
   selectFarmsLoadingMore,
   selectFarmsMeta,
+  selectFarmsSearch,
   selectFarmsRefreshing,
   selectFarmsTotal,
 } from '../../redux/slices/farmSlice';
@@ -63,7 +60,6 @@ const SORT_LABEL: Record<SortKey, string> = {
 
 const TABS: { key: FarmsView; label: string }[] = [
   { key: 'farms', label: 'Farms' },
-  // { key: 'map', label: 'Map' },
 ];
 
 type TabButtonProps = {
@@ -122,6 +118,7 @@ const FarmsScreen: React.FC = () => {
   const refreshing = useAppSelector(selectFarmsRefreshing);
   const error = useAppSelector(selectFarmsError);
   const meta = useAppSelector(selectFarmsMeta);
+  const appliedSearch = useAppSelector(selectFarmsSearch);
   const hasMore = useAppSelector(selectFarmsHasMore);
   const total = useAppSelector(selectFarmsTotal);
 
@@ -215,8 +212,8 @@ const FarmsScreen: React.FC = () => {
     [insets.bottom],
   );
   const floatingStyle = useMemo(
-    () => [styles.floating, { bottom: insets.bottom + 
-      scale(Platform.OS === "ios" ? 8 : 24) 
+    () => [styles.floating, { bottom: insets.bottom +
+      scale(Platform.OS === "ios" ? 8 : 24)
     }],
     [insets.bottom],
   );
@@ -258,10 +255,14 @@ const FarmsScreen: React.FC = () => {
     [indicatorTranslateX, indicatorWidth],
   );
 
-  const isInitialLoading = loading && farms.length === 0;
+  const searchSettled = appliedSearch === search;
+  const awaitingFirstPage = meta === null || !searchSettled;
+
   const hasError = !loading && !refreshing && error !== null && farms.length === 0;
+  const isInitialLoading =
+    !hasError && farms.length === 0 && (loading || awaitingFirstPage);
   const isSearching = query.trim().length > 0 || search.length > 0;
-  const showControls = farms.length > 0 || isSearching;
+  const showControls = farms.length > 0 || isSearching || !searchSettled;
 
   const renderFarmsContent = () => {
     if (isInitialLoading) {
@@ -300,6 +301,7 @@ const FarmsScreen: React.FC = () => {
         contentContainerStyle={listContentStyle}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        {...LIST_PERF}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.4}
         refreshControl={
@@ -368,57 +370,6 @@ const FarmsScreen: React.FC = () => {
         showDrawer
         rightActions={[...HEADER_ACTIONS]}
       />
-
-      {/* <View style={styles.tabBar} onLayout={handleTabBarLayout}>
-
-        <View style={styles.tabRow}>
-          {TABS.map((tab, index) => {
-            const active = tab.key === view;
-            const distance = Animated.subtract(indicatorProgress, index);
-            const activeOpacity = distance.interpolate({
-              inputRange: [-1, 0, 1],
-              outputRange: [0, 1, 0],
-              extrapolate: 'clamp',
-            });
-            const inactiveOpacity = distance.interpolate({
-              inputRange: [-1, 0, 1],
-              outputRange: [1, 0, 1],
-              extrapolate: 'clamp',
-            });
-
-            return (
-              <TabButton
-                key={tab.key}
-                label={tab.label}
-                isActive={active}
-                inactiveOpacity={inactiveOpacity}
-                activeOpacity={activeOpacity}
-                onPress={() => handleViewChange(tab.key)}
-              />
-            );
-          })}
-        </View>
-        <View style={styles.tabDivider} />
-        <Animated.View pointerEvents="none" style={indicatorStyle} />
-      </View> */}
-
-      {/* {isFarms ? (
-        
-        <View style={styles.farmsWrap}>
-          {showControls ? renderControls() : null}
-          {renderFarmsContent()}
-        </View>
-      ) : (
-        <LocationPicker
-          onConfirm={loc =>
-            showToast(
-              `Selected: ${loc.address || `${loc.latitude.toFixed(5)}, ${loc.longitude.toFixed(5)}`}`,
-              { type: 'success' },
-            )
-          }
-        />
-      )} */}
-
 
   <View style={styles.farmsWrap}>
           {showControls ? renderControls() : null}

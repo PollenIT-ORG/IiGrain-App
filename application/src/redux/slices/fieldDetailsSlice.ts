@@ -66,9 +66,6 @@ const fieldDetailsSlice = createSlice({
       }
     },
     clearFieldDetails: () => initialState,
-    /** Enrolling a field unlocks its soil nutrients server-side. Dropping the
-     *  cached soil makes the soil tab refetch, so `locked` reflects reality
-     *  without the user having to leave and come back. */
     invalidateFieldSoil(state) {
       state.soil = null;
       state.error.soil = null;
@@ -76,8 +73,6 @@ const fieldDetailsSlice = createSlice({
   },
   extraReducers: builder => {
     builder
-      // Enrolling unlocks the soil nutrients for the enrolled fields, so the
-      // cached soil tab (and its `locked` flag) is dropped and refetched.
       .addCase(enrollSelfThunk.fulfilled, state => {
         state.soil = null;
         state.error.soil = null;

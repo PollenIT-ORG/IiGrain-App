@@ -4,7 +4,6 @@ import ApiResponse from "../utils/ApiResponse.js";
 import * as auth from "../services/websiteAuth.service.js";
 import * as survey from "../services/survey.service.js";
 import * as eligibility from "../services/eligibility.service.js";
-import * as contact from "../services/contact.service.js";
 import { uploadSignatureDataUrl } from "../services/upload.service.js";
 import { websiteUserId } from "../middlewares/websiteAuth.js";
 import type {
@@ -12,7 +11,6 @@ import type {
   WebLoginBody,
   SubmitSurveyBody,
   SignContractBody,
-  ContactBody,
 } from "../validators/web.schema.js";
 
 // Public website endpoints. These serve the marketing site and the eligibility
@@ -103,20 +101,4 @@ export const signContract = asyncHandler(async (req, res) => {
   return ApiResponse.send(res, 200, "Contract signed.", {
     contract: { id: contract.id, signedAt: contract.signed_at },
   });
-});
-
-export const submitContact = asyncHandler(async (req, res) => {
-  const body = req.body as ContactBody;
-  await contact.submitEnquiry({
-    name: body.name,
-    email: body.email,
-    phone: body.phone ?? null,
-    subject: body.subject ?? null,
-    message: body.message,
-  });
-  return ApiResponse.send(
-    res,
-    201,
-    "Thanks for getting in touch. Our team will reply shortly."
-  );
 });

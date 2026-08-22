@@ -22,6 +22,9 @@ export interface CreateOrgBody {
   contactPhone?: string;
   contactHours?: string;
   address?: string;
+  /** The timezone and clock the panel shows dates and times with. */
+  timezone?: string;
+  timeFormat?: "12h" | "24h";
   isActive?: boolean;
 }
 

@@ -1,15 +1,14 @@
-import { Fragment } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   useGetFieldQuery,
   useGetFieldSoilQuery,
   useGetFieldDocumentsQuery,
   useGetFieldHistoryQuery,
-  useGetAssessmentComparisonQuery,
   useResetFieldMutation,
   useDeleteFieldMutation,
 } from "../store/endpoints/fieldsApi";
 import { showSuccess, showError } from "../lib/toast";
+import { useConfirmCascadeDelete } from "../lib/confirmDelete";
 import { useDialog } from "../components/ui/DialogProvider";
 import Loader from "../components/Loader";
 import {
@@ -20,12 +19,12 @@ import {
   RefreshIcon,
   TrashIcon,
 } from "../components/icons";
+import { fmtDateTime } from "../lib/datetime";
 import type {
   Field,
   FieldSoil,
   FieldDocument,
   FieldHistoryEvent,
-  AssessmentComparison,
 } from "../types";
 
 function errMsg(err: unknown): string {
@@ -50,9 +49,9 @@ function formatBytes(bytes: number | null): string {
 
 function formatDate(iso: string | null): string {
   if (!iso) return "-";
+  // A plain calendar date carries no time to convert.
   if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+  return fmtDateTime(iso, iso);
 }
 
 export default function FieldDetail() {
@@ -69,6 +68,7 @@ export default function FieldDetail() {
 
   const [resetField, { isLoading: resetting }] = useResetFieldMutation();
   const [deleteField, { isLoading: deleting }] = useDeleteFieldMutation();
+  const confirmDelete = useConfirmCascadeDelete();
 
   async function handleReset() {
     if (!field) return;
@@ -89,11 +89,12 @@ export default function FieldDetail() {
 
   async function handleDelete() {
     if (!field) return;
-    const ok = await confirm({
-      title: "Delete field?",
-      message: `"${field.name}" and its soil records and documents will be removed.`,
-      confirmLabel: "Delete",
-      tone: "danger",
+    const ok = await confirmDelete({
+      title: "Delete this field and its record?",
+      message:
+        `"${field.name}" goes with its soil records, documents, assessments ` +
+        "and its place in any program.",
+      summaryPath: `/fields/${field.id}/deletion-summary`,
     });
     if (!ok) return;
     try {
@@ -112,8 +113,6 @@ export default function FieldDetail() {
     useGetFieldDocumentsQuery(id, { skip: !id });
   const { data: history = [], isFetching: historyLoading } =
     useGetFieldHistoryQuery(id, { skip: !id });
-  const { data: comparison, isFetching: comparisonLoading } =
-    useGetAssessmentComparisonQuery(id, { skip: !id });
 
   if (isLoading) {
     return <Loader variant="fullPage" message="Loading field..." />;
@@ -203,8 +202,6 @@ export default function FieldDetail() {
         formatBytes={formatBytes}
         formatDate={formatDate}
       />
-
-      <Comparison comparison={comparison} loading={comparisonLoading} />
 
       <History history={history} loading={historyLoading} formatDate={formatDate} />
     </div>
@@ -346,168 +343,6 @@ function Documents({
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ScoreBadge({ score }: { score: number | null }) {
-  if (score === null) {
-    return <span className="text-xs text-gray-400">-</span>;
-  }
-  return (
-    <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-gray-100 text-xs font-semibold text-gray-800">
-      {score}
-    </span>
-  );
-}
-
-function DiffBadge({ diff }: { diff: number | null }) {
-  if (diff === null) return <span className="text-xs text-gray-400">-</span>;
-  if (diff === 0)
-    return (
-      <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
-        0
-      </span>
-    );
-  const up = diff > 0;
-  return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-        up ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
-      }`}
-    >
-      {up ? `+${diff}` : diff}
-    </span>
-  );
-}
-
-function SideStatus({
-  label,
-  side,
-}: {
-  label: string;
-  side: AssessmentComparison["farmer"];
-}) {
-  return (
-    <div className="rounded-lg border border-gray-300 px-4 py-3">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-          {label}
-        </span>
-        {side.submitted ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
-            <span className="h-1.5 w-1.5 rounded-full bg-success" />
-            Submitted
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-200 px-2 py-0.5 text-xs font-semibold text-gray-600">
-            <span className="h-1.5 w-1.5 rounded-full bg-gray-500" />
-            Pending
-          </span>
-        )}
-      </div>
-      <div className="mt-1 text-lg font-bold text-gray-900">
-        {side.percentage === null ? "-" : `${side.percentage}%`}
-      </div>
-    </div>
-  );
-}
-
-function Comparison({
-  comparison,
-  loading,
-}: {
-  comparison: AssessmentComparison | undefined;
-  loading: boolean;
-}) {
-  const hasAny =
-    comparison &&
-    (comparison.farmer.submitted ||
-      comparison.assessor.submitted ||
-      comparison.categories.some((c) =>
-        c.questions.some(
-          (q) => q.farmerScore !== null || q.assessorScore !== null
-        )
-      ));
-
-  return (
-    <div className="card overflow-hidden">
-      <div className="border-b border-gray-300 px-5 py-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
-          Assessment Comparison - Farmer vs Assessor
-        </h2>
-      </div>
-      {loading ? (
-        <Loader message="Loading comparison..." />
-      ) : !comparison || !hasAny ? (
-        <div className="px-5 py-12 text-center text-sm text-gray-500">
-          No assessment yet for this field.
-        </div>
-      ) : (
-        <div className="p-5 space-y-5">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <SideStatus label="Farmer" side={comparison.farmer} />
-            <SideStatus label="Assessor" side={comparison.assessor} />
-          </div>
-
-          <div className="-mx-5 overflow-x-auto px-5">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-gray-300 text-xs uppercase tracking-wider text-gray-500">
-                  <th className="px-4 py-3 font-semibold">Question</th>
-                  <th className="w-24 px-4 py-3 text-center font-semibold">
-                    Farmer
-                  </th>
-                  <th className="w-24 px-4 py-3 text-center font-semibold">
-                    Assessor
-                  </th>
-                  <th className="w-20 px-4 py-3 text-center font-semibold">
-                    Diff
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {comparison.categories.map((cat) => (
-                  <Fragment key={cat.id}>
-                    <tr className="bg-gray-100/60">
-                      <td
-                        colSpan={4}
-                        className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-gray-600"
-                      >
-                        {cat.name}
-                      </td>
-                    </tr>
-                    {cat.questions.map((q) => (
-                      <tr
-                        key={q.id}
-                        className="border-b border-gray-300/70 last:border-0"
-                      >
-                        <td className="px-4 py-3">
-                          <div className="text-gray-900">{q.questionText}</div>
-                          {q.questionCode && (
-                            <div className="text-xs text-gray-500">
-                              {q.questionCode}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <ScoreBadge score={q.farmerScore} />
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <ScoreBadge score={q.assessorScore} />
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <DiffBadge diff={q.difference} />
-                        </td>
-                      </tr>
-                    ))}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </div>
       )}
     </div>

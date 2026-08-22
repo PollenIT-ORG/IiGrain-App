@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   useGetUserQuery,
@@ -9,7 +10,9 @@ import Loader from "../components/Loader";
 import { ChevronLeftIcon, EditIcon, TrashIcon } from "../components/icons";
 import { ROLE_LABELS, type User, type UserRole } from "../types";
 import { showSuccess, showError } from "../lib/toast";
-import { useDialog } from "../components/ui/DialogProvider";
+import { useConfirmCascadeDelete } from "../lib/confirmDelete";
+import { fmtDateTime } from "../lib/datetime";
+import { useFarmWorkbook } from "../lib/useFarmWorkbook";
 
 function errMsg(err: unknown): string {
   return (
@@ -19,15 +22,12 @@ function errMsg(err: unknown): string {
 }
 
 function formatDate(iso: string | null): string {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "-" : d.toLocaleString();
+  return fmtDateTime(iso);
 }
 
 export default function UserDetail() {
   const navigate = useNavigate();
   const { id = "" } = useParams();
-  const { confirm } = useDialog();
 
   const { data: user, isLoading, isError, error } = useGetUserQuery(id, {
     skip: !id,
@@ -35,6 +35,7 @@ export default function UserDetail() {
 
   const [setStatus, { isLoading: statusSaving }] = useSetUserStatusMutation();
   const [deleteUser, { isLoading: deleting }] = useDeleteUserMutation();
+  const confirmDelete = useConfirmCascadeDelete();
 
   async function handleToggleStatus() {
     if (!user) return;
@@ -49,11 +50,14 @@ export default function UserDetail() {
 
   async function handleDelete() {
     if (!user) return;
-    const ok = await confirm({
-      title: "Delete user?",
-      message: `"${user.full_name || user.email}" will be removed.`,
-      confirmLabel: "Delete",
-      tone: "danger",
+    const who = user.full_name || user.email;
+    const ok = await confirmDelete({
+      title: "Delete this account and all of its data?",
+      message:
+        `Everything belonging to ${who} is deleted with the account. ` +
+        "This is how the numbers stay right - nothing is left behind without " +
+        "an owner.",
+      summaryPath: `/users/${user.id}/deletion-summary`,
     });
     if (!ok) return;
     try {
@@ -71,6 +75,8 @@ export default function UserDetail() {
     { skip: !id || !isFarmer }
   );
   const farms = farmsData?.farms ?? [];
+  const { download, downloadMany, busyFarmId } = useFarmWorkbook();
+  const [exportingAll, setExportingAll] = useState(false);
 
   if (isLoading) {
     return <Loader variant="fullPage" message="Loading user..." />;
@@ -169,10 +175,23 @@ export default function UserDetail() {
 
       {isFarmer && (
         <div className="card overflow-hidden">
-          <div className="border-b border-gray-300 px-5 py-4">
+          <div className="flex flex-col gap-3 border-b border-gray-300 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
               Farms ({farms.length})
             </h2>
+            {farms.length > 0 && (
+              <button
+                onClick={async () => {
+                  setExportingAll(true);
+                  await downloadMany(farms.map((f) => ({ id: f.id, name: f.name })));
+                  setExportingAll(false);
+                }}
+                disabled={exportingAll}
+                className="btn-secondary shrink-0 py-2 text-sm"
+              >
+                {exportingAll ? "Preparing..." : "Export All Farm Report"}
+              </button>
+            )}
           </div>
           {farmsLoading ? (
             <Loader message="Loading farms..." />
@@ -188,7 +207,9 @@ export default function UserDetail() {
                     <th className="px-5 py-3 font-semibold">Farm</th>
                     <th className="px-5 py-3 font-semibold">Location</th>
                     <th className="px-5 py-3 font-semibold">Status</th>
-                    <th className="px-5 py-3 text-right font-semibold">View</th>
+                    <th className="px-5 py-3 text-right font-semibold">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -214,13 +235,23 @@ export default function UserDetail() {
                           </span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 text-right">
-                        <button
-                          onClick={() => navigate(`/farms/${f.id}`)}
-                          className="text-sm font-medium text-primary hover:underline"
-                        >
-                          Open
-                        </button>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={() => void download(f.id, f.name)}
+                            disabled={busyFarmId === f.id}
+                            className="text-sm font-medium text-gray-600 hover:text-primary disabled:opacity-50"
+                            title="Download this farm's full workbook"
+                          >
+                            {busyFarmId === f.id ? "Preparing..." : "Export"}
+                          </button>
+                          <button
+                            onClick={() => navigate(`/farms/${f.id}`)}
+                            className="text-sm font-medium text-primary hover:underline"
+                          >
+                            Open
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

@@ -23,7 +23,6 @@ export interface NotificationState {
   loadingMore: boolean;
   markingId: string | null;
   markingAll: boolean;
-  /** Ids with a delete in flight — the rows stay disabled until it settles. */
   deletingIds: string[];
   deletingAll: boolean;
   error: string | null;
@@ -45,11 +44,6 @@ const initialState: NotificationState = {
   error: null,
 };
 
-/**
- * Drops rows and keeps the paging counters honest. `unreadCount` is NOT touched
- * here — the server returns the authoritative total with every delete, and
- * guessing locally would fight it.
- */
 const removeByIds = (state: NotificationState, ids: readonly string[]): void => {
   if (!ids.length) {
     return;
@@ -129,8 +123,6 @@ const notificationSlice = createSlice({
         state.markingId = null;
         const { id, unreadCount, missing } = action.payload;
         if (missing) {
-          // Gone server-side — drop the stale row rather than showing a
-          // notification that no longer exists.
           removeByIds(state, [id]);
           return;
         }

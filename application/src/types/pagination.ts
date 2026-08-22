@@ -1,9 +1,4 @@
-/** Shared pagination contract for the list endpoints that return a top-level
- *  `meta` sibling next to `data`:
- *  { success, message, data: {...}, meta: { page, limit, total, totalPages } } */
-
 export const DEFAULT_PAGE_LIMIT = 20;
-/** Backend caps `limit` at 100. */
 export const MAX_PAGE_LIMIT = 100;
 
 export interface PageMeta {
@@ -26,8 +21,6 @@ export interface RawPageMeta {
   totalPages?: number;
 }
 
-/** Query params for a paginated request. `search` is omitted when blank so we
- *  never send `search=`. */
 export const toPageParams = (
   query?: PageQuery,
 ): Record<string, string | number> => {
@@ -40,8 +33,6 @@ export const toPageParams = (
   };
 };
 
-/** Tolerates a backend that omits `meta` (older deployment) by deriving a
- *  single-page meta from the returned item count. */
 export const normalizePageMeta = (
   raw: RawPageMeta | undefined,
   itemCount: number,
@@ -58,8 +49,6 @@ export const normalizePageMeta = (
 export const hasNextPage = (meta: PageMeta | null): boolean =>
   !!meta && meta.page < meta.totalPages;
 
-/** Merge a freshly fetched page into the existing list: page 1 (or a new search)
- *  replaces, later pages append while de-duplicating by id. */
 export const mergePage = <T>(
   existing: T[] | null,
   incoming: T[],

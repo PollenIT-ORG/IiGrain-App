@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
 
-/** Debounces a rapidly-changing value (typically a search box) so paginated
- *  list endpoints are not hit on every keystroke. */
 export const useDebouncedValue = <T>(value: T, delayMs = 400): T => {
   const [debounced, setDebounced] = useState(value);
 

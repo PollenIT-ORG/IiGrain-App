@@ -42,6 +42,7 @@ export interface Field {
   healthLabel: string;
   latitude?: number | null;
   longitude?: number | null;
+  hasBoundary?: boolean;
 }
 
 export interface ActivityEntry {

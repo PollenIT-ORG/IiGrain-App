@@ -18,6 +18,8 @@ export interface AvailableProgram {
   enrolledCount: number;
   isFull: boolean;
   alreadyEnrolled: boolean;
+  canEnroll: boolean;
+  surveyUrl: string | null;
   fields: ProgramField[];
 }
 
@@ -49,11 +51,9 @@ export interface EnrollmentResult {
   fields: EnrolledField[];
 }
 
-/** Result of a farmer removing one of their own fields from a program. */
 export interface UnenrollFieldResult {
   programId: string;
   fieldId: string;
   unenrolled: boolean;
-  /** True when that was the farmer's last field, so the whole enrollment went. */
   enrollmentRemoved: boolean;
 }

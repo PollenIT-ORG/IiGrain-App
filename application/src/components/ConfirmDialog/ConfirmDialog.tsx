@@ -24,20 +24,13 @@ export type ConfirmTone = 'danger' | 'primary';
 
 export interface ConfirmDialogProps {
   visible: boolean;
-  /** Drives the accent colour and the default icon. */
   tone?: ConfirmTone;
   icon?: string;
   title: string;
   message?: string;
   confirmLabel?: string;
-  /** Omit for a single-button acknowledgement dialog. */
   cancelLabel?: string;
   loading?: boolean;
-  /**
-   * Render as a plain absolute-fill overlay instead of its own `<Modal>`. Use
-   * this when the dialog sits INSIDE another modal (e.g. a bottom sheet) —
-   * iOS does not reliably present two sibling modals at the same time.
-   */
   embedded?: boolean;
   onConfirm: () => void;
   onClose: () => void;
@@ -53,11 +46,6 @@ const TONE_ICON: Record<ConfirmTone, string> = {
   primary: ICONS.INFO,
 };
 
-/**
- * App-styled replacement for `Alert.alert`. Native alerts cannot be themed and
- * look foreign next to the rest of the product, so every confirmation goes
- * through this dialog instead.
- */
 const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   visible,
   tone = 'primary',
@@ -99,7 +87,6 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     return () => animation.stop();
   }, [visible, cardScale, cardOpacity]);
 
-  // A dismissal mid-request would leave the caller's loading state stranded.
   const handleClose = useCallback(() => {
     if (!loading) {
       onClose();

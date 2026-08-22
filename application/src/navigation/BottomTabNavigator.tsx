@@ -26,9 +26,6 @@ const BottomTabNavigator: React.FC = () => {
       />
       <Tab.Screen name="Farms" component={FarmsScreen} />
       <Tab.Screen name="More" component={MoreScreen} />
-      {/* Must stay LAST: CustomTabBar renders route indices 0-3 around the
-          centre button, so EnrollNow has no tab of its own and is opened by
-          that button instead. */}
       <Tab.Screen
         name="EnrollNow"
         component={EnrollNowScreen}

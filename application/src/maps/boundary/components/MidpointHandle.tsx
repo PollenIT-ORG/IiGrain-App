@@ -1,52 +1,75 @@
-/**
- * src/maps/boundary/components/MidpointHandle.tsx — a "ghost" insert handle at
- * an edge midpoint.
- *
- * Tapping it inserts a real vertex splitting that edge (DRAWING_ENGINE §4). The
- * screen renders these only when zoomed in enough that edges are long on screen
- * — otherwise a many-vertex ring would mount an equal number of ghost markers
- * (perf + clutter).
- *
- * Rendered smaller and translucent so it reads as "add here", not as an existing
- * vertex.
- */
-
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { COLORS } from '../../../constants';
-import { addAlpha, scale } from '../../../utils';
-import { MapMarker } from '../../components/MapPrimitives';
+import { scale } from '../../../utils';
+import {
+  MapMarker,
+  type MarkerDragEvent,
+  type MarkerDragStartEndEvent,
+} from '../../components/MapPrimitives';
 import type { LatLng } from '../../types';
+import type { EdgeMidpoint } from '../types';
 
 export interface MidpointHandleProps {
-  /** Index of the edge this midpoint splits (insert goes after this vertex). */
-  edgeIndex: number;
-  coordinate: LatLng;
+  midpoint: EdgeMidpoint;
+  dragging: boolean;
+  blocked: boolean;
   onPress: (edgeIndex: number, coordinate: LatLng) => void;
+  onDragStart: (edgeIndex: number, edgeKey: string) => void;
+  onDrag: (edgeIndex: number, point: LatLng) => void;
+  onDragEnd: (edgeIndex: number, point: LatLng) => void;
 }
 
-const SETTLE_MS = 600;
+const SETTLE_MS = 500;
+
+const toLatLng = (
+  event: MarkerDragEvent | MarkerDragStartEndEvent,
+): LatLng => ({
+  latitude: event.nativeEvent.coordinate.latitude,
+  longitude: event.nativeEvent.coordinate.longitude,
+});
 
 const MidpointHandle: React.FC<MidpointHandleProps> = ({
-  edgeIndex,
-  coordinate,
+  midpoint,
+  dragging,
+  blocked,
   onPress,
+  onDragStart,
+  onDrag,
+  onDragEnd,
 }) => {
   const [tracks, setTracks] = useState(true);
+
   useEffect(() => {
+    setTracks(true);
     const timer = setTimeout(() => setTracks(false), SETTLE_MS);
     return () => clearTimeout(timer);
-  }, []);
+  }, [dragging, blocked]);
+
+  const edgeKey = `${midpoint.fromId}>${midpoint.toId}`;
 
   return (
     <MapMarker
-      coordinate={coordinate}
+      coordinate={midpoint.coordinate}
       anchor={{ x: 0.5, y: 0.5 }}
+      draggable
       tracksViewChanges={tracks}
-      onPress={() => onPress(edgeIndex, coordinate)}
-      zIndex={1}>
+      stopPropagation
+      onPress={() => onPress(midpoint.edgeIndex, midpoint.coordinate)}
+      onDragStart={() => onDragStart(midpoint.edgeIndex, edgeKey)}
+      onDrag={event => onDrag(midpoint.edgeIndex, toLatLng(event))}
+      onDragEnd={event => onDragEnd(midpoint.edgeIndex, toLatLng(event))}
+      zIndex={dragging ? 8 : 4}>
       <View style={styles.hitbox}>
-        <View style={styles.ghost} />
+        <View
+          style={[
+            styles.handle,
+            dragging && styles.handleActive,
+            dragging && blocked && styles.handleBlocked,
+          ]}>
+          <View style={styles.plusH} />
+          <View style={styles.plusV} />
+        </View>
       </View>
     </MapMarker>
   );
@@ -54,19 +77,47 @@ const MidpointHandle: React.FC<MidpointHandleProps> = ({
 
 export default React.memo(MidpointHandle);
 
+const HIT = scale(40);
+const HANDLE = scale(20);
+
 const styles = StyleSheet.create({
   hitbox: {
-    width: scale(26),
-    height: scale(26),
+    width: HIT,
+    height: HIT,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ghost: {
-    width: scale(12),
-    height: scale(12),
-    borderRadius: scale(6),
-    backgroundColor: addAlpha(COLORS.white, 0.7),
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
+  handle: {
+    width: HANDLE,
+    height: HANDLE,
+    borderRadius: HANDLE / 2,
+    backgroundColor: COLORS.validation,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  handleActive: {
+    width: scale(26),
+    height: scale(26),
+    borderRadius: scale(13),
+    borderWidth: 3,
+  },
+  handleBlocked: {
+    backgroundColor: COLORS.danger,
+  },
+  plusH: {
+    position: 'absolute',
+    width: scale(9),
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: COLORS.white,
+  },
+  plusV: {
+    position: 'absolute',
+    width: 2,
+    height: scale(9),
+    borderRadius: 1,
+    backgroundColor: COLORS.white,
   },
 });

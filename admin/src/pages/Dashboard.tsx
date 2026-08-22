@@ -15,17 +15,30 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { Link } from "react-router-dom";
+import type { ComponentType, SVGProps } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../store/useAuth";
+import { downloadWorkbook, fileStamp, type Sheet } from "../lib/workbook";
 import StatCard from "../components/dashboard/StatCard";
 import LoginLogsTable from "../components/dashboard/LoginLogsTable";
 import Loader from "../components/Loader";
-import { FarmIcon, ChartIcon, UsersIcon, LeafIcon, FileIcon } from "../components/icons";
+import {
+  FarmIcon,
+  ChartIcon,
+  UsersIcon,
+  LeafIcon,
+  FileIcon,
+  FieldsIcon,
+  LinkIcon,
+} from "../components/icons";
 import {
   useGetAdminDashboardQuery,
+  useGetProgramDashboardQuery,
   type AdminDashboardData,
 } from "../store/endpoints/dashboardApi";
-import { useSubmissionStatsQuery } from "../store/endpoints/eligibilityApi";
+import { usePasSubmissionStatsQuery } from "../store/endpoints/programAdminSurveyApi";
+import ProgramSubmissionCards from "../components/ProgramSubmissionCards";
+import { isProgramAdmin } from "../lib/access";
 import { useLiveData } from "../lib/useLiveData";
 import { showSuccess, showError } from "../lib/toast";
 
@@ -34,122 +47,173 @@ const gridStroke = "#DEE2E6";
 
 const nfmt = new Intl.NumberFormat("en-US");
 
-function csvCell(v: unknown): string {
-  const s = v == null ? "" : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-function toCsvRows(rows: (string | number | null)[][]): string {
-  return rows.map((r) => r.map(csvCell).join(",")).join("\n");
-}
-
-// Builds a plain CSV of the numbers already shown on the dashboard and triggers
-// a browser download. No server round-trip.
-function exportDashboardCsv(data: AdminDashboardData) {
-  const sections: string[] = [];
-
-  sections.push("Summary");
-  sections.push(
-    toCsvRows([
-      ["Metric", "Value"],
-      ["Acreage enrolled", data.kpis?.enrolledAcreage ?? 0],
-      ["Farms enrolled", data.kpis?.farmsEnrolled ?? 0],
-      ["Assessment completion %", data.kpis?.completionPct ?? ""],
-      ["Avg RHI score", data.kpis?.avgRhi ?? ""],
-    ])
-  );
+/**
+ * The dashboard as a workbook: a sheet of headline numbers and one per chart,
+ * so the file reads the way the screen does rather than as one long column of
+ * comma-separated text.
+ */
+async function exportDashboard(data: AdminDashboardData): Promise<void> {
+  const sheets: Sheet[] = [
+    {
+      name: "Summary",
+      title: "Dashboard report",
+      columns: [
+        { header: "Metric", width: 34 },
+        { header: "Value", type: "number", width: 16 },
+      ],
+      rows: [
+        ["Acreage enrolled", data.kpis?.enrolledAcreage ?? 0],
+        ["Farms enrolled", data.kpis?.farmsEnrolled ?? 0],
+        ["Farmers enrolled", data.kpis?.farmersEnrolled ?? 0],
+        ["Fields enrolled", data.kpis?.fieldsEnrolled ?? 0],
+        ["Assessments submitted", data.kpis?.assessmentsSubmitted ?? 0],
+        ["Assessment completion %", data.kpis?.completionPct ?? 0],
+        ["Average RHI score", data.kpis?.avgRhi ?? 0],
+        ["Programs", data.kpis?.totalPrograms ?? 0],
+      ],
+    },
+  ];
 
   if (data.acreageEnrolled?.length) {
-    sections.push("\nAcreage enrolled by month");
-    sections.push(
-      toCsvRows([
-        ["Month", "Acres"],
-        ...data.acreageEnrolled.map((r) => [r.month, r.acres]),
-      ])
-    );
+    sheets.push({
+      name: "Acreage by month",
+      title: "Acreage enrolled by month",
+      columns: [
+        { header: "Month", width: 16 },
+        { header: "Acres", type: "number", total: "sum", width: 16 },
+      ],
+      rows: data.acreageEnrolled.map((r) => [r.month, r.acres]),
+    });
   }
   if (data.programSplit?.length) {
-    sections.push("\nEnrollment by program (%)");
-    sections.push(
-      toCsvRows([
-        ["Program", "Share %"],
-        ...data.programSplit.map((r) => [r.name, r.value]),
-      ])
-    );
+    sheets.push({
+      name: "By program",
+      title: "Enrollment by program",
+      columns: [
+        { header: "Program", width: 34 },
+        { header: "Acres", type: "number", total: "sum", width: 14 },
+        { header: "Share %", type: "number", width: 12 },
+      ],
+      rows: data.programSplit.map((r) => [r.name, r.acres ?? 0, r.value]),
+    });
   }
   if (data.assessmentTrends?.length) {
-    sections.push("\nAssessment trends");
-    sections.push(
-      toCsvRows([
-        ["Month", "Submissions", "Avg score"],
-        ...data.assessmentTrends.map((r) => [r.month, r.completion, r.score]),
-      ])
-    );
+    sheets.push({
+      name: "Assessments",
+      title: "Assessment trends",
+      columns: [
+        { header: "Month", width: 16 },
+        { header: "Submissions", type: "number", total: "sum", width: 16 },
+        { header: "Average score", type: "number", total: "average", width: 16 },
+      ],
+      rows: data.assessmentTrends.map((r) => [r.month, r.completion, r.score]),
+    });
   }
   if (data.rhiByProgram?.length) {
-    sections.push("\nRHI by program");
-    sections.push(
-      toCsvRows([
-        ["Program", "RHI"],
-        ...data.rhiByProgram.map((r) => [r.region, r.rhi]),
-      ])
-    );
+    sheets.push({
+      name: "RHI by program",
+      title: "RHI by program",
+      columns: [
+        { header: "Program", width: 34 },
+        { header: "RHI", type: "number", total: "average", width: 12 },
+      ],
+      rows: data.rhiByProgram.map((r) => [r.region, r.rhi]),
+    });
   }
 
-  const blob = new Blob([sections.join("\n")], {
-    type: "text/csv;charset=utf-8;",
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `dashboard-report-${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  await downloadWorkbook(`dashboard-report-${fileStamp()}`, sheets);
 }
 
+// The Programs tiles, coloured the way the submission tiles are so the two
+// sections read as one dashboard.
+const PROGRAM_TILES: Array<{
+  key:
+    | "totalPrograms"
+    | "enrolledFarmers"
+    | "fieldsEnrolled"
+    | "assessmentSubmissions"
+    | "farmersWithAssessor"
+    | "farmersFullyAssessed";
+  label: string;
+  sub: string;
+  wrap: string;
+  Icon: ComponentType<SVGProps<SVGSVGElement>>;
+}> = [
+  {
+    key: "totalPrograms",
+    label: "Programs",
+    sub: "Running now",
+    wrap: "bg-primary/10 text-primary",
+    Icon: LinkIcon,
+  },
+  {
+    key: "enrolledFarmers",
+    label: "Farmers enrolled",
+    sub: "Taking part",
+    wrap: "bg-secondary/10 text-secondary",
+    Icon: UsersIcon,
+  },
+  {
+    key: "fieldsEnrolled",
+    label: "Fields enrolled",
+    sub: "Under a program",
+    wrap: "bg-amber-100 text-amber-600",
+    Icon: FieldsIcon,
+  },
+  {
+    key: "assessmentSubmissions",
+    label: "Assessment submissions",
+    sub: "Farmer and assessor",
+    wrap: "bg-blue-100 text-blue-600",
+    Icon: FileIcon,
+  },
+  {
+    key: "farmersWithAssessor",
+    label: "Farmers with an assessor",
+    sub: "Assigned",
+    wrap: "bg-indigo-100 text-indigo-600",
+    Icon: UsersIcon,
+  },
+  {
+    key: "farmersFullyAssessed",
+    label: "Assessed by both sides",
+    sub: "Farmer and assessor done",
+    wrap: "bg-success/10 text-success",
+    Icon: ChartIcon,
+  },
+];
+
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const firstName = (user?.fullName || "Admin").split(" ")[0];
 
-  const { data, isLoading, isError, refetch } = useGetAdminDashboardQuery();
-  const { data: surveyStats, refetch: refetchSurvey } = useSubmissionStatsQuery();
+  // The platform charts belong to the platform team; the programs summary and
+  // the survey tiles are shown to whoever runs programs, for their own.
+  const platformView = !isProgramAdmin(user?.role);
+  const { data, isLoading, isError, refetch } = useGetAdminDashboardQuery(
+    undefined,
+    { skip: !platformView }
+  );
+  const { data: programStats, refetch: refetchPrograms } =
+    useGetProgramDashboardQuery();
+  const { data: pasStats, refetch: refetchPas } = usePasSubmissionStatsQuery();
 
-  useLiveData(["submissions", "enrollments", "dashboard"], refetch);
-  useLiveData(["eligibility"], refetchSurvey);
+  useLiveData(["submissions", "enrollments", "dashboard"], () => {
+    if (platformView) refetch();
+    void refetchPrograms();
+  });
+  useLiveData(["program_admin_survey"], refetchPas);
 
   const kpis = data?.kpis;
-  const acreageEnrolled = data?.acreageEnrolled ?? [];
-  const programSplit = data?.programSplit ?? [];
-  const assessmentTrends = data?.assessmentTrends ?? [];
+  // The same charts for everyone, drawn from their own figures.
+  const acreageEnrolled =
+    (platformView ? data?.acreageEnrolled : programStats?.acreageEnrolled) ?? [];
+  const programSplit =
+    (platformView ? data?.programSplit : programStats?.programSplit) ?? [];
+  const assessmentTrends =
+    (platformView ? data?.assessmentTrends : programStats?.assessmentTrends) ?? [];
   const rhiByProgram = data?.rhiByProgram ?? [];
-
-  // Where every website survey producer currently sits. The first three still
-  // need something from the admin side.
-  const pipeline = [
-    {
-      label: "Ready for contract",
-      value: surveyStats?.qualified ?? 0,
-      to: "/eligibility?status=qualified",
-    },
-    {
-      label: "Awaiting signature",
-      value: surveyStats?.contract_sent ?? 0,
-      to: "/eligibility?status=contract_sent",
-    },
-    {
-      label: "Ready to enroll",
-      value: surveyStats?.contract_signed ?? 0,
-      to: "/eligibility?status=contract_signed",
-    },
-    {
-      label: "Enrolled",
-      value: surveyStats?.enrolled ?? 0,
-      to: "/eligibility?status=enrolled",
-    },
-  ];
-  const pipelineTotal = pipeline.reduce((sum, p) => sum + p.value, 0);
 
   return (
     <div className="space-y-6">
@@ -162,23 +226,22 @@ export default function Dashboard() {
             Dashboards &amp; Analytics. Program metrics at a glance.
           </p>
         </div>
-        <button
-          type="button"
-          disabled={!data || isLoading}
-          onClick={() => {
-            if (!data) return;
-            try {
-              exportDashboardCsv(data);
-              showSuccess("Report downloaded.");
-            } catch {
-              showError("Could not generate the report.");
-            }
-          }}
-          className="btn-primary self-start disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto"
-        >
-          <FileIcon width={18} height={18} />
-          Export report
-        </button>
+        {platformView && (
+          <button
+            type="button"
+            disabled={!data || isLoading}
+            onClick={() => {
+              if (!data) return;
+              void exportDashboard(data)
+                .then(() => showSuccess("Report downloaded."))
+                .catch(() => showError("Could not generate the report."));
+            }}
+            className="btn-primary self-start disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto"
+          >
+            <FileIcon width={18} height={18} />
+            Export report
+          </button>
+        )}
       </div>
 
       {isLoading ? (
@@ -194,6 +257,7 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
+          {platformView && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               label="Acreage enrolled"
@@ -223,42 +287,75 @@ export default function Dashboard() {
             />
           </div>
 
-          {pipelineTotal > 0 && (
-            <div className="card p-5">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-base font-semibold text-gray-900">
-                    Website survey pipeline
-                  </h2>
-                  <p className="text-sm text-gray-500">
-                    Where producers from the website survey currently sit.
-                  </p>
-                </div>
-                <Link
-                  to="/eligibility"
-                  className="text-sm font-medium text-primary hover:underline"
-                >
-                  View all submissions
-                </Link>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                {pipeline.map((p) => (
-                  <Link
-                    key={p.label}
-                    to={p.to}
-                    className="rounded-lg border border-gray-300 p-4 transition-colors hover:border-primary hover:bg-primary/5"
-                  >
-                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      {p.label}
-                    </p>
-                    <p className="mt-1.5 text-2xl font-extrabold text-gray-900">
-                      {nfmt.format(p.value)}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            </div>
           )}
+
+          {/* Producers who applied through one of your surveys. */}
+          <div className="card p-5">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">
+                  Survey submissions
+                </h2>
+                <p className="text-sm text-gray-500">
+                  Producers who applied through one of your surveys.
+                </p>
+              </div>
+              <Link
+                to="/survey-submissions"
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                View all submissions
+              </Link>
+            </div>
+            <div className="mt-4">
+              <ProgramSubmissionCards
+                stats={pasStats}
+                onPick={(status) =>
+                  navigate(
+                    status
+                      ? `/survey-submissions?status=${status}`
+                      : "/survey-submissions"
+                  )
+                }
+              />
+            </div>
+          </div>
+
+          {/* Programs, and how far their farmers have got. */}
+          <div className="card p-5">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Programs</h2>
+                <p className="text-sm text-gray-500">
+                  Enrollment and assessment progress across your programs.
+                </p>
+              </div>
+              <Link
+                to="/programs"
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                View programs
+              </Link>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+              {PROGRAM_TILES.map((tile) => (
+                <div key={tile.label} className="card p-5">
+                  <span
+                    className={`grid h-11 w-11 place-items-center rounded-xl ${tile.wrap}`}
+                  >
+                    <tile.Icon width={20} height={20} />
+                  </span>
+                  <p className="mt-3 text-2xl font-extrabold text-gray-900">
+                    {nfmt.format(programStats?.[tile.key] ?? 0)}
+                  </p>
+                  <p className="mt-0.5 text-sm font-semibold text-gray-700">
+                    {tile.label}
+                  </p>
+                  <p className="text-xs text-gray-500">{tile.sub}</p>
+                </div>
+              ))}
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <div className="card p-5 lg:col-span-2">
@@ -415,6 +512,7 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {platformView && (
             <div className="card p-5">
               <h2 className="text-base font-semibold text-gray-900">
                 RHI benchmarking by program
@@ -450,11 +548,12 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
+            )}
           </div>
         </>
       )}
 
-      <LoginLogsTable />
+      {platformView && <LoginLogsTable />}
     </div>
   );
 }

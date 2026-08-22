@@ -1,18 +1,21 @@
 import { useState, useEffect, type FormEvent } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { showSuccess, showError, showInfo } from "../lib/toast";
 import { requiredEmail, required, isClean } from "../lib/validation";
 import { useAppDispatch } from "../store/hooks";
+import { useAuth } from "../store/useAuth";
 import { setCredentials } from "../store/authSlice";
 import { useLoginMutation } from "../store/endpoints/authApi";
 import Logo from "../components/Logo";
 import ForgotPasswordForm from "../components/auth/ForgotPasswordForm";
 import { EyeIcon, EyeOffIcon } from "../components/icons";
 import { canUseAdminPanel } from "../types";
+import { canOpen, homePath } from "../lib/access";
 
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAuthenticated } = useAuth();
   const dispatch = useAppDispatch();
   const [loginMutation, { isLoading: loading }] = useLoginMutation();
 
@@ -23,8 +26,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
 
-  const from =
-    (location.state as { from?: string } | null)?.from ?? "/dashboard";
+  const from = (location.state as { from?: string } | null)?.from ?? null;
 
   useEffect(() => {
     if (sessionStorage.getItem("session_expired")) {
@@ -54,13 +56,22 @@ export default function Login() {
 
       dispatch(setCredentials(data));
       showSuccess("Signed in successfully.");
-      navigate(from, { replace: true });
+      // Back to where they were headed, if that page is theirs to open.
+      const target =
+        from && canOpen(data.user.role, from) ? from : homePath();
+      navigate(target, { replace: true });
     } catch (err) {
       const message =
         (err as { message?: string })?.message ??
         "Something went wrong. Please try again.";
       showError(message);
     }
+  }
+
+  // Already signed in: this page has nothing to ask for. Checked here so the
+  // hooks above always run, whichever way the page is reached.
+  if (isAuthenticated) {
+    return <Navigate to={homePath()} replace />;
   }
 
   return (

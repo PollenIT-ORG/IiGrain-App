@@ -9,9 +9,7 @@ interface MetricBarProps {
   max?: number;
   color: string;
   delay?: number;
-  /** Overrides the numeric readout, e.g. "—" for a category with no answers yet. */
   valueLabel?: string;
-  /** Softens the row for metrics that have no score yet. */
   dimmed?: boolean;
 }
 

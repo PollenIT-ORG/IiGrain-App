@@ -46,9 +46,8 @@ import type { AppScreenProps } from '../../navigation/navigationTypes';
 import { styles } from './FieldDetailsScreenStyle';
 import { AnimatedTabBar } from '../../components/';
 import { FieldLocationPreview } from '../../maps';
-import { BoundaryPolygon } from '../../maps/boundary';
+import { BoundaryPreviewMap, useBoundaryPersistence } from '../../maps/boundary';
 import { selectBoundary } from '../../redux/slices/boundarySlice';
-import { formatArea } from '../../maps/utils/geo';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
   fetchFarmFieldsThunk,
@@ -104,10 +103,10 @@ import { AttachmentCard } from '../../components/media';
 import { useFileDownloads } from '../../hooks/useFileDownloads';
 import { toFileUri } from '../../services/fileDownloadService';
 import { classifyMedia } from '../../utils/fileType';
+import MonitoringModulesView from '../monitoring/MonitoringModulesView';
 
-type FieldTab = 'overview' | 'history' | 'soil' | 'documents';
+type FieldTab = 'overview' | 'history' | 'soil' | 'documents' | 'monitoring';
 
-/** Which destructive dialog is open, if any. */
 type PendingAction = 'reset' | 'delete' | null;
 
 const FILTER_TABS: { key: FieldTab; label: string; icon: string }[] = [
@@ -115,6 +114,7 @@ const FILTER_TABS: { key: FieldTab; label: string; icon: string }[] = [
   { key: 'history', label: 'History', icon: 'history' },
   { key: 'soil', label: 'Soil', icon: 'layers-outline' },
   { key: 'documents', label: 'Docs', icon: 'file-document-outline' },
+  { key: 'monitoring', label: 'Program Data', icon: 'clipboard-list-outline' },
 ];
 
 const DOC_HITSLOP = { top: 8, bottom: 8, left: 8, right: 8 } as const;
@@ -124,7 +124,6 @@ const MONTH_LABELS = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
-/** Planting/harvest are captured as months, so show "Mar 2026" not a full date. */
 const formatMonth = (iso?: string | null): string => {
   const parsed = parseISOMonth(iso);
   return parsed ? `${MONTH_LABELS[parsed.month]} ${parsed.year}` : '—';
@@ -206,8 +205,8 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
     });
   }, [navigation, farmId, currentField, farm]);
 
-  // Saved boundary for this field (null until one is drawn). Drives the Overview
-  // preview overlay and the Draw/Edit button label.
+  useBoundaryPersistence({ fieldId: currentField?.id ?? '', farmId });
+
   const boundary = useAppSelector(state =>
     currentField ? selectBoundary(state, currentField.id) : null,
   );
@@ -298,9 +297,6 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
   );
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [imageViewerIndex, setImageViewerIndex] = useState(0);
-  // While a finger is on the map, freeze the page ScrollView so the WebView
-  // gets the pan gesture (otherwise the outer scroll swallows it — the map
-  // "won't move"). Re-enabled the moment the touch ends.
   const [mapPanning, setMapPanning] = useState(false);
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [videoVisible, setVideoVisible] = useState(false);
@@ -312,16 +308,12 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
   const fieldResetting = useAppSelector(selectFieldResetting);
   const fieldDeleting = useAppSelector(selectFieldDeleting);
 
-  // The map only lives in Overview. If a tab switch unmounts it mid-pan the
-  // touch-end never fires, so release the page scroll here or it stays frozen.
   useEffect(() => {
     if (activeTab !== 'overview') {
       setMapPanning(false);
     }
   }, [activeTab]);
 
-  // The soil tab renders formatted metrics; the editor needs the raw record, so
-  // it is pulled once the tab is open and the field is unlocked.
   useEffect(() => {
     if (activeTab === 'soil' && soil && !soil.locked && soilRecordFieldId !== selectedFieldId) {
       dispatch(setSoilField(selectedFieldId));
@@ -356,10 +348,6 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
   );
 
   const handleSoilSave = useCallback(async () => {
-    // The backend rejects nutrient values with a 403 while the field is locked,
-    // and it treats key *presence* as an edit. Sending ph..moisture as null
-    // therefore failed texture/notes/tested-on-only saves on a locked field —
-    // so the nutrient keys are omitted entirely until the field is unlocked.
     const input: SaveSoilInput = {
       texture: soilDraft.texture.trim() || null,
       notes: soilDraft.notes.trim() || null,
@@ -393,7 +381,6 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
     const action = await dispatch(
       resetFieldThunk({ farmId, fieldId: selectedFieldId }),
     );
-    // Close before the toast: a root-level toast renders behind an open modal.
     setPendingAction(null);
     if (resetFieldThunk.fulfilled.match(action)) {
       showSuccess('Field reset');
@@ -402,8 +389,6 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
   }, [dispatch, farmId, selectedFieldId]);
 
   const runDeleteField = useCallback(async () => {
-    // A 409 (submitted assessment / still enrolled) surfaces through the global
-    // error modal with the message the backend returned.
     const action = await dispatch(
       deleteFieldThunk({ farmId, fieldId: selectedFieldId }),
     );
@@ -440,7 +425,6 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
     ],
     [goToEditField, askResetField, askDeleteField, fieldResetting, fieldDeleting],
   );
-
 
   const openDocument = useCallback(
     (doc: FieldDocument, previewUri: string) => {
@@ -656,62 +640,51 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
 
     return (
       <View style={styles.tabAnimateWrap}>
-        {/* The map belongs to Overview only — the other tabs render without it. */}
         <View
           style={[styles.mapBox, skStyles.overviewMap]}
-          // Hand the pan gesture to the WebView map: freeze the page scroll on
-          // touch-down (capture phase, before the WebView consumes it) and
-          // release it when the finger lifts or the gesture is cancelled.
           onStartShouldSetResponderCapture={() => {
             setMapPanning(true);
             return false;
           }}
           onTouchEnd={() => setMapPanning(false)}
           onTouchCancel={() => setMapPanning(false)}>
-          {currentField.latitude != null && currentField.longitude != null ? (
+          {boundary ? (
+            <BoundaryPreviewMap
+              ring={boundary.ring}
+              center={boundary.center}
+              onTouchStart={() => setMapPanning(true)}
+              onTouchEnd={() => setMapPanning(false)}
+              onTouchCancel={() => setMapPanning(false)}
+            />
+          ) : currentField.latitude != null && currentField.longitude != null ? (
             <FieldLocationPreview
               latitude={currentField.latitude}
               longitude={currentField.longitude}
               onTouchStart={() => setMapPanning(true)}
               onTouchEnd={() => setMapPanning(false)}
-              onTouchCancel={() => setMapPanning(false)}>
-              {/* Overlay the saved boundary on the preview, when one exists. */}
-              {boundary ? <BoundaryPolygon ring={boundary.ring} strokeWidth={2} /> : null}
-            </FieldLocationPreview>
+              onTouchCancel={() => setMapPanning(false)}
+            />
           ) : (
             <View style={styles.mapEmpty}>
               <AppIcon name={ICONS.LOCATION} size={moderateScale(28)} color={COLORS.gray300} />
               <AppText style={styles.mapEmptyText}>Location not set for this field</AppText>
             </View>
           )}
-        </View>
 
-        {/* Farm Boundary entry — see docs/maps/FarmBoundary/UX.md §1. */}
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={goToBoundaryEditor}
-          style={styles.boundaryRow}
-          accessibilityRole="button"
-          accessibilityLabel={boundary ? 'Edit field boundary' : 'Draw field boundary'}>
-          <View style={styles.boundaryIcon}>
-            <AppIcon name="vector-polygon" size={moderateScale(20)} color={COLORS.primary} />
-          </View>
-          <View style={styles.flex}>
-            <AppText style={styles.boundaryTitle}>
-              {boundary ? 'Edit field boundary' : 'Draw field boundary'}
-            </AppText>
-            <AppText style={styles.boundarySub}>
-              {boundary
-                ? `Mapped · ${formatArea(boundary.areaSqM, 'acre')}`
-                : 'Trace the field on satellite imagery'}
-            </AppText>
-          </View>
-          <AppIcon
-            name={boundary ? 'check-circle' : ICONS.CHEVRON_RIGHT}
-            size={moderateScale(boundary ? 20 : 22)}
-            color={boundary ? COLORS.primary : COLORS.gray500}
-          />
-        </TouchableOpacity>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={goToBoundaryEditor}
+            style={[styles.mapFab, boundary ? styles.mapFabEdit : styles.mapFabAdd]}
+            accessibilityRole="button"
+            accessibilityLabel={boundary ? 'Edit field boundary' : 'Add field boundary'}>
+            <AppIcon
+              name={boundary ? 'pencil' : 'vector-polygon'}
+              size={moderateScale(15)}
+              color={COLORS.white}
+            />
+            <AppText style={styles.mapFabText}>{boundary ? 'Edit' : 'Add boundary'}</AppText>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.overviewHero}>
           <View style={styles.heroTopRow}>
@@ -863,8 +836,6 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
           </View>
         ) : null}
 
-        {/* Always rendered: texture, tested-on and notes are editable even while
-            the nutrients are locked, so they must stay visible on their own. */}
         <SectionHeader title="Soil Profile" />
         <View style={styles.card}>
           <InfoRow
@@ -949,8 +920,6 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
         showsVerticalScrollIndicator={false}
         scrollEnabled={!mapPanning}>
         <View style={styles.mapContainer}>
-          {/* Edit lives in the header overflow menu now, alongside reset and
-              delete, so the hero is pure identity. */}
           <View style={styles.heroTopRow}>
             <View style={styles.flex}>
               <AppText style={styles.heroTitle}>{currentField.name}</AppText>
@@ -965,6 +934,7 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
               tabs={FILTER_TABS}
               activeKey={activeTab}
               onTabChange={setActiveTab}
+              scrollable
             />
           </View>
         </View>
@@ -974,6 +944,15 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
           {activeTab === 'history' && renderHistory()}
           {activeTab === 'soil' && renderSoil()}
           {activeTab === 'documents' && renderDocuments()}
+          {activeTab === 'monitoring' && (
+            <MonitoringModulesView
+              farmId={farmId}
+              fieldId={selectedFieldId}
+              fieldName={currentField.name}
+              fieldSubtitle={currentField.crop}
+              navigation={navigation}
+            />
+          )}
         </View>
 
       </ScrollView>
@@ -1029,9 +1008,6 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
         onClose={() => setSoilEditorVisible(false)}
         values={soilDraft}
         onChange={handleSoilDraftChange}
-        // Hide the nutrient inputs while the field is locked: the backend
-        // rejects those values, and the save path omits them, so showing them
-        // would silently discard whatever the user typed.
         showNutrients={!soil?.locked}
         onSubmit={handleSoilSave}
         submitLabel="Save Soil Details"
@@ -1054,8 +1030,6 @@ const skStyles = StyleSheet.create({
   sectionGap: {
     height: spacing[4],
   },
-  // The map moved into Overview, so the tab bar is now the last row in the
-  // header block and no longer needs to reserve space beneath it.
   filterBarLast: {
     marginBottom: 0,
   },

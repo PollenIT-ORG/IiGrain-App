@@ -2,7 +2,14 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AppStatusBar, AppText, AuthHeader, Button, Input } from '../../components';
+import {
+  AppStatusBar,
+  AppText,
+  AuthHeader,
+  Button,
+  Input,
+  PasswordStrength,
+} from '../../components';
 import { useFormValidation } from '../../hooks';
 import type { ValidatorMap } from '../../hooks';
 import { confirmPasswordValidator, passwordValidator } from '../../utils/fieldValidators';
@@ -83,7 +90,10 @@ const ResetPasswordScreen: React.FC<AuthScreenProps<'ResetPassword'>> = ({
     if (resetPasswordThunk.fulfilled.match(action)) {
       navigation.reset({ index: 0, routes: [{ name: 'Authentication' }] });
     } else {
-      setServerError(action.payload?.message ?? 'Could not reset your password. Please try again.');
+      setServerError(
+        action.payload?.presentation.message ??
+          'Could not reset your password. Please try again.',
+      );
     }
   }, [loading, validateForm, dispatch, email, code, password, navigation]);
 
@@ -112,6 +122,8 @@ const ResetPasswordScreen: React.FC<AuthScreenProps<'ResetPassword'>> = ({
           secureTextEntry
           textContentType="newPassword"
         />
+
+        <PasswordStrength password={password} />
 
         <Input
           label="Confirm Password"

@@ -113,3 +113,10 @@ export const documentUpload = makeUploader({
   typeLabel: "PDF, image or Word document",
   maxFileSize: 10 * MB,
 });
+
+// The contract a producer reads and signs must be a PDF - nothing else.
+export const contractPdfUpload = makeUploader({
+  allowedExtensions: ["pdf"],
+  typeLabel: "PDF",
+  maxFileSize: 10 * MB,
+});

@@ -113,13 +113,6 @@ const pct = (answered: number, total: number): number =>
 const scopeKey = (arg: { programId: string; fieldId: string }): string =>
   `${arg.programId}:${arg.fieldId}`;
 
-/**
- * `categoryQuestions` is a single shared slot but several mounted screens can
- * each want a different category, so every response is matched against the
- * request that is actually current — late/duplicate replies are dropped instead
- * of overwriting the slot (which used to make the screens refetch each other in
- * a loop).
- */
 export const categoryScopeKey = (arg: {
   programId: string;
   fieldId: string;
@@ -129,7 +122,6 @@ export const categoryScopeKey = (arg: {
 const argSearch = (arg: { search?: string } | undefined): string =>
   arg?.search?.trim() ?? '';
 
-/** Rows are per (field + program), so both parts form the identity. */
 const rowKey = (row: MyAssessmentField): string => `${row.programId}:${row.fieldId}`;
 
 const assessmentSlice = createSlice({
@@ -251,7 +243,9 @@ const assessmentSlice = createSlice({
           return;
         }
 
-        if (state.categoryQuestions) {
+        const owningCategoryId = listItem ? state.categoryQuestions?.category.id : null;
+
+        if (state.categoryQuestions && owningCategoryId) {
           const p = state.categoryQuestions.progress;
           p.answered = Math.min(p.answered + 1, p.totalQuestions);
           p.percentage = pct(p.answered, p.totalQuestions);
@@ -267,13 +261,29 @@ const assessmentSlice = createSlice({
             info.status = 'IN_PROGRESS';
           }
 
-          const categoryId = state.categoryQuestions?.category.id;
-          if (categoryId) {
-            const cat = state.summary.categories.find(c => c.id === categoryId);
+          if (owningCategoryId) {
+            const cat = state.summary.categories.find(c => c.id === owningCategoryId);
             if (cat) {
               cat.answered = Math.min(cat.answered + 1, cat.totalQuestions);
               cat.percentage = pct(cat.answered, cat.totalQuestions);
             }
+          }
+        }
+
+        const { programId, fieldId } = action.meta.arg;
+        const row = state.myFields?.fields.find(
+          f => f.fieldId === fieldId && f.programId === programId,
+        );
+        if (row && row.status !== 'COMPLETED') {
+          const wasNotStarted = row.answered === 0;
+          row.answered = Math.min(row.answered + 1, row.totalQuestions);
+          row.percentage = pct(row.answered, row.totalQuestions);
+          row.status = 'IN_PROGRESS';
+
+          if (wasNotStarted && state.myFields) {
+            const counts = state.myFields.counts;
+            counts.notStarted = Math.max(counts.notStarted - 1, 0);
+            counts.inProgress += 1;
           }
         }
       })
@@ -323,9 +333,6 @@ const assessmentSlice = createSlice({
       })
       .addCase(discardAssessmentThunk.fulfilled, (state, action) => {
         state.discarding = false;
-        // Every loaded view of this (field, program) is now wrong; dropping the
-        // loaded scopes makes the guarded effects refetch, and the version bump
-        // refreshes the lists the same way saving an answer does.
         state.answerVersion += 1;
         const key = scopeKey(action.meta.arg);
         if (state.loadedSummaryScope === key) {
@@ -349,8 +356,6 @@ const assessmentSlice = createSlice({
         state.discarding = false;
         state.error = action.payload?.message ?? 'Failed to discard assessment';
       })
-      // Unenrolling a field ends its assessment for that program, so the pending
-      // row disappears immediately instead of waiting for the next refetch.
       .addCase(unenrollFieldThunk.fulfilled, (state, action) => {
         const { programId, fieldId } = action.payload;
         const key = `${programId}:${fieldId}`;

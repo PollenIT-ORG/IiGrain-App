@@ -16,6 +16,7 @@ import Select from "../components/ui/Select";
 import MapPicker, { type LatLng } from "../components/ui/MapPicker";
 import { ChevronLeftIcon } from "../components/icons";
 import { applyServerFieldErrors } from "../lib/serverErrors";
+import { MAX_AREA_ACRES } from "../lib/validation";
 
 function errMsg(err: unknown): string {
   return (
@@ -192,7 +193,9 @@ export default function FieldForm() {
       area:
         areaNum !== undefined && (Number.isNaN(areaNum) || areaNum <= 0)
           ? "Area must be a number greater than zero."
-          : null,
+          : areaNum !== undefined && areaNum > MAX_AREA_ACRES
+            ? "Area looks too large. Please check the value."
+            : null,
     };
     setErrors(fieldErrors);
     if (fieldErrors.farm || fieldErrors.name || fieldErrors.area) return;
@@ -332,6 +335,7 @@ export default function FieldForm() {
                 id="area"
                 type="number"
                 min="0"
+                max="9999999"
                 step="0.01"
                 className={`input-field ${errors.area ? "input-error" : ""}`}
                 placeholder="50.5"
@@ -509,6 +513,7 @@ export default function FieldForm() {
                   id="organicMatter"
                   type="number"
                   min="0"
+                  max="100"
                   step="0.01"
                   className="input-field"
                   placeholder="3.2"
@@ -524,6 +529,7 @@ export default function FieldForm() {
                   id="moisture"
                   type="number"
                   min="0"
+                  max="100"
                   step="0.01"
                   className="input-field"
                   placeholder="18"
@@ -542,6 +548,7 @@ export default function FieldForm() {
                   id="nitrogen"
                   type="number"
                   min="0"
+                  max="10000"
                   step="0.01"
                   className="input-field"
                   placeholder="40"
@@ -557,6 +564,7 @@ export default function FieldForm() {
                   id="phosphorus"
                   type="number"
                   min="0"
+                  max="10000"
                   step="0.01"
                   className="input-field"
                   placeholder="20"
@@ -572,6 +580,7 @@ export default function FieldForm() {
                   id="potassium"
                   type="number"
                   min="0"
+                  max="10000"
                   step="0.01"
                   className="input-field"
                   placeholder="30"

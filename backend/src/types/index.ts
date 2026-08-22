@@ -69,6 +69,12 @@ export interface AppEnv {
     max: number;
   };
 
+  visitArrival: {
+    enforce: boolean;
+    boundaryToleranceM: number;
+    pointToleranceM: number;
+  };
+
   isProduction: boolean;
   isDevelopment: boolean;
 }

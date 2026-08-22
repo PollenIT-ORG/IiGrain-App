@@ -24,6 +24,29 @@ const optionalEmail = z
 const optionalText = (max: number) =>
   z.string().trim().max(max).optional().or(z.literal(""));
 
+// A timezone the browser and the server both understand, e.g. America/Chicago.
+const timezoneField = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .refine(
+    (tz) => {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: tz });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: "Choose a valid timezone." }
+  )
+  .optional();
+
+const timeFormatField = z
+  .enum(["12h", "24h"], { error: "Choose a 12 or 24 hour clock." })
+  .optional();
+
 export const createOrgSchema = z.object({
   name: nameField,
   code: codeField,
@@ -32,6 +55,8 @@ export const createOrgSchema = z.object({
   contactPhone: optionalText(20),
   contactHours: optionalText(200),
   address: optionalText(500),
+  timezone: timezoneField,
+  timeFormat: timeFormatField,
   isActive: z.boolean().optional(),
 });
 
@@ -44,6 +69,8 @@ export const updateOrgSchema = z
     contactPhone: optionalText(20),
     contactHours: optionalText(200),
     address: optionalText(500),
+    timezone: timezoneField,
+    timeFormat: timeFormatField,
     isActive: z.boolean().optional(),
   })
   .refine((o) => Object.keys(o).length > 0, {

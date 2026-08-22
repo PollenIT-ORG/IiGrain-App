@@ -7,6 +7,7 @@ import loginLogRoutes from "./loginLog.routes.js";
 import userRoutes from "./user.routes.js";
 import profileRoutes from "./profile.routes.js";
 import organizationRoutes from "./organization.routes.js";
+import emailSettingsRoutes from "./emailSettings.routes.js";
 import farmRoutes from "./farm.routes.js";
 import fieldRoutes from "./field.routes.js";
 import assessmentRoutes from "./assessment.routes.js";
@@ -15,10 +16,11 @@ import assessorAssessmentRoutes from "./assessorAssessment.routes.js";
 import programRoutes from "./program.routes.js";
 import dashboardRoutes from "./dashboard.routes.js";
 import visitRoutes from "./visit.routes.js";
+import fieldModuleRoutes from "./fieldModule.routes.js";
 import notificationRoutes from "./notification.routes.js";
 import webRoutes from "./web.routes.js";
-import standaloneRoutes from "./standalone.routes.js";
-import eligibilityAdminRoutes from "./eligibilityAdmin.routes.js";
+import programAdminSurveyRoutes from "./programAdminSurvey.routes.js";
+import programAdminSurveyPublicRoutes from "./programAdminSurveyPublic.routes.js";
 
 const router = Router();
 
@@ -30,6 +32,7 @@ router.use("/login-logs", loginLogRoutes);
 router.use("/users", userRoutes);
 router.use("/profile", profileRoutes);
 router.use("/organizations", organizationRoutes);
+router.use("/email-settings", emailSettingsRoutes);
 router.use("/farms", farmRoutes);
 router.use("/fields", fieldRoutes);
 router.use("/assessments", assessmentRoutes);
@@ -38,13 +41,14 @@ router.use("/assessor", assessorAssessmentRoutes);
 router.use("/programs", programRoutes);
 router.use("/dashboard", dashboardRoutes);
 router.use("/visits", visitRoutes);
+router.use("/field-monitoring", fieldModuleRoutes);
 router.use("/notifications", notificationRoutes);
 
 // Public website (eligibility survey, contract signing, contact form).
 router.use("/web", webRoutes);
-// The standalone survey flow (single page, magic-link tracking, no account).
-router.use("/standalone", standaloneRoutes);
 // Admin portal screens for that flow.
-router.use("/eligibility", eligibilityAdminRoutes);
+// Program Admin Survey module - admin portal (scoped) + public survey link.
+router.use("/program-admin-surveys", programAdminSurveyRoutes);
+router.use("/program-admin-survey", programAdminSurveyPublicRoutes);
 
 export default router;

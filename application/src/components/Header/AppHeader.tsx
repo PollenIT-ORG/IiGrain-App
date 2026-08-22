@@ -142,10 +142,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     <View style={styles.bar}>
       <View style={styles.side}>{renderLeft()}</View>
       {renderCenter()}
-      {/* The right side is always rendered, even with no actions, so it reserves
-          the same width as the left side and the centered title stays optically
-          centred. Dropping it when rightActions is null let the title drift
-          right by the width of the left group. */}
       <View style={[styles.side, styles.sideRight]}>{renderRight()}</View>
     </View>
   );
@@ -153,11 +149,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   if (!isWhite) {
     return (
       <>
-        {/* The gradient paints its own strip behind the status bar, so no
-            coloured overlay here — but the config element still has to be
-            declared. Without it this path inherits whatever the last mounted
-            <StatusBar> set, so a modal that flipped the window flags stayed in
-            effect until the user reached a screen that declares its own. */}
         <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
         <AppGradient
           variant="header"

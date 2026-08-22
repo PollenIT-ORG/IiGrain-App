@@ -9,10 +9,16 @@ import type {
   PageMeta,
 } from "../../types";
 
+export type ProgramStatusFilter =
+  | "active"
+  | "inactive"
+  | "ended"
+  | "scheduled";
+
 export interface ListProgramsParams {
   page?: number;
   limit?: number;
-  isActive?: boolean;
+  status?: ProgramStatusFilter;
   search?: string;
 }
 
@@ -25,6 +31,7 @@ export interface CreateProgramBody {
   endDate?: string | null;
   userLimit?: number | null;
   isActive?: boolean;
+  showToFarmers?: boolean;
 }
 
 export type UpdateProgramBody = Partial<CreateProgramBody>;
@@ -64,6 +71,16 @@ export const programsApi = apiSlice.injectEndpoints({
       providesTags: (_r, _e, id) => [{ type: "Program", id }],
     }),
 
+    // A code built from the name, free of any already in use.
+    suggestProgramCode: build.query<string, string>({
+      query: (name) => ({
+        url: "/programs/code-suggestion",
+        method: "GET",
+        params: { name },
+      }),
+      transformResponse: (res: ApiSuccess<{ code: string }>) => res.data.code,
+    }),
+
     createProgram: build.mutation<Program, CreateProgramBody>({
       query: (body) => ({ url: "/programs", method: "POST", data: body }),
       transformResponse: (res: ApiSuccess<{ program: Program }>) =>
@@ -82,6 +99,50 @@ export const programsApi = apiSlice.injectEndpoints({
       }),
       transformResponse: (res: ApiSuccess<{ program: Program }>) =>
         res.data.program,
+      invalidatesTags: (_r, _e, { id }) => [
+        "Programs",
+        { type: "Program", id },
+      ],
+    }),
+
+    // The toggle on the list row. Its own endpoint so flipping it never sends
+    // the rest of the program back.
+    setProgramVisibility: build.mutation<
+      Program,
+      { id: string; showToFarmers: boolean }
+    >({
+      query: ({ id, showToFarmers }) => ({
+        url: `/programs/${id}/visibility`,
+        method: "PATCH",
+        data: { showToFarmers },
+      }),
+      transformResponse: (res: ApiSuccess<{ program: Program }>) =>
+        res.data.program,
+      // Flip the row in place so the switch answers immediately rather than
+      // waiting on a round trip, and put it back if the server refuses. Every
+      // cached page of the list is patched, since the same program can sit in
+      // more than one (a filter, a search, another page).
+      async onQueryStarted({ id, showToFarmers }, { dispatch, queryFulfilled, getState }) {
+        const cachedArgs = programsApi.util.selectCachedArgsForQuery(
+          getState() as Parameters<
+            typeof programsApi.util.selectCachedArgsForQuery
+          >[0],
+          "listPrograms"
+        );
+        const undos = cachedArgs.map((args) =>
+          dispatch(
+            programsApi.util.updateQueryData("listPrograms", args, (draft) => {
+              const row = draft.programs.find((p) => p.id === id);
+              if (row) row.show_to_farmers = showToFarmers;
+            })
+          )
+        );
+        try {
+          await queryFulfilled;
+        } catch {
+          undos.forEach((u) => u.undo());
+        }
+      },
       invalidatesTags: (_r, _e, { id }) => [
         "Programs",
         { type: "Program", id },
@@ -222,8 +283,10 @@ export const programsApi = apiSlice.injectEndpoints({
 export const {
   useListProgramsQuery,
   useGetProgramQuery,
+  useLazySuggestProgramCodeQuery,
   useCreateProgramMutation,
   useUpdateProgramMutation,
+  useSetProgramVisibilityMutation,
   useDeleteProgramMutation,
   useListEnrollmentsQuery,
   useListEnrollmentsPagedQuery,

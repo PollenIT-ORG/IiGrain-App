@@ -30,7 +30,6 @@ export default function SurveyLayout({
     steps.findIndex((s) => s.key === activeStep)
   );
   const currentStep = Math.min(completedCount + 1, totalCount || 1);
-  const year = new Date().getFullYear();
 
   return (
     <div className="flex flex-col bg-gray-100 lg:h-screen lg:overflow-hidden">
@@ -153,24 +152,6 @@ export default function SurveyLayout({
           {children}
         </main>
       </div>
-
-      {/* Footer - full width. The copyright sits under the sidebar, the policy
-          links under the main content. */}
-      <footer className="bg-primary text-white">
-        <div className="flex flex-col items-center justify-between gap-2 px-6 py-4 text-xs sm:flex-row sm:px-8">
-          <p className="text-white/80">
-            &copy; {year} iiGrain. All rights reserved.
-          </p>
-          <nav className="flex items-center gap-6">
-            <a href="#" className="text-white/80 transition-colors hover:text-white">
-              Privacy Policy
-            </a>
-            <a href="#" className="text-white/80 transition-colors hover:text-white">
-              Terms of Use
-            </a>
-          </nav>
-        </div>
-      </footer>
     </div>
   );
 }

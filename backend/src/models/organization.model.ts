@@ -14,6 +14,10 @@ export interface PublicOrganization {
   address: string | null;
   logo_url: string | null;
   favicon_url: string | null;
+  /** The timezone every date and time in the panel is shown in. */
+  timezone: string;
+  /** "12h" or "24h": the clock the panel uses. */
+  time_format: string;
   is_active: boolean;
   member_count: number;
   created_at: Date;
@@ -31,6 +35,8 @@ const PUBLIC_ORG_SELECT = {
   address: true,
   logo_url: true,
   favicon_url: true,
+  timezone: true,
+  time_format: true,
   is_active: true,
   created_at: true,
   updated_at: true,
@@ -53,6 +59,8 @@ function toPublicOrg(o: PublicOrgRow): PublicOrganization {
     address: o.address,
     logo_url: o.logo_url,
     favicon_url: o.favicon_url,
+    timezone: o.timezone,
+    time_format: o.time_format,
     is_active: o.is_active,
     member_count: o._count.users,
     created_at: o.created_at,
@@ -158,6 +166,8 @@ interface UpdateOrgParams {
   contactPhone?: string | null;
   contactHours?: string | null;
   address?: string | null;
+  timezone?: string;
+  timeFormat?: string;
   isActive?: boolean;
 }
 
@@ -173,6 +183,8 @@ export async function updateOrg(
   if (p.contactPhone !== undefined) data.contact_phone = p.contactPhone;
   if (p.contactHours !== undefined) data.contact_hours = p.contactHours;
   if (p.address !== undefined) data.address = p.address;
+  if (p.timezone !== undefined) data.timezone = p.timezone;
+  if (p.timeFormat !== undefined) data.time_format = p.timeFormat;
   if (p.isActive !== undefined) data.is_active = p.isActive;
 
   if (Object.keys(data).length === 0) return findOrgById(id);
@@ -211,6 +223,8 @@ export async function findDefaultOrgBranding(): Promise<{
   contact_phone: string | null;
   contact_hours: string | null;
   address: string | null;
+  timezone: string;
+  time_format: string;
 } | null> {
   const o = await prisma.organizations.findFirst({
     where: { deleted_at: null },
@@ -218,6 +232,8 @@ export async function findDefaultOrgBranding(): Promise<{
     select: {
       logo_url: true,
       favicon_url: true,
+      timezone: true,
+      time_format: true,
       name: true,
       contact_email: true,
       contact_phone: true,

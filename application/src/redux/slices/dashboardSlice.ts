@@ -28,17 +28,9 @@ export interface DashboardState {
   requestedFarmId: string | null;
   dashboardLoading: boolean;
   dashboardError: string | null;
-  /** farmId:year of the in-flight request, used to dedupe identical fetches. */
   requestedKey: string | null;
-  /** Year the loaded dashboard is scoped to; set from the response. */
   selectedYear: number | null;
 
-  /**
-   * Farms whose dashboard (regen health index) is known to be out of date because
-   * an assessment answer was written for one of their fields. The home screen
-   * refetches on focus when its selected farm is listed here; the entry is dropped
-   * as soon as a dashboard fetch for that farm succeeds.
-   */
   staleFarmIds: string[];
 }
 
@@ -74,13 +66,10 @@ export const fetchDashboardFarmsThunk = createAsyncThunk<
 
 export interface FarmDashboardArg {
   farmId: string;
-  /** Omit for the backend default: the latest year that actually has data. */
   year?: number;
   trendYears?: number;
 }
 
-/** Identity of a dashboard request — a year change for the same farm is a
- *  different request and must not be deduped away. */
 const dashboardKey = (arg: FarmDashboardArg): string =>
   `${arg.farmId}:${arg.year ?? 'default'}`;
 
@@ -98,10 +87,6 @@ export const fetchFarmDashboardThunk = createAsyncThunk<
     }
   },
   {
-    // Home and Reports both read this single dashboard slot and both react to a
-    // farm change, so without this they fire the same request twice. An
-    // in-flight fetch for the same farm+year wins; any other combination still
-    // goes through so switching stays instant.
     condition: (arg, { getState }) => {
       const { dashboard } = getState() as { dashboard: DashboardState };
       return !(
@@ -117,7 +102,6 @@ const dashboardSlice = createSlice({
   reducers: {
     setSelectedFarmId(state, action: PayloadAction<string>) {
       if (state.selectedFarmId !== action.payload) {
-        // Years are per farm, so the next payload decides the year again.
         state.selectedYear = null;
       }
       state.selectedFarmId = action.payload;
@@ -154,8 +138,6 @@ const dashboardSlice = createSlice({
         state.farmsMeta = meta;
         state.defaultFarmId = defaultFarmId;
 
-        // A selection may legitimately live on a page we have not fetched yet,
-        // so it is only invalidated once the whole list has been seen.
         const listIsComplete = state.farms.length >= meta.total;
         const stillValid =
           state.selectedFarmId !== null &&
@@ -189,8 +171,6 @@ const dashboardSlice = createSlice({
         }
       })
       .addCase(fetchFarmDashboardThunk.fulfilled, (state, action) => {
-        // Cleared even for a stale response: the data we just received for this
-        // farm is newer than the write that flagged it.
         const { farmId } = action.meta.arg;
         state.staleFarmIds = state.staleFarmIds.filter(id => id !== farmId);
         if (dashboardKey(action.meta.arg) !== state.requestedKey) {
@@ -198,8 +178,6 @@ const dashboardSlice = createSlice({
         }
         state.dashboardLoading = false;
         state.dashboard = action.payload;
-        // The backend owns the default year, so the picker follows the payload
-        // instead of the app guessing.
         state.selectedYear = action.payload.year;
       })
       .addCase(fetchFarmDashboardThunk.rejected, (state, action) => {
@@ -209,9 +187,6 @@ const dashboardSlice = createSlice({
         state.dashboardLoading = false;
         state.dashboardError = action.payload?.message ?? 'Failed to load dashboard';
       })
-      // Home is a mounted tab, so its mount-time fetch does not re-run after a
-      // farm is created elsewhere. Without this the farmer creates their first
-      // farm and comes back to the "no farms yet" empty state.
       .addCase(createFarmThunk.fulfilled, (state, action) => {
         const farm = action.payload;
         if (state.farms.some(f => f.id === farm.id)) {
@@ -224,13 +199,10 @@ const dashboardSlice = createSlice({
         if (state.farmsMeta) {
           state.farmsMeta.total += 1;
         }
-        // The farmer's very first farm becomes the selected one, which lets the
-        // dashboard fetch start immediately instead of waiting for a refetch.
         if (state.selectedFarmId === null) {
           state.selectedFarmId = farm.id;
         }
       })
-      // A new field changes the farm's fieldCount and its regen numbers.
       .addCase(createFieldThunk.fulfilled, (state, action) => {
         const { farmId } = action.payload;
         const farm = state.farms.find(f => f.id === farmId);
@@ -241,8 +213,6 @@ const dashboardSlice = createSlice({
           state.staleFarmIds.push(farmId);
         }
       })
-      // The dashboard keeps its own farm list, so a farm deleted from the farms
-      // tab has to be dropped here too or it lingers in the Home selector.
       .addCase(deleteFarmThunk.fulfilled, (state, action) => {
         const farmId = action.payload;
         state.farms = state.farms.filter(f => f.id !== farmId);
@@ -261,8 +231,6 @@ const dashboardSlice = createSlice({
           state.requestedFarmId = null;
         }
       })
-      // Resetting a farm, or resetting/deleting one of its fields, changes the
-      // numbers this dashboard shows, so it is flagged for a refetch on focus.
       .addCase(resetFarmThunk.fulfilled, (state, action) => {
         const farmId = action.payload.id;
         if (!state.staleFarmIds.includes(farmId)) {
@@ -311,6 +279,8 @@ export const selectDashboardFarmsHasMore = (s: HasDashboard): boolean =>
   hasNextPage(s.dashboard.farmsMeta);
 export const selectDashboardFarmsPage = (s: HasDashboard): number =>
   s.dashboard.farmsMeta?.page ?? 1;
+export const selectDashboardFarmsLoaded = (s: HasDashboard): boolean =>
+  s.dashboard.farmsMeta !== null;
 export const selectDashboardFarmsTotal = (s: HasDashboard): number =>
   s.dashboard.farmsMeta?.total ?? s.dashboard.farms.length;
 
@@ -330,10 +300,6 @@ export const selectDashboardYear = (s: HasDashboard): number | null =>
 
 export const selectStaleFarmIds = (s: HasDashboard): string[] => s.dashboard.staleFarmIds;
 
-/**
- * True when the farm currently selected on the home screen has a pending
- * assessment write that its regen health index has not picked up yet.
- */
 export const selectSelectedFarmIsStale = createSelector(
   [selectStaleFarmIds, selectSelectedFarmId],
   (staleIds, selectedId): boolean => selectedId !== null && staleIds.includes(selectedId),

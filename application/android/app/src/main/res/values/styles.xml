@@ -1,38 +1,31 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Base application theme.
-         Light-only: the app never follows the OS dark theme. -->
+         Light (not DayNight): the app ships a single light design, so the
+         window must never follow the system dark mode — DayNight is what made
+         the pre-JS window paint dark grey on dark-mode devices. -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- Customize your theme here. -->
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
-
-        <!-- WHITE window background so the very first frames (before JS paints) are
-             white - never a blank/dark frame that an OEM would cover with its own
-             "loading" ring. -->
-        <item name="android:windowBackground">@android:color/white</item>
-
-        <!-- Force light mode app-wide (belt-and-suspenders alongside the Light parent). -->
-        <item name="android:forceDarkAllowed">false</item>
-
-        <!-- Status bar = primary green with LIGHT (white) icons.
-             On Android 15+ the OS forces edge-to-edge and IGNORES statusBarColor -
-             the JS StatusBarBackground overlay paints the strip there. On Android <15
-             (opaque status bar) this colours it directly. windowLightStatusBar=false
-             keeps the clock/icons white for contrast on the dark green. -->
-        <item name="android:statusBarColor">#167A45</item>
-        <item name="android:windowLightStatusBar">false</item>
+        <!-- Painted from process start until the RN root view draws, so this is
+             the colour of the "first frame" the user sees on cold start. -->
+        <item name="android:windowBackground">@color/app_background</item>
+        <!-- Blocks the OS from auto-inverting the UI on devices with
+             force-dark / "dark theme for all apps" enabled. -->
+        <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
     </style>
 
-    <!-- Native splash theme (androidx core-splashscreen).
-         Applied to MainActivity as its launch theme; the OS paints the leaf
-         icon on a white background BEFORE React Native starts, then
-         installSplashScreen() swaps to @style/AppTheme (postSplashScreenTheme)
-         the moment RN is ready. Backported to all versions by the library, and
-         mapped to the real Android 12+ platform SplashScreen on API 31+.
-         The leaf logo (@drawable/splash_icon) and the iOS LaunchScreen share one
-         master asset - see scripts/gen_splash_assets.py. -->
+    <!-- Launch theme (androidx.core.splashscreen). This is the theme
+         MainActivity starts in, so the very first frame the OS paints is the
+         leaf on white - not a blank window. `installSplashScreen()` in
+         MainActivity.kt swaps to AppTheme once React Native has drawn, and
+         holds the splash until then via setKeepOnScreenCondition. -->
     <style name="Theme.App.SplashScreen" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenBackground">@color/app_background</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+        <!-- The leaf is a still image; 0 tells the OS not to wait on an
+             animation before it is allowed to dismiss. -->
+        <item name="windowSplashScreenAnimationDuration">0</item>
         <item name="postSplashScreenTheme">@style/AppTheme</item>
     </style>
 

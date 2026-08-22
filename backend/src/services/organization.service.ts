@@ -23,6 +23,8 @@ import {
   type PublicUser,
 } from "../models/user.model.js";
 import { getDefaultOrgId } from "./tenancy.service.js";
+import { applyClock, describeClock } from "./clock.service.js";
+import logger from "../utils/logger.js";
 
 function nn(v: string | undefined): string | null {
   return v && v.trim() !== "" ? v.trim() : null;
@@ -119,6 +121,8 @@ interface UpdateInput {
   contactPhone?: string;
   contactHours?: string;
   address?: string;
+  timezone?: string;
+  timeFormat?: string;
   isActive?: boolean;
 }
 
@@ -145,9 +149,23 @@ export async function editOrganization(
     contactHours:
       input.contactHours !== undefined ? nn(input.contactHours) : undefined,
     address: input.address !== undefined ? nn(input.address) : undefined,
+    timezone: input.timezone?.trim() || undefined,
+    timeFormat: input.timeFormat,
     isActive: input.isActive,
   });
   if (!updated) throw ApiError.notFound("Organization not found.");
+
+  // Saving the setting is all it takes: the same routine `npm run db:clock`
+  // runs is run here, so the database and everything reading from it are on
+  // the new clock straight away, with no command and no restart.
+  if (input.timezone !== undefined || input.timeFormat !== undefined) {
+    try {
+      logger.info(describeClock(await applyClock()));
+    } catch (err) {
+      logger.error("Could not apply the new clock to the database.", err);
+    }
+  }
+
   broadcastToAdmins("organizations", { orgId: id });
   broadcastConfigChanged();
   return updated;

@@ -8,6 +8,7 @@ import {
   logout,
   forgotPassword,
   resetPassword,
+  verifyResetCode,
   me,
   checkEmail,
 } from "../controllers/auth.controller.js";
@@ -69,6 +70,14 @@ router.post(
   forgotPasswordLimiter,
   validate(forgotPasswordSchema),
   forgotPassword
+);
+// Validates the reset code without consuming it, so the app can gate the
+// new-password screen behind a correct code.
+router.post(
+  "/verify-reset-code",
+  codeAttemptLimiter,
+  validate(verifyOtpSchema),
+  verifyResetCode
 );
 router.post(
   "/reset-password",

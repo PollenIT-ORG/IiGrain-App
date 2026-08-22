@@ -1,5 +1,10 @@
 import { Fragment, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { MODULES } from "../lib/fieldModules";
+import { exportFarmWorkbook } from "../lib/farmWorkbookExport";
+import { useLazyListModuleRecordsQuery, useLazyListModuleDocumentsQuery }
+  from "../store/endpoints/fieldMonitoringApi";
+import type { ModuleKey, ModuleRecord } from "../types";
 import {
   useGetProgramQuery,
   useListEnrollmentsPagedQuery,
@@ -165,6 +170,8 @@ export default function EnrolledFarmers() {
                     <EnrollmentRow
                       key={e.id}
                       programId={id}
+                      programName={program?.name ?? ""}
+                      programStart={program?.start_date ?? null}
                       enrollment={e}
                       assessorOptions={assessorOptions}
                       confirm={confirm}
@@ -206,13 +213,114 @@ export default function EnrolledFarmers() {
   );
 }
 
+/**
+ * The whole farm as one workbook, in the client's own shape: a profile listing
+ * every enrolled field, then a sheet per module holding the detail across all
+ * of them.
+ *
+ * The records are fetched only when the button is pressed. Nine modules for
+ * every field of every farm would be a lot to hold open on a list screen that
+ * mostly nobody exports from.
+ */
+function FarmWorkbookButton({
+  programId,
+  programName,
+  programStart,
+  enrollment: e,
+}: {
+  programId: string;
+  programName: string;
+  programStart: string | null;
+  enrollment: ProgramEnrollment;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [fetchRecords] = useLazyListModuleRecordsQuery();
+  const [fetchDocs] = useLazyListModuleDocumentsQuery();
+
+  async function run() {
+    if (!e.fields.length) {
+      showError("This farmer has no fields enrolled yet.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const byModule = {} as Record<
+        ModuleKey,
+        Array<ModuleRecord & { fieldName: string }>
+      >;
+      for (const def of MODULES) byModule[def.key] = [];
+      const documents = [];
+
+      for (const f of e.fields) {
+        for (const def of MODULES) {
+          const res = await fetchRecords(
+            { programId, fieldId: f.field_id, module: def.key },
+            true
+          ).unwrap();
+          byModule[def.key].push(
+            ...res.records.map((r) => ({ ...r, fieldName: f.field_name }))
+          );
+        }
+        const docs = await fetchDocs(
+          { programId, fieldId: f.field_id },
+          true
+        ).unwrap();
+        documents.push(...docs);
+      }
+
+      await exportFarmWorkbook({
+        // Every field of one enrolment sits on the same farm in practice; the
+        // first one names it.
+        farmName: e.fields[0].farm_name ?? "Farm",
+        programName,
+        // Their template calls the program year simply "Year".
+        year: (programStart ?? new Date().toISOString()).slice(0, 4),
+        fields: e.fields.map((f) => ({
+          fieldId: f.field_id,
+          fieldName: f.field_name,
+          areaAcres: f.area_acres,
+        })),
+        recordsByModule: byModule,
+        documents,
+      });
+      showSuccess("Farm workbook downloaded.");
+    } catch (err) {
+      showError(errMsg(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={() => void run()}
+      disabled={busy}
+      className="grid h-8 w-8 place-items-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary disabled:opacity-50"
+      title="Download the full farm workbook"
+    >
+      {busy ? (
+        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-primary" />
+      ) : (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <path d="M7 10l5 5 5-5M12 15V3" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 function EnrollmentRow({
   programId,
+  programName,
+  programStart,
   enrollment: e,
   assessorOptions,
   confirm,
 }: {
   programId: string;
+  programName: string;
+  programStart: string | null;
   enrollment: ProgramEnrollment;
   assessorOptions: { value: string; label: string }[];
   confirm: ReturnType<typeof useDialog>["confirm"];
@@ -263,20 +371,32 @@ function EnrollmentRow({
         <td className="px-5 py-3.5 align-middle">
           <div className="font-medium text-gray-900">{e.farmer_name || "-"}</div>
           <div className="text-xs text-gray-500">{e.farmer_email}</div>
+          {e.enrollment_id && (
+            // Quoted back to us when a farmer calls, so it is worth showing.
+            <div className="mt-0.5 font-mono text-xs text-gray-500">
+              {e.enrollment_id}
+            </div>
+          )}
         </td>
         <td className="px-5 py-3.5 align-middle">
           <div className="flex max-w-md flex-wrap items-center gap-1.5">
             {e.fields.length === 0 ? (
               <span className="text-xs text-gray-400">No fields</span>
             ) : (
+              // Each field opens its own monitoring record for this program,
+              // which is the only place those records make sense.
               e.fields.map((f) => (
-                <span
+                <button
                   key={f.id}
-                  className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
-                  title={f.farm_name ?? undefined}
+                  type="button"
+                  onClick={() =>
+                    navigate(`/programs/${programId}/fields/${f.field_id}/monitoring`)
+                  }
+                  className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-primary/10 hover:text-primary"
+                  title={`Open monitoring records${f.farm_name ? ` - ${f.farm_name}` : ""}`}
                 >
                   {f.field_name}
-                </span>
+                </button>
               ))
             )}
           </div>
@@ -300,6 +420,12 @@ function EnrollmentRow({
         </td>
         <td className="px-5 py-3.5 align-middle">
           <div className="flex items-center justify-end gap-1">
+            <FarmWorkbookButton
+              programId={programId}
+              programName={programName}
+              programStart={programStart}
+              enrollment={e}
+            />
             <button
               onClick={() => setExpanded((v) => !v)}
               className={`grid h-8 w-8 place-items-center rounded-lg hover:bg-gray-100 hover:text-primary ${

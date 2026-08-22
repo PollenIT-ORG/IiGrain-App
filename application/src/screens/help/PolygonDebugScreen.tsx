@@ -1,4 +1,3 @@
- 
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -22,7 +21,6 @@ import MapView, {
 import Geolocation from '@react-native-community/geolocation';
 import AppText from '../../components/AppText/AppText';
 
-// ── Colours (per the debug spec) ─────────────────────────────────────────────
 const STROKE = '#136F3F';
 const FILL = 'rgba(19,111,63,0.25)';
 const STROKE_WIDTH = 4;
@@ -32,15 +30,10 @@ interface LL {
   longitude: number;
 }
 
-// ── Minimal start: TWO points only ───────────────────────────────────────────
-// The screen opens with exactly 2 draggable markers and a polyline connecting
-// them (the Polyline renders at coordinates.length >= 2). Simplest possible
-// "does a line from point A to point B render?" test. Tap the map to add more
-// points; at the 3rd point the polygon fill appears.
 const CENTER: LL = { latitude: 20.5937, longitude: 78.9629 };
 const INITIAL_POLYGON: LL[] = [
-  { latitude: 20.596, longitude: 78.961 }, // Point A
-  { latitude: 20.5915, longitude: 78.966 }, // Point B
+  { latitude: 20.596, longitude: 78.961 },
+  { latitude: 20.5915, longitude: 78.966 },
 ];
 
 const INITIAL_REGION: Region = {
@@ -49,15 +42,6 @@ const INITIAL_REGION: Region = {
   latitudeDelta: 0.012,
   longitudeDelta: 0.012,
 };
-
-// ⚠️ DIAGNOSTIC — the simplest possible overlay: a plain straight line between
-// TWO fixed points across the map centre. Hardcoded, always rendered, bright and
-// thick. If even THIS line does not appear, no Polyline/Polygon renders on this
-// build at all. Remove once the rendering question is settled.
-// const TEST_LINE: LL[] = [
-//   { latitude: 20.5937, longitude: 78.96 },
-//   { latitude: 20.5937, longitude: 78.966 },
-// ];
 
 const TEST_LINE = [
   {
@@ -70,8 +54,7 @@ const TEST_LINE = [
   },
 ];
 
-// ── Local area maths (inlined so the screen imports nothing) ─────────────────
-const EARTH_R = 6378137; // WGS-84 equatorial radius — matches Google computeArea
+const EARTH_R = 6378137;
 const rad = (d: number): number => (d * Math.PI) / 180;
 
 const areaSqM = (ring: LL[]): number => {
@@ -92,7 +75,6 @@ const areaSqM = (ring: LL[]): number => {
 const toAcres = (sqm: number): number => sqm / 4046.8564224;
 const toHectares = (sqm: number): number => sqm / 10000;
 
-// ── Undo/redo state ──────────────────────────────────────────────────────────
 interface HistoryState {
   present: LL[];
   past: LL[][];
@@ -141,7 +123,6 @@ const PolygonDebugScreen: React.FC = () => {
     );
   }, []);
 
-  // ── Interactions ───────────────────────────────────────────────────────
   const onMapPress = useCallback(
     (e: MapPressEvent) => {
       const { latitude, longitude } = e.nativeEvent.coordinate;
@@ -179,7 +160,6 @@ const PolygonDebugScreen: React.FC = () => {
   }, [commit]);
 
   const save = useCallback(() => {
-    // Local only — no persistence. Just proves the current geometry.
     console.log('[PolygonDebug] SAVE (local only)', JSON.stringify(coordinates));
     Alert.alert('Saved (local)', `${coordinates.length} vertices, ${toAcres(areaSqM(coordinates)).toFixed(3)} acres`);
   }, [coordinates]);
@@ -210,13 +190,11 @@ const PolygonDebugScreen: React.FC = () => {
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
       );
     } catch {
-      // ignore
     }
   }, []);
 
   const area = useMemo(() => areaSqM(coordinates), [coordinates]);
 
-  // ── DEBUG LOGS ───────────────────────────────────────────────────────────
   console.log('[PolygonDebug] render', {
     vertices: coordinates.length,
     willRenderPolyline: coordinates.length >= 2,
@@ -235,9 +213,6 @@ const PolygonDebugScreen: React.FC = () => {
         mapType={mapType}
         initialRegion={INITIAL_REGION}
         onPress={onMapPress}>
-        {/* ⚠️ DIAGNOSTIC — simplest test: a plain 2-point straight line,
-            hardcoded, always on. If this magenta line is missing, no line/
-            polygon renders at all on this build. */}
         <Polyline coordinates={TEST_LINE} strokeColor="#FF00FF" strokeWidth={8} />
 <Polyline
   coordinates={TEST_LINE}
@@ -245,12 +220,10 @@ const PolygonDebugScreen: React.FC = () => {
   strokeWidth={8}
 />
 
-        {/* Connecting line — visible from the 2nd point. */}
         {coordinates.length >= 2 ? (
           <Polyline coordinates={coordinates} strokeColor={STROKE} strokeWidth={STROKE_WIDTH} />
         ) : null}
 
-        {/* Filled polygon — appears at the 3rd point, updates live. */}
         {coordinates.length >= 3 ? (
           <Polygon
             coordinates={coordinates}
@@ -260,7 +233,6 @@ const PolygonDebugScreen: React.FC = () => {
           />
         ) : null}
 
-        {/* Draggable vertex markers. Long-press a marker to delete it. */}
         {coordinates.map((c, index) => (
           <Marker
             key={`vertex-${index}`}
@@ -278,7 +250,6 @@ const PolygonDebugScreen: React.FC = () => {
         ))}
       </MapView>
 
-      {/* ── Map-type switch (top) ── */}
       <View style={[styles.typeRow, { top: insets.top + 12 }]}>
         {MAP_TYPES.map(t => {
           const active = t.value === mapType;
@@ -295,7 +266,6 @@ const PolygonDebugScreen: React.FC = () => {
         })}
       </View>
 
-      {/* ── Info panel ── */}
       <View style={[styles.info, { top: insets.top + 60 }]}>
         <AppText style={styles.infoText}>Vertices: {coordinates.length}</AppText>
         <AppText style={styles.infoText}>Area: {toAcres(area).toFixed(3)} ac</AppText>
@@ -304,7 +274,6 @@ const PolygonDebugScreen: React.FC = () => {
         </AppText>
       </View>
 
-      {/* ── Right controls ── */}
       <View style={[styles.side, { top: insets.top + 60 }]}>
         <Pressable style={styles.sideBtn} onPress={goToMyLocation}>
           <AppText style={styles.sideBtnText}>📍</AppText>
@@ -317,7 +286,6 @@ const PolygonDebugScreen: React.FC = () => {
         </Pressable>
       </View>
 
-      {/* ── Bottom actions ── */}
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 12 }]}>
         <Pressable style={styles.actionBtn} onPress={resetPolygon}>
           <AppText style={styles.actionText}>Reset</AppText>
@@ -418,6 +386,4 @@ const styles = StyleSheet.create({
   actionPrimary: { backgroundColor: STROKE, borderColor: STROKE },
   actionPrimaryText: { color: '#fff' },
 });
-
-
 

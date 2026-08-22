@@ -42,12 +42,6 @@ const ReportsScreen: React.FC = () => {
   const error = useAppSelector(selectDashboardError);
   const selectedYear = useAppSelector(selectDashboardYear);
 
-  // The farm lives in the dashboard slice, not in local state, so picking a farm
-  // here and picking one on Home stay the same choice rather than two screens
-  // disagreeing about which farm is on screen.
-  // The route param seeds the farm once. Comparing it against selectedFarmId on
-  // every render would re-apply it the moment the user picks a different farm,
-  // snapping the dropdown straight back to the farm Home arrived with.
   const routeFarmId = route.params?.farmId;
   const appliedRouteFarmRef = useRef<string | null>(null);
   useEffect(() => {
@@ -63,8 +57,6 @@ const ReportsScreen: React.FC = () => {
     }
   }, [dispatch, farms.length]);
 
-  // No year on the first call: the backend picks the latest year that actually
-  // has data, so the report never opens on an empty year.
   useEffect(() => {
     if (selectedFarmId) {
       dispatch(fetchFarmDashboardThunk({ farmId: selectedFarmId }));
@@ -105,8 +97,6 @@ const ReportsScreen: React.FC = () => {
     [farms],
   );
 
-  // Rendered from availableYears, so a year the backend would reject with a 400
-  // can never be picked.
   const yearOptions = useMemo(() => {
     const years = dashboard?.availableYears?.length
       ? dashboard.availableYears
@@ -116,8 +106,6 @@ const ReportsScreen: React.FC = () => {
     return years.map(y => ({ value: String(y), label: String(y) }));
   }, [dashboard]);
 
-  // A farm with one assessed year still gets a point on the chart — hiding the
-  // whole card until a second year exists reads as "the feature is broken".
   const trendData = useMemo(() => {
     if (dashboard?.trend?.length) {
       return dashboard.trend.map(p => ({ year: p.year, value: p.score }));
@@ -128,19 +116,11 @@ const ReportsScreen: React.FC = () => {
     return [];
   }, [dashboard]);
 
-  // Every category is listed, including ones with no data for the selected year.
-  // The backend returns those with `score: null` precisely so the list stays
-  // complete; they render as "—" rather than being dropped or shown as zero.
   const allCategories = useMemo(
     () => dashboard?.categories ?? [],
     [dashboard?.categories],
   );
 
-
-
-
-  // Remounting on farm/year change replays the chart draw and the bar fills, so
-  // switching a year reads as a transition rather than numbers mutating in place.
   console.log('[Reports] dashboard payload', {
     farmId: selectedFarmId,
     year: dashboard?.year,
@@ -178,8 +158,6 @@ const ReportsScreen: React.FC = () => {
     );
   }
 
-  // Mirrors the loaded layout (pickers → trend card → score rows) so the screen
-  // does not jump when the data lands.
   const renderSkeleton = () => (
     <View style={styles.body}>
       <View style={styles.pickerRow}>

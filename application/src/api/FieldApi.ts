@@ -26,6 +26,7 @@ interface RawField {
   expected_harvest?: string;
   expectedHarvest?: string;
   weather?: string;
+  boundary?: unknown;
   created_at?: string;
   updated_at?: string;
 }
@@ -70,6 +71,13 @@ const toArea = (value?: string | number): number => {
   return value ? parseFloat(value) || 0 : 0;
 };
 
+const hasDrawnBoundary = (raw: unknown): boolean => {
+  const coordinates = (raw as { coordinates?: unknown } | null)?.coordinates;
+  return Array.isArray(coordinates) && Array.isArray(coordinates[0])
+    ? (coordinates[0] as unknown[]).length >= 3
+    : false;
+};
+
 const toNumberOrNull = (value?: number | string | null): number | null => {
   if (value === null || value === undefined || value === '') {
     return null;
@@ -96,6 +104,7 @@ const mapField = (raw: RawField, fallbackFarmId: string): Field => {
     irrigation: raw.irrigation ?? '—',
     weather: raw.weather ?? '—',
     healthLabel: FIELD_HEALTH_META[status].label,
+    hasBoundary: hasDrawnBoundary(raw.boundary),
   };
 };
 
@@ -237,7 +246,6 @@ export const updateFarmField = async (
   return mapField(raw, farmId);
 };
 
-/** Clears the field's editable data but keeps its identity. No guards. */
 export const resetFarmField = async (
   farmId: string,
   fieldId: string,
@@ -249,8 +257,6 @@ export const resetFarmField = async (
   return raw ? mapField(raw, farmId) : null;
 };
 
-/** Soft-delete. Rejects with 409 when the field has a submitted assessment or is
- *  still enrolled in a program; the message explains which. */
 export const deleteFarmField = async (
   farmId: string,
   fieldId: string,

@@ -1,4 +1,9 @@
 import ApiError from "../utils/ApiError.js";
+import {
+  summarizeFarmDeletion,
+  deleteFarmCascade,
+  type DeletionLine,
+} from "./cascadeDelete.service.js";
 import { emitSync } from "../socket/liveSync.js";
 import { broadcastToAdmins } from "./realtime.service.js";
 import {
@@ -6,10 +11,7 @@ import {
   listFarms,
   findFarmById,
   updateFarm,
-  softDeleteFarmCascade,
   listFarmsByOwner,
-  farmHasSubmittedAssessment,
-  farmHasEnrolledField,
   resetFarmData,
   type PublicFarm,
   type ListFarmsFilters,
@@ -215,24 +217,24 @@ export async function editFarm(
   return updated;
 }
 
-async function assertFarmDeletable(id: string): Promise<void> {
-  if (await farmHasSubmittedAssessment(id)) {
-    throw ApiError.conflict(
-      "A field on this farm has a submitted assessment, so the farm cannot be deleted."
-    );
-  }
-  if (await farmHasEnrolledField(id)) {
-    throw ApiError.conflict(
-      "A field on this farm is enrolled in a program. Remove those fields from their programs before deleting the farm."
-    );
-  }
+/** What deleting this farm takes with it, for the confirmation. */
+export async function getFarmDeletionSummary(id: string): Promise<DeletionLine[]> {
+  const existing = await findFarmById(id);
+  if (!existing) throw ApiError.notFound("Farm not found.");
+  return summarizeFarmDeletion(id);
 }
 
+/**
+ * Deletes a farm with its fields and everything recorded on them: soil,
+ * documents, assessments, visits and their place in any program. An enrolled
+ * field or a submitted assessment used to block this; leaving them behind is
+ * what put fields in programs with no farm and assessments in totals with no
+ * field, so now they go too. The panel says exactly what before calling this.
+ */
 export async function removeFarm(id: string): Promise<void> {
   const existing = await findFarmById(id);
   if (!existing) throw ApiError.notFound("Farm not found.");
-  await assertFarmDeletable(id);
-  const ok = await softDeleteFarmCascade(id);
+  const ok = await deleteFarmCascade(id);
   if (!ok) throw ApiError.notFound("Farm not found.");
   syncFarm(existing.owner_id, "deleted", id);
 }
@@ -249,8 +251,7 @@ export async function removeMyFarm(userId: string, farmId: string): Promise<void
   if (!existing || existing.owner_id !== userId) {
     throw ApiError.notFound("Farm not found.");
   }
-  await assertFarmDeletable(farmId);
-  const ok = await softDeleteFarmCascade(farmId);
+  const ok = await deleteFarmCascade(farmId);
   if (!ok) throw ApiError.notFound("Farm not found.");
   syncFarm(userId, "deleted", farmId);
 }

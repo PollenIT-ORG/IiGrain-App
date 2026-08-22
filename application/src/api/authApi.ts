@@ -1,6 +1,7 @@
 import { isAxiosError } from 'axios';
 import http from '../services/http';
 import { Endpoints } from '../config/endpoints';
+import { normalizeEnrollmentId } from '../utils/enrollmentId';
 import { accountRevocationFor } from '../utils/sessionGuards';
 
 interface Envelope<T> {
@@ -28,6 +29,7 @@ export interface RegisterPayload {
   phone: string;
   password: string;
   role: string;
+  enrollmentId: string;
 }
 
 export interface LoginPayload {
@@ -134,7 +136,10 @@ const normalizeRole = (raw: unknown): Role | null => {
 };
 
 export const register = async (payload: RegisterPayload): Promise<RegisterData> => {
-  const res = await http.post<Envelope<RegisterData>>(Endpoints.auth.register, payload);
+  const res = await http.post<Envelope<RegisterData>>(Endpoints.auth.register, {
+    ...payload,
+    enrollmentId: normalizeEnrollmentId(payload.enrollmentId ?? ''),
+  });
   return res.data.data;
 };
 
@@ -162,6 +167,10 @@ export const forgotPassword = async (email: string): Promise<RequestOtpData> => 
     email,
   });
   return res.data?.data ?? {};
+};
+
+export const verifyResetCode = async (payload: VerifyOtpPayload): Promise<void> => {
+  await http.post(Endpoints.auth.verifyResetCode, payload);
 };
 
 export const resetPassword = async (payload: ResetPasswordPayload): Promise<void> => {
@@ -222,9 +231,6 @@ export const isUnverifiedEmailError = (error: unknown): boolean => {
   }
   const status = error.response?.status ?? null;
   const message = error.message ?? '';
-  // A deactivated account also logs in with 403. Sending it down the
-  // "unverified email" path would mail an OTP and strand the user on the
-  // verification screen instead of showing why they cannot sign in.
   if (accountRevocationFor(status, message)) {
     return false;
   }
@@ -237,22 +243,14 @@ export const isUnverifiedEmailError = (error: unknown): boolean => {
 export interface EmailAvailability {
   email: string;
   exists: boolean;
-  /**
-   * The only field to gate signup on. It is NOT simply `!exists`: an existing
-   * but unverified email is still available, because register re-sends an OTP
-   * for it. Blocking on `exists` would lock those users out.
-   */
   available: boolean;
 }
 
-/** Public (pre-register) check. Rate limited server-side, so callers should
- *  debounce rather than fire per keystroke. */
 export const checkEmailAvailability = async (
   email: string,
 ): Promise<EmailAvailability> => {
   const res = await http.get<Envelope<EmailAvailability>>(Endpoints.auth.checkEmail, {
     params: { email },
-    // Surfaced inline on the signup field, not through the global error modal.
     silent: true,
   });
   const data = res.data?.data;

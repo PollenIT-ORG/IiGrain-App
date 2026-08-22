@@ -1,11 +1,3 @@
-/**
- * src/maps/boundary/components/AreaReadout.tsx — the live area chip.
- *
- * Always visible while drawing/editing (John Deere / FieldView convention). The
- * unit label is tappable to cycle acres → ha → m² → ft². Display only — the
- * stored value is always raw m² (DATA_MODEL invariant).
- */
-
 import React, { useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { AppIcon } from '../../../components/AppIcon';
@@ -22,14 +14,12 @@ import {
 import { moderateScale } from '../../../utils';
 import { formatArea, type AreaUnit } from '../../utils/geo';
 
-/** Cycle order for the unit toggle. Acres first — Indian farmland convention. */
 const UNIT_CYCLE: readonly AreaUnit[] = ['acre', 'hectare', 'sqm', 'sqft'];
 
 export interface AreaReadoutProps {
   areaSqM: number;
   unit: AreaUnit;
   onCycleUnit: (next: AreaUnit) => void;
-  /** Vertex count shown alongside, e.g. "● 5". */
   vertexCount?: number;
 }
 

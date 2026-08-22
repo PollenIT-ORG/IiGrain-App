@@ -1,25 +1,42 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { TextInput } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppPhoneInput, Button, Input, PasswordStrength } from '../../../components';
-import type { PhoneNumberValue } from '../../../components';
+import type { InputHintTone, PhoneNumberValue } from '../../../components';
 import { useDebouncedValue, useFormValidation } from '../../../hooks';
 import { checkEmailAvailability } from '../../../api/authApi';
 import type { ValidatorMap } from '../../../hooks';
 import {
   confirmPasswordValidator,
   emailValidator,
+  enrollmentIdValidator,
   nameValidator,
   passwordValidator,
   phoneFieldMessage,
 } from '../../../utils/fieldValidators';
+import {
+  ENROLLMENT_ID_EXAMPLE,
+  ENROLLMENT_ID_MAX_LENGTH,
+  formatEnrollmentIdInput,
+  isEnrollmentIdShaped,
+  normalizeEnrollmentId,
+} from '../../../utils/enrollmentId';
 import type { AuthStackParamList } from '../../../navigation/navigationTypes';
 import { styles } from './SignupFormStyle';
 
 const EMAIL_TAKEN = 'This email is already registered. Try logging in instead.';
 
+const ENROLLMENT_HINT = {
+  idle: 'Sent to you by email when your survey was accepted.',
+  matched: 'That looks like a valid Enrollment ID.',
+  unmatched: `Most IDs look like ${ENROLLMENT_ID_EXAMPLE}. Enter yours exactly as sent.`,
+} as const;
+
 type SignupValues = {
+  enrollmentId: string;
   fullName: string;
   phone: string;
   email: string;
@@ -28,10 +45,13 @@ type SignupValues = {
 };
 
 type Nav = NativeStackNavigationProp<AuthStackParamList>;
+type AuthRoute = RouteProp<AuthStackParamList, 'Authentication'>;
 
 const SignupForm: React.FC = () => {
   const navigation = useNavigation<Nav>();
+  const route = useRoute<AuthRoute>();
 
+  const [enrollmentId, setEnrollmentId] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -41,12 +61,12 @@ const SignupForm: React.FC = () => {
   const [phoneData, setPhoneData] = useState<PhoneNumberValue | null>(null);
   const [emailTaken, setEmailTaken] = useState(false);
   const [checkingEmail, setCheckingEmail] = useState(false);
-  /** Last definitive answer, so continuing does not re-hit the rate-limited
-   *  endpoint for an email we already resolved. */
   const checkedEmailRef = useRef<{ email: string; available: boolean } | null>(null);
+  const enrollmentInputRef = useRef<TextInput>(null);
 
   const validators = useMemo<ValidatorMap<SignupValues>>(
     () => ({
+      enrollmentId: enrollmentIdValidator,
       fullName: nameValidator,
       email: emailValidator,
       password: passwordValidator,
@@ -57,16 +77,24 @@ const SignupForm: React.FC = () => {
 
   const { errors, validateField, validateForm, setFieldError } =
     useFormValidation<SignupValues>(
-      { fullName, phone, email, password, confirmPassword },
+      { enrollmentId, fullName, phone, email, password, confirmPassword },
       validators,
     );
 
   const trimmedEmail = email.trim();
   const debouncedEmail = useDebouncedValue(trimmedEmail, 500);
 
-  // Debounced pre-check so the user learns early, before picking a role. Only
-  // runs on a syntactically valid address, and a failure (offline, rate limit)
-  // never blocks signup — register itself is the real gate.
+  const serverEnrollmentError = route.params?.enrollmentError;
+  useEffect(() => {
+    if (!serverEnrollmentError) {
+      return;
+    }
+    setFieldError('enrollmentId', serverEnrollmentError);
+    navigation.setParams({ enrollmentError: undefined });
+    const focus = setTimeout(() => enrollmentInputRef.current?.focus(), 250);
+    return () => clearTimeout(focus);
+  }, [serverEnrollmentError, setFieldError, navigation]);
+
   useEffect(() => {
     if (!debouncedEmail || emailValidator(debouncedEmail, {})) {
       setEmailTaken(false);
@@ -104,6 +132,17 @@ const SignupForm: React.FC = () => {
       alive = false;
     };
   }, [debouncedEmail]);
+
+  const onChangeEnrollmentId = useCallback(
+    (text: string) => {
+      const formatted = formatEnrollmentIdInput(text);
+      setEnrollmentId(formatted);
+      if (errors.enrollmentId) {
+        validateField('enrollmentId', { enrollmentId: formatted });
+      }
+    },
+    [errors.enrollmentId, validateField],
+  );
 
   const onChangeEmail = useCallback((text: string) => {
     setEmail(text);
@@ -143,6 +182,15 @@ const SignupForm: React.FC = () => {
     [errors.confirmPassword, validateField],
   );
 
+  const enrollmentHint = useMemo<{ text: string; tone: InputHintTone }>(() => {
+    if (!enrollmentId.trim()) {
+      return { text: ENROLLMENT_HINT.idle, tone: 'muted' };
+    }
+    return isEnrollmentIdShaped(enrollmentId)
+      ? { text: ENROLLMENT_HINT.matched, tone: 'success' }
+      : { text: ENROLLMENT_HINT.unmatched, tone: 'muted' };
+  }, [enrollmentId]);
+
   const handleContinue = useCallback(async () => {
     const stringsValid = validateForm();
     const phoneError = phoneFieldMessage(phone, phoneData?.isValid ?? false);
@@ -151,8 +199,6 @@ const SignupForm: React.FC = () => {
       return;
     }
 
-    // The debounce may not have resolved yet, so settle it here before moving on.
-    // A failed check falls through: register is the authoritative gate.
     const value = email.trim();
     const cached = checkedEmailRef.current;
     let available = cached?.email === value ? cached.available : undefined;
@@ -177,8 +223,19 @@ const SignupForm: React.FC = () => {
       email: value,
       phone: phoneData?.e164 ?? '',
       password,
+      enrollmentId: normalizeEnrollmentId(enrollmentId),
     });
-  }, [validateForm, phone, phoneData, setFieldError, navigation, fullName, email, password]);
+  }, [
+    validateForm,
+    phone,
+    phoneData,
+    setFieldError,
+    navigation,
+    fullName,
+    email,
+    password,
+    enrollmentId,
+  ]);
 
   return (
     <KeyboardAwareScrollView
@@ -188,8 +245,25 @@ const SignupForm: React.FC = () => {
       showsVerticalScrollIndicator={false}
       bottomOffset={24}>
       <Input
+        ref={enrollmentInputRef}
+        label="Enrollment ID*"
+        placeholder={ENROLLMENT_ID_EXAMPLE}
+        value={enrollmentId}
+        onChangeText={onChangeEnrollmentId}
+        onValidate={v => validateField('enrollmentId', { enrollmentId: v })}
+        error={errors.enrollmentId}
+        hint={enrollmentHint.text}
+        hintTone={enrollmentHint.tone}
+        autoCapitalize="characters"
+        autoCorrect={false}
+        autoComplete="off"
+        maxLength={ENROLLMENT_ID_MAX_LENGTH}
+        returnKeyType="next"
+      />
+
+      <Input
         label="Full Name*"
-       placeholder="Enter your full name"
+        placeholder="Enter your full name"
         value={fullName}
         onChangeText={setFullName}
         onValidate={v => validateField('fullName', { fullName: v })}
@@ -216,6 +290,7 @@ const SignupForm: React.FC = () => {
         onChangeText={onChangeEmail}
         onValidate={v => validateField('email', { email: v })}
         error={errors.email ?? (emailTaken ? EMAIL_TAKEN : undefined)}
+        hint="Use the address your Enrollment ID was sent to."
         keyboardType="email-address"
         textContentType="emailAddress"
         autoComplete="email"

@@ -15,7 +15,6 @@ export const styles = StyleSheet.create({
   mapWrap: { flex: 1 },
   map: { flex: 1 },
 
-  // ── Top bar: back + title + map-type switch ─────────────────────────────
   topBar: {
     position: 'absolute',
     left: spacing[3],
@@ -23,6 +22,11 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[2],
+  },
+  searchWrap: {
+    position: 'absolute',
+    left: spacing[3],
+    right: spacing[3],
   },
   backBtn: {
     width: scale(44),
@@ -47,27 +51,23 @@ export const styles = StyleSheet.create({
   title: { ...presets.labelMD, fontFamily: fonts.semibold, color: COLORS.gray900 },
   subtitle: { ...presets.caption, color: COLORS.gray500 },
 
-  // ── Map-type switch (top offset applied inline from safe-area insets) ────
+  pointsPanel: {
+    left: spacing[3],
+  },
+
   kindSwitch: {
     position: 'absolute',
     right: spacing[3],
-    flexDirection: 'row',
-    backgroundColor: COLORS.white,
-    borderRadius: borderRadius.full,
-    borderWidth: borderWidth.thin,
-    borderColor: COLORS.gray200,
-    overflow: 'hidden',
-    ...shadows.md,
   },
-  kindOption: { paddingHorizontal: spacing[2.5], paddingVertical: spacing[2] },
-  kindOptionActive: { backgroundColor: COLORS.primary },
-  kindLabel: { ...presets.caption, fontFamily: fonts.semibold, color: COLORS.gray700 },
-  kindLabelActive: { color: COLORS.white },
 
-  // ── Crosshair-place add button ──────────────────────────────────────────
-  addPointBtn: {
+  actionStack: {
     position: 'absolute',
-    alignSelf: 'center',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  addPointBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[2],
@@ -78,6 +78,47 @@ export const styles = StyleSheet.create({
     ...shadows.lg,
   },
   addPointText: { ...presets.labelMD, fontFamily: fonts.semibold, color: COLORS.white },
+
+  gpsBtn: { backgroundColor: 'rgba(0,0,0,0.62)' },
+  undoBtn: { backgroundColor: 'rgba(0,0,0,0.62)' },
+  deletePointBtn: { backgroundColor: COLORS.danger },
+  closeShapeBtn: { backgroundColor: COLORS.primaryDark },
+
+  liveStats: {
+    position: 'absolute',
+    right: spacing[3],
+    alignItems: 'flex-end',
+    gap: 2,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+    borderRadius: borderRadius.full,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  liveStatText: { ...presets.labelSM, fontFamily: fonts.semibold, color: COLORS.white },
+  liveStatMuted: { ...presets.caption, color: 'rgba(255,255,255,0.75)' },
+
+  crosshair: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  crosshairRing: {
+    width: scale(30),
+    height: scale(30),
+    borderRadius: scale(15),
+    borderWidth: 2.5,
+    borderColor: COLORS.white,
+    backgroundColor: 'rgba(19,111,63,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.md,
+  },
+  crosshairDot: {
+    width: scale(6),
+    height: scale(6),
+    borderRadius: scale(3),
+    backgroundColor: COLORS.white,
+  },
 
   loading: {
     ...StyleSheet.absoluteFillObject,

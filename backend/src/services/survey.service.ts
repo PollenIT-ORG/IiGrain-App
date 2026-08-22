@@ -45,6 +45,12 @@ export function getSurveyQuestions(): Promise<PublicSurveyQuestion[]> {
   return listActiveQuestions();
 }
 
+// Resolves a question's answer labels, falling back to the shared defaults for
+// any that the admin left blank.
+function resolveOptions(q: PublicSurveyQuestion): string[] {
+  return SCALE_LABELS.map((def, i) => q.options[i]?.trim() || def);
+}
+
 /** Active categories, each with its active questions - what the survey renders. */
 export async function getSurveyStructure(): Promise<
   Array<PublicCategory & { questions: PublicSurveyQuestion[] }>
@@ -55,7 +61,9 @@ export async function getSurveyStructure(): Promise<
   ]);
   return categories.map((c) => ({
     ...c,
-    questions: questions.filter((q) => q.category_id === c.id),
+    questions: questions
+      .filter((q) => q.category_id === c.id)
+      .map((q) => ({ ...q, options: resolveOptions(q) })),
   }));
 }
 
@@ -90,14 +98,25 @@ export async function scoreSurvey(
   });
 
   const score = answers.reduce((sum, a) => sum + a.score, 0);
-  const category = await categoryForScore(score);
+  const maxScore = questions.reduce((sum, q) => sum + 3 * q.weight, 0);
+  const category = await categoryForScore(score, maxScore);
   return { answers, score, category };
 }
 
-export async function categoryForScore(score: number): Promise<SurveyCategory> {
+// The bands are percentages of the max achievable score, so qualification scales
+// with the active question set. Comparing the raw score instead would tie the
+// bands to a fixed total, so deactivating categories (which lowers the max) would
+// push even a perfect submission below the bands and mark it Not Qualified.
+export async function categoryForScore(
+  score: number,
+  maxScore: number
+): Promise<SurveyCategory> {
+  // Rounded to a whole percent so a fractional score can never fall in the
+  // 1-point gap between adjacent integer bands (e.g. silver 42-62, gold 63-100).
+  const pct = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
   const rules = await listScoringRules();
   const match = rules.find(
-    (r) => r.is_active && score >= r.min_score && score <= r.max_score
+    (r) => r.is_active && pct >= r.min_score && pct <= r.max_score
   );
   return (match?.category as SurveyCategory) ?? "not_qualified";
 }
@@ -183,6 +202,16 @@ export interface QuestionInput {
   weight?: number;
   sortOrder?: number;
   isActive?: boolean;
+  options?: Array<string | null>;
+}
+
+// Trims the four answer labels; a blank one becomes null so the survey falls
+// back to the shared default.
+function normalizeOptions(
+  options?: Array<string | null>
+): Array<string | null> | undefined {
+  if (options === undefined) return undefined;
+  return [0, 1, 2, 3].map((i) => options[i]?.trim() || null);
 }
 
 export async function addQuestion(
@@ -196,6 +225,7 @@ export async function addQuestion(
     categoryId: input.categoryId,
     questionText: input.questionText.trim(),
     helpText: input.helpText?.trim() || null,
+    options: normalizeOptions(input.options),
     weight: input.weight ?? 1,
     sortOrder:
       input.sortOrder ??
@@ -222,6 +252,7 @@ export async function editQuestion(
     questionText: input.questionText?.trim(),
     helpText:
       input.helpText !== undefined ? input.helpText?.trim() || null : undefined,
+    options: normalizeOptions(input.options),
     weight: input.weight,
     sortOrder: input.sortOrder,
     isActive: input.isActive,

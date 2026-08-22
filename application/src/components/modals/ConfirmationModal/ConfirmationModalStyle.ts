@@ -12,7 +12,6 @@ import { addAlpha, moderateScale, scale } from '../../../utils';
 export const CONFIRM_METRICS = {
   enterMs: 220,
   exitMs: 160,
-  /** Card starts slightly small and low, then settles — a lift, not a pop. */
   scaleFrom: 0.94,
   liftFrom: 12,
   iconSize: moderateScale(26),
@@ -86,7 +85,6 @@ export const styles = StyleSheet.create({
     width: scale(6),
     height: scale(6),
     borderRadius: borderRadius.full,
-    // Nudged down so the dot sits on the first line's optical centre.
     marginTop: spacing[1.5],
   },
   bulletKeep: {

@@ -51,8 +51,6 @@ export const markNotificationReadThunk = createAsyncThunk<
     return { id, unreadCount, missing: false };
   } catch (error) {
     const standardized = handleApiError(error);
-    // The notification was deleted (or was never ours). Not an error the user
-    // can act on — resolve quietly and let the reducer drop the stale row.
     if (standardized.kind === 'notFound') {
       return { id, unreadCount: null, missing: true };
     }
@@ -72,7 +70,6 @@ export const markAllNotificationsReadThunk = createAsyncThunk<
   }
 });
 
-/** `unreadCount: null` means the server did not report one — keep the current value. */
 export interface NotificationsRemoved {
   ids: string[];
   unreadCount: number | null;
@@ -86,8 +83,6 @@ export const deleteNotificationThunk = createAsyncThunk<NotificationsRemoved, st
       return { ids: [id], unreadCount };
     } catch (error) {
       const standardized = handleApiError(error);
-      // Already gone server-side — treat as done so the row leaves the list
-      // instead of stranding the user with an error they cannot act on.
       if (standardized.kind === 'notFound') {
         return { ids: [id], unreadCount: null };
       }

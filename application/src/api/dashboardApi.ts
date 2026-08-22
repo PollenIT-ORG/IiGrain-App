@@ -251,10 +251,6 @@ const mapFarmDashboard = (raw: RawFarmDashboard): FarmDashboard => ({
   ),
 });
 
-/** The farm selector and the reports dropdown both read this list, so it is
- *  fetched at the backend's maximum page size: one round-trip covers every
- *  realistic farmer, and the selector still supports search + load-more beyond
- *  that. */
 export const getDashboardFarms = async (
   query?: PageQuery,
 ): Promise<DashboardFarms> => {
@@ -267,9 +263,7 @@ export const getDashboardFarms = async (
 };
 
 export interface FarmDashboardQuery {
-  /** Omit to get the backend default: the latest year that has data. */
   year?: number;
-  /** How many points the trend chart returns (1-20). Backend default is 5. */
   trendYears?: number;
 }
 

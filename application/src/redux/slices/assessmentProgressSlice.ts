@@ -6,6 +6,8 @@ export interface ResumePoint {
   questionId: string;
 }
 
+export type ResumeRole = 'farmer' | 'assessor';
+
 export interface AssessmentProgressState {
   resumeByField: Record<string, ResumePoint>;
 }
@@ -14,7 +16,10 @@ const initialState: AssessmentProgressState = {
   resumeByField: {},
 };
 
-const resumeKey = (programId: string, fieldId: string): string => `${programId}:${fieldId}`;
+const resumeKey = (programId: string, fieldId: string, role?: ResumeRole): string =>
+  role === 'assessor'
+    ? `assessor:${programId}:${fieldId}`
+    : `${programId}:${fieldId}`;
 
 const assessmentProgressSlice = createSlice({
   name: 'assessmentProgress',
@@ -27,13 +32,19 @@ const assessmentProgressSlice = createSlice({
         fieldId: string;
         categoryId: string;
         questionId: string;
+        role?: ResumeRole;
       }>,
     ) {
-      const { programId, fieldId, categoryId, questionId } = action.payload;
-      state.resumeByField[resumeKey(programId, fieldId)] = { categoryId, questionId };
+      const { programId, fieldId, categoryId, questionId, role } = action.payload;
+      state.resumeByField[resumeKey(programId, fieldId, role)] = { categoryId, questionId };
     },
-    clearResumePoint(state, action: PayloadAction<{ programId: string; fieldId: string }>) {
-      delete state.resumeByField[resumeKey(action.payload.programId, action.payload.fieldId)];
+    clearResumePoint(
+      state,
+      action: PayloadAction<{ programId: string; fieldId: string; role?: ResumeRole }>,
+    ) {
+      delete state.resumeByField[
+        resumeKey(action.payload.programId, action.payload.fieldId, action.payload.role)
+      ];
     },
   },
   extraReducers: builder => {
@@ -49,8 +60,8 @@ interface HasAssessmentProgress {
 }
 
 export const selectResumePoint =
-  (programId: string | undefined, fieldId: string | undefined) =>
+  (programId: string | undefined, fieldId: string | undefined, role?: ResumeRole) =>
   (s: HasAssessmentProgress): ResumePoint | null =>
     programId && fieldId
-      ? s.assessmentProgress.resumeByField[resumeKey(programId, fieldId)] ?? null
+      ? s.assessmentProgress.resumeByField[resumeKey(programId, fieldId, role)] ?? null
       : null;

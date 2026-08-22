@@ -19,12 +19,17 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 1,
+  },
+  label: {
+    flexShrink: 1,
   },
   iconWrap: {
     marginRight: scale(8),
   },
 
   primaryWrapper: {
+    backgroundColor: COLORS.primary,
     ...shadows.md,
   },
   primaryDisabled: {
@@ -42,9 +47,6 @@ export const styles = StyleSheet.create({
     borderWidth: borderWidth.medium,
     borderColor: COLORS.primary,
   },
-  // Solid red for irreversible actions. Deliberately not a `primary` override:
-  // primary paints a gradient over its whole surface, so a custom background
-  // passed via `style` would never be visible.
   danger: {
     backgroundColor: COLORS.danger,
     ...shadows.sm,

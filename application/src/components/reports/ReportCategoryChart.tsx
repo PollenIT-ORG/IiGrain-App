@@ -18,9 +18,6 @@ export interface ReportCategoryChartProps {
 const Y_AXIS_WIDTH = scale(30);
 const CHART_HEIGHT = scale(180);
 
-/** Category names are long ("Carbon & Nutrient Cycling") and the axis has one
- *  slot per bar, so the axis carries the first word and the full name is left to
- *  the score list underneath. */
 const shortLabel = (label: string): string => label.trim().split(/\s+/)[0] ?? label;
 
 const ReportCategoryChart: React.FC<ReportCategoryChartProps> = ({ data }) => {
@@ -28,8 +25,6 @@ const ReportCategoryChart: React.FC<ReportCategoryChartProps> = ({ data }) => {
 
   const plotWidth = containerW > 0 ? containerW - Y_AXIS_WIDTH - scale(6) : 0;
 
-  // Bars are sized to fill the card whatever the category count is, so the chart
-  // never leaves a gap or overflows when categories are added or removed.
   const slot = data.length > 0 ? (plotWidth - scale(12)) / data.length : 0;
   const barWidth = Math.max(scale(14), slot * 0.55);
   const spacing = Math.max(scale(6), slot - barWidth);

@@ -16,8 +16,8 @@ import {
 function adminRouteFor(n: AppNotification): string | null {
   const r = n.redirect;
   if (!r) return null;
-  if (r.submissionId) return `/eligibility/${r.submissionId}`;
-  if (r.screen === "eligibility") return "/eligibility";
+  if (r.submissionId) return `/survey-submissions/${r.submissionId}`;
+  if (r.screen === "eligibility") return "/survey-submissions";
   if (r.visitId) return "/live-visits";
   if (r.fieldId) return `/fields/${r.fieldId}`;
   if (r.programId) return `/programs/${r.programId}`;
@@ -98,7 +98,10 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-card-hover">
+        // On a phone the bell is not at the edge of the screen, so a panel
+        // hung off it runs past the left edge: there it sits under the header
+        // across the screen instead, and only hangs off the bell from sm up.
+        <div className="fixed inset-x-3 top-[4.25rem] z-30 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-card-hover sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80">
           <div className="flex items-center justify-between border-b border-gray-300 px-4 py-3">
             <span className="text-sm font-semibold text-gray-900">
               Notifications

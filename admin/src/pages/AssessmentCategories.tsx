@@ -224,14 +224,16 @@ export default function AssessmentCategories() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      {/* Stacked on a phone: the title and two buttons will not sit side by
+          side on a narrow screen without squashing all three. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Assessment Categories</h1>
           <p className="mt-1 text-sm text-gray-500">
             Drag rows to reorder. Click "Questions" to manage questions in a category.
           </p>
         </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:flex-shrink-0">
           <input
             ref={fileRef}
             type="file"
@@ -257,7 +259,7 @@ export default function AssessmentCategories() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600">
+      <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-xs leading-relaxed text-gray-600 [overflow-wrap:anywhere]">
         <span className="font-semibold text-gray-700">Excel import - </span>
         One spreadsheet creates everything: each row's{" "}
         <code className="rounded bg-gray-200 px-1 py-0.5">Section</code> becomes a
@@ -270,7 +272,7 @@ export default function AssessmentCategories() {
         - <code className="rounded bg-gray-200 px-1 py-0.5">Score3Description</code>.
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+      <div className="rounded-xl border border-gray-200 bg-white overflow-x-auto">
         {isLoading ? (
           <div className="flex justify-center py-16">
             <Loader size="md" />
@@ -288,7 +290,7 @@ export default function AssessmentCategories() {
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={ordered.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-              <table className="w-full text-left">
+              <table className="w-full min-w-[760px] text-left">
                 <thead className="border-b border-gray-200 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500">
                   <tr>
                     <th className="w-8 px-3 py-3" />

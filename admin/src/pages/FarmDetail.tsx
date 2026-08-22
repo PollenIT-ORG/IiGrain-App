@@ -6,6 +6,7 @@ import {
 } from "../store/endpoints/farmsApi";
 import { useListFieldsQuery } from "../store/endpoints/fieldsApi";
 import { showSuccess, showError } from "../lib/toast";
+import { useConfirmCascadeDelete } from "../lib/confirmDelete";
 import { useDialog } from "../components/ui/DialogProvider";
 import Loader from "../components/Loader";
 import {
@@ -14,6 +15,7 @@ import {
   RefreshIcon,
   TrashIcon,
 } from "../components/icons";
+import FarmMonitoringCard from "../components/fieldMonitoring/FarmMonitoringCard";
 
 function errMsg(err: unknown): string {
   return (
@@ -45,6 +47,7 @@ export default function FarmDetail() {
 
   const [resetFarm, { isLoading: resetting }] = useResetFarmMutation();
   const [deleteFarm, { isLoading: deleting }] = useDeleteFarmMutation();
+  const confirmDelete = useConfirmCascadeDelete();
 
   async function handleReset() {
     if (!farm) return;
@@ -65,11 +68,12 @@ export default function FarmDetail() {
 
   async function handleDelete() {
     if (!farm) return;
-    const ok = await confirm({
-      title: "Delete farm?",
-      message: `"${farm.name}" and all its fields will be removed.`,
-      confirmLabel: "Delete",
-      tone: "danger",
+    const ok = await confirmDelete({
+      title: "Delete this farm and everything on it?",
+      message:
+        `"${farm.name}" goes with its fields and everything recorded on ` +
+        "them, including their place in any program.",
+      summaryPath: `/farms/${farm.id}/deletion-summary`,
     });
     if (!ok) return;
     try {
@@ -228,6 +232,8 @@ export default function FarmDetail() {
           </div>
         )}
       </div>
+
+      <FarmMonitoringCard farmId={id ?? ""} />
     </div>
   );
 }

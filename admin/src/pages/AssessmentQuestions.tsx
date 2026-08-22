@@ -222,7 +222,7 @@ export default function AssessmentQuestions() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
           <button
             onClick={() => navigate("/assessments")}
@@ -243,7 +243,7 @@ export default function AssessmentQuestions() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-2 sm:flex-shrink-0">
           <button
             onClick={() =>
               navigate(`/assessments/categories/${categoryId}/questions/new`)
@@ -267,6 +267,7 @@ export default function AssessmentQuestions() {
             type="text"
             className="input-field w-full pl-9 text-sm"
             placeholder="Search questions..."
+            maxLength={100}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -313,7 +314,7 @@ export default function AssessmentQuestions() {
               items={ordered.map((q) => q.id)}
               strategy={verticalListSortingStrategy}
             >
-              <table className="w-full text-left">
+              <table className="w-full min-w-[760px] text-left">
                 <thead className="border-b border-gray-200 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500">
                   <tr>
                     <th className="w-8 px-3 py-3" />

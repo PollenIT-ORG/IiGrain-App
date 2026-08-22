@@ -1,16 +1,20 @@
 import ApiError from "../utils/ApiError.js";
 import {
+  summarizeFieldDeletion,
+  deleteFieldCascade,
+  type DeletionLine,
+} from "./cascadeDelete.service.js";
+import {
   createField,
   listFields,
   findFieldById,
   updateField,
-  softDeleteFieldCascade,
   listFieldsByFarm,
-  fieldHasSubmittedAssessment,
-  fieldIsEnrolled,
   fieldNameExistsInFarm,
   resetFieldData,
+  updateFieldBoundary,
   type PublicField,
+  type GeoJSONPolygon,
   type ListFieldsFilters,
 } from "../models/field.model.js";
 import { findFarmById } from "../models/farm.model.js";
@@ -218,24 +222,24 @@ export async function editField(id: string, input: UpdateInput): Promise<PublicF
   return updated;
 }
 
-async function assertFieldDeletable(id: string): Promise<void> {
-  if (await fieldHasSubmittedAssessment(id)) {
-    throw ApiError.conflict(
-      "This field has a submitted assessment and cannot be deleted."
-    );
-  }
-  if (await fieldIsEnrolled(id)) {
-    throw ApiError.conflict(
-      "This field is enrolled in a program. Remove it from the program before deleting."
-    );
-  }
+/** What deleting this field takes with it, for the confirmation. */
+export async function getFieldDeletionSummary(
+  id: string
+): Promise<DeletionLine[]> {
+  const existing = await findFieldById(id);
+  if (!existing) throw ApiError.notFound("Field not found.");
+  return summarizeFieldDeletion(id);
 }
 
+/**
+ * Deletes a field with its soil records, documents, assessments, visits and
+ * its place in any program. Being enrolled or assessed used to block this, and
+ * that is exactly what left programs counting fields that were not there.
+ */
 export async function removeField(id: string): Promise<void> {
   const existing = await findFieldById(id);
   if (!existing) throw ApiError.notFound("Field not found.");
-  await assertFieldDeletable(id);
-  const ok = await softDeleteFieldCascade(id);
+  const ok = await deleteFieldCascade(id);
   if (!ok) throw ApiError.notFound("Field not found.");
   await syncFieldOwner(existing.farm_id, "deleted", id);
 }
@@ -308,4 +312,23 @@ export async function resetMyFarmField(
   const field = await findFieldById(fieldId);
   if (!field || field.farm_id !== farmId) throw ApiError.notFound("Field not found.");
   return resetFieldById(fieldId);
+}
+
+export async function saveMyFarmFieldBoundary(
+  farmId: string,
+  fieldId: string,
+  userId: string,
+  boundary: GeoJSONPolygon | null
+): Promise<PublicField> {
+  // Both checks: the farm must belong to the caller, and the field to that farm.
+  // Without both, a farmer could overwrite another field's outline by guessing a
+  // UUID.
+  await assertFarmOwner(farmId, userId);
+  const field = await findFieldById(fieldId);
+  if (!field || field.farm_id !== farmId) throw ApiError.notFound("Field not found.");
+
+  const updated = await updateFieldBoundary(fieldId, boundary);
+  if (!updated) throw ApiError.notFound("Field not found.");
+  await syncFieldOwner(farmId, "updated", fieldId);
+  return updated;
 }

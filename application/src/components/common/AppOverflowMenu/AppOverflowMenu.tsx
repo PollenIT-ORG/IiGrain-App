@@ -16,10 +16,8 @@ import { moderateScale } from '../../../utils';
 import { styles, MENU_METRICS } from './AppOverflowMenuStyle';
 import type { AppOverflowMenuProps, OverflowMenuItem } from './types';
 
-/** Where the popup should appear, in window coordinates. */
 interface Anchor {
   top: number;
-  /** Distance from whichever screen edge the menu is pinned to. */
   edge: number;
 }
 
@@ -72,14 +70,6 @@ const MenuRow: React.FC<MenuRowProps> = ({ item, onSelect, isLast }) => {
 
 const MemoMenuRow = React.memo(MenuRow);
 
-/**
- * Three-dot overflow menu with an anchored, animated popup.
- *
- * Rendered in a `Modal` so it escapes any parent `overflow: hidden` and sits
- * above the rest of the screen, which also gives free outside-tap dismissal.
- * The popup is measured against the trigger at open time, so it stays attached
- * to the button on any screen size and flips to the left edge under RTL.
- */
 const AppOverflowMenu: React.FC<AppOverflowMenuProps> = ({
   items,
   color = COLORS.white,
@@ -90,7 +80,6 @@ const AppOverflowMenu: React.FC<AppOverflowMenuProps> = ({
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const { width: windowWidth } = useWindowDimensions();
 
-  // One driver for both fade and scale keeps them perfectly in step.
   const progress = useRef(new Animated.Value(0)).current;
 
   const animateTo = useCallback(
@@ -113,14 +102,11 @@ const AppOverflowMenu: React.FC<AppOverflowMenuProps> = ({
   }, [animateTo]);
 
   const open = useCallback(() => {
-    // A menu opening over a focused input would otherwise sit under the keyboard.
     Keyboard.dismiss();
     triggerRef.current?.measureInWindow((x, y, width, height) => {
       const distanceFromRight = windowWidth - (x + width);
       setAnchor({
         top: y + height + MENU_METRICS.gap,
-        // Pin to the same screen edge the trigger sits nearest, so the popup
-        // hangs off the button rather than floating mid-screen.
         edge: Math.max(MENU_METRICS.screenMargin, I18nManager.isRTL ? x : distanceFromRight),
       });
       progress.setValue(0);
@@ -130,8 +116,6 @@ const AppOverflowMenu: React.FC<AppOverflowMenuProps> = ({
 
   const handleSelect = useCallback(
     (item: OverflowMenuItem) => {
-      // Close first: running the action behind a dismissing popup avoids the
-      // menu lingering over whatever the action opens next.
       animateTo(0, () => {
         setAnchor(null);
         item.onPress();
@@ -166,8 +150,6 @@ const AppOverflowMenu: React.FC<AppOverflowMenuProps> = ({
       <Modal
         visible={anchor !== null}
         transparent
-        // Animation is driven here, not by the Modal, so fade and scale can
-        // share one curve.
         animationType="none"
         onRequestClose={close}
         statusBarTranslucent>

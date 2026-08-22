@@ -1,3 +1,8 @@
+// Use the "max" metadata: it validates real number length and prefix per
+// country (rejecting, e.g., an Indian number with too many digits), unlike the
+// default "min" metadata which is lenient.
+import { isValidPhoneNumber } from "react-phone-number-input/max";
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function required(value: string, label = "This field"): string | null {
@@ -32,8 +37,11 @@ export function phone(
 ): string | null {
   const v = value.trim();
   if (v === "") return req ? `${label} is required.` : null;
-  if (!/^\+?[0-9]{8,15}$/.test(v.replace(/[\s-]/g, ""))) {
-    return "Enter a valid mobile number with country code.";
+  // Country-aware check (libphonenumber via react-phone-number-input): rejects
+  // wrong-length and wrong-prefix numbers, not just a loose digit count. The
+  // value is E.164 ("+CC..."), what our PhoneInput emits.
+  if (!isValidPhoneNumber(v)) {
+    return "Enter a valid phone number with country code.";
   }
   return null;
 }
@@ -49,15 +57,21 @@ export function minLen(
   return null;
 }
 
+// The upper bound a piece of land can sensibly carry. The same number is the
+// ceiling in the backend schemas, so the message appears under the box rather
+// than coming back as a server error.
+export const MAX_AREA_ACRES = 9999999;
+
 export function positiveNumber(
   value: string,
-  { req = false, label = "Value" } = {}
+  { req = false, label = "Value", max = Infinity } = {}
 ): string | null {
   const v = value.trim();
   if (v === "") return req ? `${label} is required.` : null;
   const n = Number(v);
   if (Number.isNaN(n)) return `${label} must be a number.`;
   if (n <= 0) return `${label} must be greater than zero.`;
+  if (n > max) return `${label} looks too large. Please check the value.`;
   return null;
 }
 

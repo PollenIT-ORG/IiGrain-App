@@ -6,9 +6,11 @@ import { store } from "./store";
 import { DialogProvider } from "./components/ui/DialogProvider";
 import { toasterProps } from "./lib/toast";
 import ProtectedRoute from "./components/ProtectedRoute";
+import Home from "./components/Home";
 import AppLayout from "./components/layout/AppLayout";
 import Loader from "./components/Loader";
 import BrandingApplier from "./components/BrandingApplier";
+import LocaleWatcher from "./components/LocaleWatcher";
 import RouteTitle from "./components/RouteTitle";
 
 const Login = lazy(() => import("./pages/Login"));
@@ -29,16 +31,23 @@ const FarmDetail = lazy(() => import("./pages/FarmDetail"));
 const Programs = lazy(() => import("./pages/Programs"));
 const ProgramForm = lazy(() => import("./pages/ProgramForm"));
 const ProgramDetail = lazy(() => import("./pages/ProgramDetail"));
+const ProgramSurveySetup = lazy(() => import("./pages/ProgramSurveySetup"));
+const NewSurveyProgram = lazy(() => import("./pages/NewSurveyProgram"));
 const EnrolledFarmers = lazy(() => import("./pages/EnrolledFarmers"));
+const FieldMonitoring = lazy(() => import("./pages/FieldMonitoring"));
 const Submissions = lazy(() => import("./pages/Submissions"));
-const Assignments = lazy(() => import("./pages/Assignments"));
 const Notifications = lazy(() => import("./pages/Notifications"));
-const EligibilitySubmissions = lazy(() => import("./pages/EligibilitySubmissions"));
-const EligibilitySubmissionDetail = lazy(
-  () => import("./pages/EligibilitySubmissionDetail")
+const ProgramAdminSurvey = lazy(() => import("./pages/ProgramAdminSurvey"));
+const ProgramTemplateEditor = lazy(
+  () => import("./pages/ProgramTemplateEditor")
 );
-const SurveyQuestions = lazy(() => import("./pages/SurveyQuestions"));
-const ContactEnquiries = lazy(() => import("./pages/ContactEnquiries"));
+const ProgramContractEditor = lazy(
+  () => import("./pages/ProgramContractEditor")
+);
+const ProgramSubmissions = lazy(() => import("./pages/ProgramSubmissions"));
+const ProgramSubmissionDetail = lazy(
+  () => import("./pages/ProgramSubmissionDetail")
+);
 const LiveVisits = lazy(() => import("./pages/LiveVisits"));
 const AssessmentCategories = lazy(() => import("./pages/AssessmentCategories"));
 const CategoryForm = lazy(() => import("./pages/CategoryForm"));
@@ -49,10 +58,16 @@ const ChangePassword = lazy(() => import("./pages/ChangePassword"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Placeholder = lazy(() => import("./pages/Placeholder"));
 // Public survey (no login) - lives in the admin app but outside the auth gate.
-const SurveyAssessment = lazy(() => import("./pages/survey/SurveyAssessment"));
-const SurveyStatus = lazy(() => import("./pages/survey/SurveyStatus"));
-const SurveyStatusLookup = lazy(() => import("./pages/survey/SurveyStatusLookup"));
-const SurveyContract = lazy(() => import("./pages/survey/SurveyContract"));
+// Public Program Admin Survey (no login) - one link per program.
+const ProgramSurveyAssessment = lazy(
+  () => import("./pages/program-survey/ProgramSurveyAssessment")
+);
+const ProgramSurveyStatus = lazy(
+  () => import("./pages/program-survey/ProgramSurveyStatus")
+);
+const ProgramSurveyContract = lazy(
+  () => import("./pages/program-survey/ProgramSurveyContract")
+);
 
 export default function App() {
   return (
@@ -62,105 +77,139 @@ export default function App() {
         <BrandingApplier />
         <BrowserRouter>
           <RouteTitle />
-          <Suspense
-            fallback={
-              <Loader variant="fullPage" message="Loading..." size="lg" />
-            }
-          >
-            <Routes>
-              <Route path="/login" element={<Login />} />
+          <LocaleWatcher>
+            <Suspense
+              fallback={
+                <Loader variant="fullPage" message="Loading..." size="lg" />
+              }
+            >
+              <Routes>
+                <Route path="/login" element={<Login />} />
 
-              {/* Public survey - no login. Producers arrive from a QR/link. */}
-              <Route path="/survey" element={<SurveyAssessment />} />
-              <Route path="/survey/status" element={<SurveyStatusLookup />} />
-              <Route path="/survey/status/:token" element={<SurveyStatus />} />
-              <Route path="/survey/contract/:token" element={<SurveyContract />} />
+                {/* Public survey - no login. Producers arrive from a QR/link. */}
+
+                {/* Public Program Admin Survey - one shareable link per program. */}
+                <Route path="/program-admin-survey/status/:token" element={<ProgramSurveyStatus />} />
+                <Route path="/program-admin-survey/contract/:token" element={<ProgramSurveyContract />} />
+                <Route path="/program-admin-survey/:token" element={<ProgramSurveyAssessment />} />
 
 
-              <Route
-                element={
-                  <ProtectedRoute>
-                    <AppLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/login-logs" element={<LoginLogs />} />
-                <Route path="/users" element={<Users />} />
-                <Route path="/users/new" element={<UserForm />} />
-                <Route path="/users/:id" element={<UserDetail />} />
-                <Route path="/users/:id/edit" element={<UserForm />} />
-                <Route path="/organizations" element={<Organizations />} />
                 <Route
-                  path="/organizations/new"
-                  element={<OrganizationForm />}
-                />
-                <Route
-                  path="/organizations/:id"
-                  element={<OrganizationDetail />}
-                />
-                <Route
-                  path="/organizations/:id/edit"
-                  element={<OrganizationForm />}
-                />
-                <Route path="/profile" element={<Profile />} />
-                <Route
-                  path="/profile/change-password"
-                  element={<ChangePassword />}
-                />
-                <Route path="/farms" element={<Farms />} />
-                <Route path="/farms/new" element={<FarmForm />} />
-                <Route path="/farms/:id" element={<FarmDetail />} />
-                <Route path="/farms/:id/edit" element={<FarmForm />} />
-                <Route path="/fields" element={<Fields />} />
-                <Route path="/fields/new" element={<FieldForm />} />
-                <Route path="/fields/:id" element={<FieldDetail />} />
-                <Route path="/fields/:id/edit" element={<FieldForm />} />
-                <Route path="/live-visits" element={<LiveVisits />} />
-                <Route path="/programs" element={<Programs />} />
-                <Route path="/programs/new" element={<ProgramForm />} />
-                <Route path="/programs/:id" element={<ProgramDetail />} />
-                <Route path="/programs/:id/edit" element={<ProgramForm />} />
-                <Route
-                  path="/programs/:id/farmers"
-                  element={<EnrolledFarmers />}
-                />
-                <Route path="/submissions" element={<Submissions />} />
-                <Route path="/assignments" element={<Assignments />} />
-                <Route path="/notifications" element={<Notifications />} />
-                <Route path="/eligibility" element={<EligibilitySubmissions />} />
-                <Route
-                  path="/eligibility/:id"
-                  element={<EligibilitySubmissionDetail />}
-                />
-                <Route path="/survey-questions" element={<SurveyQuestions />} />
-                <Route path="/enquiries" element={<ContactEnquiries />} />
-                <Route path="/assessments" element={<AssessmentCategories />} />
-                <Route path="/assessments/categories/new" element={<CategoryForm />} />
-                <Route path="/assessments/categories/:id/edit" element={<CategoryForm />} />
-                <Route
-                  path="/assessments/categories/:categoryId/questions"
-                  element={<AssessmentQuestions />}
-                />
-                <Route
-                  path="/assessments/categories/:categoryId/questions/new"
-                  element={<QuestionForm />}
-                />
-                <Route
-                  path="/assessments/categories/:categoryId/questions/:id/edit"
-                  element={<QuestionForm />}
-                />
-                <Route
-                  path="/reports"
-                  element={<Placeholder title="Reports" />}
-                />
-                <Route path="/settings" element={<Settings />} />
-              </Route>
+                  element={
+                    <ProtectedRoute>
+                      <AppLayout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/login-logs" element={<LoginLogs />} />
+                  <Route path="/users" element={<Users />} />
+                  <Route path="/users/new" element={<UserForm />} />
+                  <Route path="/users/:id" element={<UserDetail />} />
+                  <Route path="/users/:id/edit" element={<UserForm />} />
+                  <Route path="/organizations" element={<Organizations />} />
+                  <Route
+                    path="/organizations/new"
+                    element={<OrganizationForm />}
+                  />
+                  <Route
+                    path="/organizations/:id"
+                    element={<OrganizationDetail />}
+                  />
+                  <Route
+                    path="/organizations/:id/edit"
+                    element={<OrganizationForm />}
+                  />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route
+                    path="/profile/change-password"
+                    element={<ChangePassword />}
+                  />
+                  <Route path="/farms" element={<Farms />} />
+                  <Route path="/farms/new" element={<FarmForm />} />
+                  <Route path="/farms/:id" element={<FarmDetail />} />
+                  <Route path="/farms/:id/edit" element={<FarmForm />} />
+                  <Route path="/fields" element={<Fields />} />
+                  <Route path="/fields/new" element={<FieldForm />} />
+                  <Route path="/fields/:id" element={<FieldDetail />} />
+                  <Route path="/fields/:id/edit" element={<FieldForm />} />
+                  <Route path="/live-visits" element={<LiveVisits />} />
+                  <Route path="/programs" element={<Programs />} />
+                  <Route path="/programs/new" element={<ProgramForm />} />
+                  <Route path="/programs/:id" element={<ProgramDetail />} />
+                  <Route path="/programs/:id/edit" element={<ProgramForm />} />
+                  {/* Setting a program's survey up, step by step. */}
+                  <Route
+                    path="/programs/:id/survey"
+                    element={<ProgramSurveySetup />}
+                  />
+                  <Route
+                    path="/programs/:id/fields/:fieldId/monitoring"
+                    element={<FieldMonitoring />}
+                  />
+                  <Route
+                    path="/programs/:id/farmers"
+                    element={<EnrolledFarmers />}
+                  />
+                  <Route path="/submissions" element={<Submissions />} />
+                  <Route path="/notifications" element={<Notifications />} />
+                  {/* Older links to these modules still work. */}
+                  <Route
+                    path="/program-surveys/*"
+                    element={<Navigate to="/surveys" replace />}
+                  />
+                  <Route
+                    path="/program-submissions/*"
+                    element={<Navigate to="/survey-submissions" replace />}
+                  />
+                  <Route path="/surveys" element={<ProgramAdminSurvey />} />
+                  {/* A survey belongs to a program, so a new one starts there. */}
+                  <Route path="/surveys/new" element={<NewSurveyProgram />} />
+                  <Route
+                    path="/surveys/surveys/:id"
+                    element={<ProgramTemplateEditor />}
+                  />
+                  {/* Old path, kept so existing links keep working. */}
+                  <Route
+                    path="/surveys/templates/:id"
+                    element={<ProgramTemplateEditor />}
+                  />
+                  <Route
+                    path="/surveys/contracts/:id"
+                    element={<ProgramContractEditor />}
+                  />
+                  <Route path="/survey-submissions" element={<ProgramSubmissions />} />
+                  <Route
+                    path="/survey-submissions/:id"
+                    element={<ProgramSubmissionDetail />}
+                  />
+                  <Route path="/assessments" element={<AssessmentCategories />} />
+                  <Route path="/assessments/categories/new" element={<CategoryForm />} />
+                  <Route path="/assessments/categories/:id/edit" element={<CategoryForm />} />
+                  <Route
+                    path="/assessments/categories/:categoryId/questions"
+                    element={<AssessmentQuestions />}
+                  />
+                  <Route
+                    path="/assessments/categories/:categoryId/questions/new"
+                    element={<QuestionForm />}
+                  />
+                  <Route
+                    path="/assessments/categories/:categoryId/questions/:id/edit"
+                    element={<QuestionForm />}
+                  />
+                  <Route
+                    path="/reports"
+                    element={<Placeholder title="Reports" />}
+                  />
+                  <Route path="/settings" element={<Settings />} />
+                </Route>
 
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </Suspense>
+                <Route path="/" element={<Home />} />
+                <Route path="*" element={<Home />} />
+              </Routes>
+            </Suspense>
+          </LocaleWatcher>
         </BrowserRouter>
       </DialogProvider>
     </Provider>

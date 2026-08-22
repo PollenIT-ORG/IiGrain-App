@@ -92,9 +92,6 @@ const AppImagePicker: React.FC<AppImagePickerProps> = ({
     [multiple, value, effectiveMax, onChange, onError],
   );
 
-  // Guarded by a ref as well as state: two taps in the same tick both read a
-  // stale `loading === false` and would open two native pickers, which iOS
-  // refuses — leaving the app stuck behind an orphaned modal.
   const busyRef = useRef(false);
 
   const runPick = useCallback(

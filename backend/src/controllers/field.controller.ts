@@ -8,6 +8,7 @@ import {
   getFieldById,
   editField,
   removeField,
+  getFieldDeletionSummary,
   getMyFarmFields,
   getMyFarmFieldById,
   createMyFarmField,
@@ -15,6 +16,7 @@ import {
   removeMyFarmField,
   resetFieldById,
   resetMyFarmField,
+  saveMyFarmFieldBoundary,
 } from "../services/field.service.js";
 
 export const createField = asyncHandler(async (req: Request, res: Response) => {
@@ -46,6 +48,12 @@ export const getField = asyncHandler(async (req: Request, res: Response) => {
 export const updateField = asyncHandler(async (req: Request, res: Response) => {
   const field = await editField(req.params.id, req.body);
   ApiResponse.send(res, 200, "Field updated successfully.", { field });
+});
+
+/** What deleting this field takes with it, so the panel can spell it out. */
+export const fieldDeletionSummary = asyncHandler(async (req, res) => {
+  const items = await getFieldDeletionSummary(req.params.id);
+  return ApiResponse.send(res, 200, "Deletion summary.", { items });
 });
 
 export const deleteField = asyncHandler(async (req: Request, res: Response) => {
@@ -103,3 +111,16 @@ export const resetMyField = asyncHandler(async (req: Request, res: Response) => 
   const field = await resetMyFarmField(req.params.farmId, req.params.id, userId);
   ApiResponse.send(res, 200, "Field reset successfully.", { field });
 });
+
+export const updateMyFieldBoundary = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user!.sub;
+    const field = await saveMyFarmFieldBoundary(
+      req.params.farmId,
+      req.params.id,
+      userId,
+      req.body.boundary
+    );
+    ApiResponse.send(res, 200, "Field boundary saved successfully.", { field });
+  }
+);

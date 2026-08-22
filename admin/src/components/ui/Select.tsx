@@ -14,9 +14,14 @@ interface SelectProps {
   className?: string;
   id?: string;
   disabled?: boolean;
+  // Forces the search box on. It also appears on its own once the list is long
+  // enough to be worth searching (see SEARCH_FROM).
   searchable?: boolean;
   error?: boolean;
 }
+
+// A search box only earns its place once scrolling starts to get tedious.
+const SEARCH_FROM = 8;
 
 export default function Select({
   value,
@@ -36,11 +41,13 @@ export default function Select({
   const ref = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   const selected = options.find((o) => o.value === value);
+  const canSearch = searchable || options.length >= SEARCH_FROM;
 
   const visibleOptions =
-    searchable && query.trim()
+    canSearch && query.trim()
       ? options.filter((o) =>
           o.label.toLowerCase().includes(query.trim().toLowerCase())
         )
@@ -52,7 +59,8 @@ export default function Select({
     const rect = btnRef.current?.getBoundingClientRect();
     if (rect) {
       const spaceBelow = window.innerHeight - rect.bottom;
-      const menuHeight = Math.min(240, options.length * 40 + 8);
+      const menuHeight =
+        Math.min(240, options.length * 40 + 8) + (canSearch ? 48 : 0);
       const goUp = spaceBelow < menuHeight && rect.top > spaceBelow;
 
       setMenuStyle({
@@ -68,7 +76,7 @@ export default function Select({
     setQuery("");
     setActiveIndex(0);
     setOpen(true);
-    if (searchable) {
+    if (canSearch) {
       setTimeout(() => searchRef.current?.focus(), 0);
     }
   }
@@ -92,7 +100,8 @@ export default function Select({
       const rect = btnRef.current?.getBoundingClientRect();
       if (!rect) return;
       const spaceBelow = window.innerHeight - rect.bottom;
-      const menuHeight = Math.min(240, options.length * 40 + 8);
+      const menuHeight =
+        Math.min(240, options.length * 40 + 8) + (canSearch ? 48 : 0);
       const goUp = spaceBelow < menuHeight && rect.top > spaceBelow;
 
       setMenuStyle((prev) => ({
@@ -113,11 +122,19 @@ export default function Select({
   }, [open, options.length]);
 
   useEffect(() => {
-    if (open && !searchable) {
+    if (open && !canSearch) {
       const idx = options.findIndex((o) => o.value === value);
       setActiveIndex(idx >= 0 ? idx : 0);
     }
-  }, [open, options, value, searchable]);
+  }, [open, options, value, canSearch]);
+
+  // Keep the keyboard-highlighted option in view while arrowing through a long
+  // list, so the selection never scrolls out of sight.
+  useEffect(() => {
+    if (!open) return;
+    const el = listRef.current?.children[activeIndex] as HTMLElement | undefined;
+    el?.scrollIntoView({ block: "nearest" });
+  }, [open, activeIndex]);
 
   function pick(v: string) {
     onChange(v);
@@ -159,7 +176,7 @@ export default function Select({
           style={menuStyle}
           className="overflow-hidden rounded-lg border border-gray-300 bg-white shadow-card-hover"
         >
-          {searchable && (
+          {canSearch && (
             <div className="border-b border-gray-200 p-2">
               <input
                 ref={searchRef}
@@ -171,11 +188,12 @@ export default function Select({
                 }}
                 onKeyDown={onKeyDown}
                 placeholder="Search..."
+                maxLength={100}
                 className="w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
           )}
-          <ul role="listbox" className="max-h-60 overflow-auto py-1">
+          <ul ref={listRef} role="listbox" className="max-h-60 overflow-y-auto py-1">
             {visibleOptions.length === 0 ? (
               <li className="px-3.5 py-2 text-sm text-gray-500">
                 No matches.

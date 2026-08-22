@@ -20,11 +20,6 @@ import {
 declare module 'axios' {
   export interface AxiosRequestConfig {
     silent?: boolean;
-    /**
-     * Opt a request out of the automatic network-error retry. Set on large
-     * uploads: retrying re-sends the whole file from 0%, which the user sees as
-     * the progress bar restarting after it already reached 100%.
-     */
     skipRetry?: boolean;
   }
 }
@@ -99,8 +94,6 @@ const performRefresh = async (): Promise<string | null> => {
     }
     const rotated = res.data?.data?.refreshToken ?? refreshToken;
     await tokenStorage.save(newAccess, rotated);
-    // Keep the realtime channel on the same credentials as the REST calls,
-    // otherwise the next socket reconnect presents the expired token.
     reauthSocket(newAccess);
     return newAccess;
   } catch {
@@ -142,10 +135,6 @@ http.interceptors.response.use(
     const publicAuth = isPublicAuthPath(url);
     const silent = Boolean((error.config as RetryableConfig | undefined)?.silent);
 
-    // The account was deactivated or deleted while the session was live. A token
-    // refresh cannot fix either, so skip it and tear the session down at once.
-    // Always surfaced, even for a `silent` request: the user is about to land on
-    // the login screen and needs to know why.
     const revoked = accountRevocationFor(status, message);
     if (revoked && !publicAuth) {
       if (onUnauthorized) {
@@ -179,9 +168,6 @@ http.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // Every remaining failure — rate limit, offline, or a plain API error —
-    // resolves its own copy from src/config/errorMessages.ts. Nothing here
-    // decides what the user reads.
     if (!silent) {
       showError(error);
     }

@@ -9,18 +9,24 @@ import type { AssessmentCategory } from '../../types/assessment';
 export interface CategoryProgressItemProps {
   category: AssessmentCategory;
   onPress?: (category: AssessmentCategory) => void;
+  locked?: boolean;
 }
 
 const CategoryProgressItem: React.FC<CategoryProgressItemProps> = ({
   category,
   onPress,
+  locked = false,
 }) => {
   const handlePress = useCallback(() => onPress?.(category), [onPress, category]);
 
   const content = (
     <>
-      <View style={styles.iconWrap}>
-        <AppIcon name={category.icon} size={moderateScale(16)} color={COLORS.primary} />
+      <View style={[styles.iconWrap, locked && styles.iconWrapLocked]}>
+        <AppIcon
+          name={locked ? ICONS.LOCK : category.icon}
+          size={moderateScale(16)}
+          color={locked ? COLORS.gray500 : COLORS.primary}
+        />
       </View>
 
       <AppText style={styles.title} numberOfLines={1}>
@@ -35,13 +41,21 @@ const CategoryProgressItem: React.FC<CategoryProgressItemProps> = ({
           {category.percentage}%
         </AppText>
         {onPress ? (
-          <AppIcon name={ICONS.CHEVRON_RIGHT} size={moderateScale(18)} color={COLORS.gray500} />
+          <AppIcon
+            name={locked ? ICONS.LOCK : ICONS.CHEVRON_RIGHT}
+            size={moderateScale(18)}
+            color={COLORS.gray500}
+          />
         ) : null}
       </View>
     </>
   );
 
-  const accessibilityLabel = `${category.title}: ${category.completed} of ${category.total} completed, ${category.percentage} percent`;
+  const accessibilityLabel = `${category.title}: ${category.completed} of ${
+    category.total
+  } completed, ${category.percentage} percent${
+    locked ? ', locked until you reach the field' : ''
+  }`;
 
   if (onPress) {
     return (
@@ -82,6 +96,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+  },
+  iconWrapLocked: {
+    backgroundColor: COLORS.gray100,
   },
   title: {
     ...presets.bodySM,

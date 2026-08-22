@@ -23,10 +23,7 @@ export interface ReportHeroCardProps {
   year: number;
   score: number | null;
   statusLabel: string;
-  /** Points gained or lost against the previous year; null when there is no
-   *  previous year to compare against. */
   delta: number | null;
-  /** When the figures were read, e.g. "Updated 20 Jul 2026". */
   asOfLabel?: string;
   stats: ReportHeroStat[];
 }
@@ -34,7 +31,6 @@ export interface ReportHeroCardProps {
 const RING_SIZE = scale(132);
 const COUNT_UP_DURATION = 1100;
 
-/** Counts from 0 up to `value` so the headline number lands with the ring. */
 const useCountUp = (value: number, duration: number): number => {
   const anim = useRef(new Animated.Value(0)).current;
   const [display, setDisplay] = useState(0);

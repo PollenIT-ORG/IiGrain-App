@@ -33,7 +33,7 @@ import {
 import { EmptyState } from '../../components/farms';
 import AssessmentFieldCard from '../../components/assessment/AssessmentFieldCard';
 import EmptyAssessmentState from '../../components/assessment/EmptyAssessmentState';
-import { COLORS, borderRadius, spacing } from '../../constants';
+import { COLORS, LIST_PERF, borderRadius, spacing } from '../../constants';
 import { moderateScale, scale } from '../../utils';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import { useSyncedFetch } from '../../hooks/useSyncedFetch';
@@ -69,11 +69,6 @@ const TABS: TabItem<AssessmentTab>[] = [
   { key: 'history', label: 'History' },
 ];
 
-/**
- * Ceiling for how stale these lists may get without any signal. Real changes
- * (enrol / unenrol / submit) arrive through cache-tag invalidation, so this only
- * covers a very long session with the tab left open.
- */
 const ASSESSMENTS_TTL_MS = 5 * 60 * 1000;
 
 const AssessmentScreen: React.FC = () => {
@@ -111,19 +106,12 @@ const AssessmentScreen: React.FC = () => {
     dispatch(fetchMyAssessmentHistoryThunk({ page: 1, search: historySearch }));
   }, [dispatch, historySearch]);
 
-  // Initial load + invalidation-driven refresh. Deliberately NOT a focus
-  // refetch: opening this tab must not hit the API. These lists only change
-  // when the user enrols/unenrols or submits an assessment, and both of those
-  // bump the tags below — locally through syncSlice and remotely through the
-  // socket `sync` event — so the data refreshes exactly when it is really stale.
   useSyncedFetch({
     tags: [Tags.myAssessments],
     run: reloadFields,
     hasData: myAssessments !== null,
     ttlMs: ASSESSMENTS_TTL_MS,
   });
-  // History also feeds the "Completed" chip on the My Assessment tab, so it
-  // cannot be deferred until the History tab is actually opened.
   useSyncedFetch({
     tags: [Tags.assessmentHistory],
     run: reloadHistory,
@@ -131,9 +119,6 @@ const AssessmentScreen: React.FC = () => {
     ttlMs: ASSESSMENTS_TTL_MS,
   });
 
-  // Search is user-driven, so it reloads on its own — but only once the
-  // debounced term has really changed. Firing on mount too would double-request
-  // alongside the initial load above.
   const lastFieldsSearch = useRef(fieldsSearch);
   useEffect(() => {
     if (lastFieldsSearch.current === fieldsSearch) {
@@ -180,8 +165,6 @@ const AssessmentScreen: React.FC = () => {
     historySearch,
   ]);
 
-  // Deep links (and older callers) can still arrive with a field selected — that
-  // detail now lives on its own screen, so hand off and clear the params.
   useEffect(() => {
     const { fieldId, programId } = route.params ?? {};
     if (fieldId && programId) {
@@ -190,10 +173,6 @@ const AssessmentScreen: React.FC = () => {
     }
   }, [route.params, navigation]);
 
-  // Submitting an assessment deeper in the flow changes both lists. Edge
-  // triggered on the version counter and gated on focus, so coming back here
-  // after a submit refreshes exactly once — and simply switching tabs, which
-  // does not move the counter, costs nothing.
   const lastSyncedAnswerVersion = useRef(answerVersion);
   const isFocused = useIsFocused();
   useEffect(() => {
@@ -216,16 +195,6 @@ const AssessmentScreen: React.FC = () => {
       }),
     [navigation],
   );
-  /**
-   * Pull-to-refresh state is LOCAL and user-driven on purpose.
-   *
-   * It used to be `refreshing={myFieldsLoading && !!myAssessments}`, i.e. any
-   * background reload switched the RefreshControl on. On Android that draws an
-   * overlay spinner and nothing moves, but on iOS a programmatically-refreshing
-   * control expands the scroll view's content inset — which is the empty band
-   * that appeared under the search bar and pushed the title down. Tying it to a
-   * real pull keeps the layout still.
-   */
   const [refreshingFields, setRefreshingFields] = useState(false);
   const onRefreshList = useCallback(async () => {
     setRefreshingFields(true);
@@ -316,9 +285,6 @@ const AssessmentScreen: React.FC = () => {
       return renderError(error, onRefreshList);
     }
     const data = myAssessments;
-    // The search bar stays mounted while the skeleton shows. Rendering the
-    // skeleton on its own dropped the search bar, so everything below it jumped
-    // once the real list arrived.
     if (!data) {
       return (
         <View style={styles.listFlex}>
@@ -349,6 +315,7 @@ const AssessmentScreen: React.FC = () => {
           contentContainerStyle={styles.body}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          {...LIST_PERF}
           onEndReached={loadMoreFields}
           onEndReachedThreshold={0.4}
           refreshControl={
@@ -449,6 +416,7 @@ const AssessmentScreen: React.FC = () => {
           contentContainerStyle={styles.body}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          {...LIST_PERF}
           onEndReached={loadMoreHistory}
           onEndReachedThreshold={0.4}
           refreshControl={
@@ -491,7 +459,7 @@ const AssessmentScreen: React.FC = () => {
 
 
 
-  
+
   return (
     <View style={styles.safe}>
       <AppHeader variant="title" title="Assessments" showDrawer rightActions={null} />

@@ -1,25 +1,3 @@
-/**
- * src/maps/components/LocationPickerModal.tsx — LocationPicker as a full-screen
- * modal.
- *
- * WHY IT IS A SEPARATE COMPONENT
- * ------------------------------
- * Two of the three call sites (AddFarm, AddField) need the picker to appear
- * over a form without a navigation push — pushing a route would unmount the
- * half-filled form on some navigators and lose the user's input. The third
- * (a full-screen picker route) wants the bare picker. Splitting presentation
- * from the picker itself keeps both honest.
- *
- * WHY `SafeAreaProvider` IS RE-DECLARED INSIDE
- * A native `<Modal>` renders in its own window on both platforms, outside the
- * React tree that carries the app's safe-area context. Without a provider here,
- * `useSafeAreaInsets()` inside the picker returns zeroes and the search bar
- * slides under the status bar / notch.
- *
- * Migrated from `src/components/location/LocationPickerModal.tsx`; the only
- * change is where `LocationPicker` is imported from.
- */
-
 import React, { useCallback } from 'react';
 import { Modal, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -32,6 +10,10 @@ export interface LocationPickerModalProps {
   initial?: LatLng | null;
   onClose: () => void;
   onConfirm: (location: PickedLocation) => void;
+  ring?: readonly LatLng[] | null;
+  warnOutsideRing?: boolean;
+  confirmLabel?: string;
+  searchPlaceholder?: string;
 }
 
 const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
@@ -39,6 +21,10 @@ const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
   initial = null,
   onClose,
   onConfirm,
+  ring = null,
+  warnOutsideRing = false,
+  confirmLabel,
+  searchPlaceholder,
 }) => {
   const handleConfirm = useCallback(
     (location: PickedLocation) => {
@@ -56,7 +42,15 @@ const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
       statusBarTranslucent
       onRequestClose={onClose}>
       <SafeAreaProvider style={styles.root}>
-        <LocationPicker initial={initial} onClose={onClose} onConfirm={handleConfirm} />
+        <LocationPicker
+          initial={initial}
+          onClose={onClose}
+          onConfirm={handleConfirm}
+          ring={ring}
+          warnOutsideRing={warnOutsideRing}
+          confirmLabel={confirmLabel}
+          searchPlaceholder={searchPlaceholder}
+        />
       </SafeAreaProvider>
     </Modal>
   );

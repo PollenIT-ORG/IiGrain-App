@@ -7,9 +7,7 @@ import AppText from '../AppText/AppText';
 
 export interface InfoRowProps {
   label: string;
-  /** Empty / missing values fall back to `placeholder` instead of a blank row. */
   value?: string | null;
-  /** Shown in a muted style when there is no value. Defaults to "Not added". */
   placeholder?: string;
   icon?: string;
   last?: boolean;

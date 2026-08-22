@@ -88,7 +88,7 @@ export async function listMyFieldsWithAssessment(
         JOIN programs p ON p.id = pe.program_id AND p.deleted_at IS NULL
        WHERE pef.deleted_at IS NULL
          AND pe.farmer_id = ${userId}::uuid
-         AND (p.start_date IS NULL OR p.start_date <= CURRENT_DATE)
+         AND (p.start_date IS NULL OR p.start_date <= org_today())
     )`;
   const answeredLateral = Prisma.sql`
     LEFT JOIN LATERAL (
@@ -204,7 +204,7 @@ export async function listMyCompletedAssessments(
         JOIN programs p ON p.id = pe.program_id AND p.deleted_at IS NULL
        WHERE pef.deleted_at IS NULL
          AND pe.farmer_id = ${userId}::uuid
-         AND (p.start_date IS NULL OR p.start_date <= CURRENT_DATE)
+         AND (p.start_date IS NULL OR p.start_date <= org_today())
     )`;
   const fromWhere = Prisma.sql`
       FROM enrolled en
@@ -320,7 +320,12 @@ export async function listAssessorFields(
      WHERE pe.assessor_id = ${assessorId}::uuid
        AND pe.deleted_at IS NULL
        -- Only STARTED programs - future-start programs aren't assessable yet.
-       AND (p.start_date IS NULL OR p.start_date <= CURRENT_DATE)
+       AND (p.start_date IS NULL OR p.start_date <= org_today())
+       -- Hide closed or ended programs. A closed or ended program is a hard
+       -- cutoff for the assessor (the same rule the write guards enforce), so
+       -- it must not linger in the pending list where a tap would only fail.
+       AND p.is_active = true
+       AND (p.end_date IS NULL OR p.end_date >= org_today())
      ORDER BY f.created_at DESC;`);
 }
 
@@ -341,7 +346,7 @@ export async function assessorCanAccessField(
      WHERE pef.field_id = ${fieldId}::uuid
        AND pef.deleted_at IS NULL
        -- Only STARTED programs - future-start programs aren't assessable yet.
-       AND (p.start_date IS NULL OR p.start_date <= CURRENT_DATE)
+       AND (p.start_date IS NULL OR p.start_date <= org_today())
      LIMIT 1;`);
   return rows.length > 0;
 }
@@ -351,6 +356,7 @@ export interface AssessmentWriteContext {
   farm_active: boolean;
   program_active: boolean;
   program_ended: boolean;
+  program_end_date: string | null;
 }
 
 // Current state of the (field, program) pair, used to decide whether assessment
@@ -363,7 +369,8 @@ export async function getAssessmentWriteContext(
     SELECT f.is_active  AS field_active,
            fm.is_active AS farm_active,
            p.is_active  AS program_active,
-           (p.end_date IS NOT NULL AND p.end_date < CURRENT_DATE) AS program_ended
+           (p.end_date IS NOT NULL AND p.end_date < org_today()) AS program_ended,
+           (p.end_date)::text AS program_end_date
       FROM fields f
       JOIN farms fm ON fm.id = f.farm_id AND fm.deleted_at IS NULL
       JOIN programs p ON p.id = ${programId}::uuid AND p.deleted_at IS NULL
@@ -381,6 +388,35 @@ export async function resolveProgramForField(
       JOIN program_enrollments pe ON pe.id = pef.enrollment_id AND pe.deleted_at IS NULL
      WHERE pef.field_id = ${fieldId}::uuid
        AND pef.deleted_at IS NULL
+     ORDER BY pe.enrolled_at DESC
+     LIMIT 1;`);
+  return rows[0]?.program_id ?? null;
+}
+
+// The program a field is being assessed under BY THIS ASSESSOR. A field can be
+// enrolled in more than one program, so resolving the program without the
+// assessor (above) can pick one they are not assigned to and wrongly reject a
+// visit. This only returns a program where the assessor is actually the assigned
+// assessor for the field, so a genuinely-unassigned assessor still gets null.
+export async function resolveAssessorProgramForField(
+  assessorId: string,
+  fieldId: string
+): Promise<string | null> {
+  const rows = await prisma.$queryRaw<{ program_id: string }[]>(Prisma.sql`
+    SELECT pe.program_id
+      FROM program_enrollment_fields pef
+      JOIN program_enrollments pe
+             ON pe.id = pef.enrollment_id
+            AND pe.assessor_id = ${assessorId}::uuid
+            AND pe.deleted_at IS NULL
+      JOIN programs p ON p.id = pe.program_id AND p.deleted_at IS NULL
+     WHERE pef.field_id = ${fieldId}::uuid
+       AND pef.deleted_at IS NULL
+       -- Same visibility as the assessor's field list: started, active and not
+       -- ended - so a field the assessor can see is a field they can visit.
+       AND p.is_active = true
+       AND (p.start_date IS NULL OR p.start_date <= org_today())
+       AND (p.end_date IS NULL OR p.end_date >= org_today())
      ORDER BY pe.enrolled_at DESC
      LIMIT 1;`);
   return rows[0]?.program_id ?? null;

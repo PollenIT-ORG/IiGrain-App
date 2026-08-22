@@ -13,6 +13,7 @@ import {
   requiredSelect,
   positiveNumber,
   isClean,
+  MAX_AREA_ACRES,
 } from "../lib/validation";
 import Loader from "../components/Loader";
 import Select from "../components/ui/Select";
@@ -117,7 +118,11 @@ export default function FarmForm() {
     const next: Record<string, string | null> = {
       name: required(name, "Farm name"),
       owner: requiredSelect(ownerId, "an owner (farmer)"),
-      area: positiveNumber(areaAcres, { req: true, label: "Area" }),
+      area: positiveNumber(areaAcres, {
+        req: true,
+        label: "Area",
+        max: MAX_AREA_ACRES,
+      }),
     };
     setErrors(next);
     return isClean(next);
@@ -215,6 +220,7 @@ export default function FarmForm() {
                 id="area"
                 type="number"
                 min="0"
+                max="9999999"
                 step="0.01"
                 className={`input-field ${errors.area ? "input-error" : ""}`}
                 placeholder="200"
@@ -267,7 +273,7 @@ export default function FarmForm() {
               placeholder="Business name (optional)"
               value={businessEntity}
               onChange={(e) => setBusinessEntity(e.target.value)}
-              maxLength={255}
+              maxLength={200}
             />
           </div>
 

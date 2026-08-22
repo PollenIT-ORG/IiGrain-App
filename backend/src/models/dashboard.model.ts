@@ -388,7 +388,7 @@ export async function getFarmUpcomingPrograms(
      WHERE p.deleted_at IS NULL
        AND p.is_active = true
        AND p.start_date IS NOT NULL
-       AND p.start_date > CURRENT_DATE
+       AND p.start_date > org_today()
        AND p.org_id IN (
          SELECT fm.org_id FROM farms fm
           WHERE fm.id = ${farmId}::uuid AND fm.deleted_at IS NULL AND fm.org_id IS NOT NULL

@@ -34,12 +34,6 @@ interface AssessmentStateSlice {
   };
 }
 
-/**
- * The assessment endpoints are scoped by field, never by farm, so no write
- * response carries a farmId. It is recovered from whatever assessment data is
- * already loaded for that field — the summary is authoritative and is always
- * fetched before a question can be answered.
- */
 const resolveFarmId = (getState: () => unknown, fieldId: string): string | null => {
   const { assessment } = getState() as AssessmentStateSlice;
   if (assessment.summary?.field.id === fieldId) {
@@ -114,9 +108,6 @@ export const fetchCategoryQuestionsThunk = createAsyncThunk<
     }
   },
   {
-    // Several screens share the single `categoryQuestions` slot and may ask for
-    // the same category at once (e.g. on focus + on state change). Collapse
-    // those into the request that is already running.
     condition: (arg, { getState }) => {
       const { assessment } = getState() as AssessmentStateSlice;
       return !(
@@ -179,7 +170,6 @@ export const submitAssessmentThunk = createAsyncThunk<
 >(
   'assessment/submit',
   async ({ programId, fieldId }, { dispatch, getState, rejectWithValue }) => {
-    // Resolved before the call: submitting can clear the loaded summary downstream.
     const farmId = resolveFarmId(getState, fieldId);
     try {
       const result = await assessmentApi.submitAssessment(programId, fieldId);
@@ -206,7 +196,6 @@ export const discardAssessmentThunk = createAsyncThunk<
 >(
   'assessment/discard',
   async ({ programId, fieldId }, { dispatch, getState, rejectWithValue }) => {
-    // Resolved before the call: discarding clears the loaded summary downstream.
     const farmId = resolveFarmId(getState, fieldId);
     try {
       const result = await assessmentApi.discardAssessment(programId, fieldId);
@@ -264,8 +253,6 @@ export const fetchFieldRegenIndexThunk = createAsyncThunk<
     }
   },
   {
-    // Several triggers can ask for the same index at once (first focus, a
-    // returning focus, and an answer landing). Collapse them into one request.
     condition: ({ programId, fieldId }, { getState }) => {
       const { assessment } = getState() as AssessmentStateSlice;
       return !(

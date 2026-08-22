@@ -15,18 +15,12 @@ import {
 export interface EnrollmentState {
   availablePrograms: AvailableProgram[];
   enrollableFields: EnrollableField[];
-  /**
-   * Both lists start as `[]`, so length alone cannot tell "not loaded yet" from
-   * "loaded and genuinely empty". These flags let `useSyncedFetch` skip a
-   * refetch for a user who really has no programs / no enrollable fields.
-   */
   programsLoaded: boolean;
   fieldsLoaded: boolean;
   lastResult: EnrollmentResult | null;
   loadingPrograms: boolean;
   loadingFields: boolean;
   enrolling: boolean;
-  /** Field id currently being unenrolled, so only that row shows a spinner. */
   unenrollingFieldId: string | null;
   programsError: string | null;
   fieldsError: string | null;
@@ -100,7 +94,6 @@ const enrollmentSlice = createSlice({
         if (!program) {
           return;
         }
-        // The field becomes selectable again straight away; no refetch needed.
         program.fields = program.fields.map(f =>
           f.id === fieldId ? { ...f, enrolled: false } : f,
         );
@@ -118,9 +111,6 @@ const enrollmentSlice = createSlice({
       .addCase(enrollSelfThunk.fulfilled, (state, action) => {
         state.enrolling = false;
         state.lastResult = action.payload;
-        // New backend model: enrolled programs STAY in the list so more fields can
-        // be added. Optimistically flip the just-enrolled fields to enrolled=true
-        // (and mark the program) so the UI reflects it without a flicker/refetch.
         const enrolledIds = new Set(action.meta.arg.input.fieldIds);
         const program = state.availablePrograms.find(
           p => p.id === action.meta.arg.programId,
@@ -131,13 +121,10 @@ const enrollmentSlice = createSlice({
           program.fields = program.fields.map(f =>
             enrolledIds.has(f.id) ? { ...f, enrolled: true } : f,
           );
-          // First-time enroll adds this farmer to the program's count.
           if (!wasEnrolled) {
             program.enrolledCount += 1;
           }
         }
-        // Old-backend flat path: drop the just-enrolled fields from the flat list
-        // so they don't reappear as selectable until the next refetch.
         state.enrollableFields = state.enrollableFields.filter(f => !enrolledIds.has(f.id));
       })
       .addCase(enrollSelfThunk.rejected, state => {

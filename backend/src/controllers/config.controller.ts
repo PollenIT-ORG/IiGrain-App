@@ -9,6 +9,11 @@ export const getConfig = asyncHandler(async (_req, res) => {
   const org = await findDefaultOrgBranding();
   return ApiResponse.send(res, 200, "Config fetched.", {
     saasEnabled: env.saasEnabled,
+    // How dates and times are shown, set by the platform team in settings.
+    locale: {
+      timezone: org?.timezone ?? "America/Chicago",
+      timeFormat: org?.time_format ?? "12h",
+    },
     branding: {
       appName: org?.name ?? null,
       logoUrl: org?.logo_url ?? null,

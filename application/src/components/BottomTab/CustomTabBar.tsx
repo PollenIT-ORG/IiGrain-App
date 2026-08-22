@@ -26,8 +26,6 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({
 }) => {
   const insets = useSafeAreaInsets();
 
-  // EnrollNow is a real tab route but has no tab button — the centre action
-  // button owns it, so it carries the focused styling instead.
   const enrollFocused = state.routes[state.index]?.name === 'EnrollNow';
 
   const renderTab = (index: number) => {
@@ -83,7 +81,7 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({
         {renderTab(3)}
       </View>
 
-      <View style={styles.fab}>
+      <View style={styles.fab} pointerEvents="box-none">
         <CenterActionButton
           active={enrollFocused}
           onPress={() => navigation.navigate('EnrollNow')}

@@ -1,32 +1,16 @@
 package com.iigrain
 
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.View
+import android.view.ViewGroup
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.core.view.WindowCompat
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
 
 class MainActivity : ReactActivity() {
-
-  override fun onCreate(savedInstanceState: Bundle?) {
-    // Install the native splash BEFORE super.onCreate(): swaps MainActivity from
-    // the launch theme (Theme.App.SplashScreen - leaf on white) to AppTheme once
-    // React Native is ready, giving a native, cross-version splash that matches
-    // the iOS LaunchScreen. Must be the first call in onCreate.
-    installSplashScreen()
-    // Draw the app content behind the (transparent) system bars on EVERY Android
-    // version. Android 15+ enforces edge-to-edge anyway; doing it explicitly makes
-    // older versions behave identically AND, crucially, makes the window insets
-    // (status-bar height) reach react-native-safe-area-context - so the JS
-    // StatusBarBackground strip gets a correct height and the primary-green status
-    // bar shows app-wide instead of collapsing to a 0-height (invisible) strip.
-    WindowCompat.setDecorFitsSystemWindows(window, false)
-    // super.onCreate(null) - react-native-screens requirement (avoids a fragment
-    // state-restoration crash); RN restores its own JS state.
-    super.onCreate(null)
-  }
 
   /**
    * Returns the name of the main component registered from JavaScript. This is used to schedule
@@ -40,4 +24,40 @@ class MainActivity : ReactActivity() {
    */
   override fun createReactActivityDelegate(): ReactActivityDelegate =
       DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
+
+  override fun onCreate(savedInstanceState: Bundle?) {
+    // Must run before super.onCreate() — it is what swaps the launch theme
+    // (Theme.App.SplashScreen) for AppTheme.
+    val splashScreen = installSplashScreen()
+    super.onCreate(savedInstanceState)
+
+    // Without this the OS drops the splash as soon as the activity window is
+    // ready, which on a cold start is well before React Native has laid out
+    // anything — that gap is the white flash. The condition is re-evaluated on
+    // every pre-draw, so we simply hold until the RN root view has content.
+    val holdUntil = SystemClock.uptimeMillis() + MAX_SPLASH_HOLD_MS
+    splashScreen.setKeepOnScreenCondition {
+      SystemClock.uptimeMillis() < holdUntil && !reactContentRendered()
+    }
+  }
+
+  /**
+   * True once the React root view has laid out at least one child, i.e. the
+   * first JS frame is on screen and can take over from the native splash.
+   */
+  private fun reactContentRendered(): Boolean {
+    val content = findViewById<ViewGroup>(android.R.id.content) ?: return true
+    val reactRoot = content.getChildAt(0) as? ViewGroup ?: return false
+    if (reactRoot.width == 0 || reactRoot.height == 0) return false
+    for (i in 0 until reactRoot.childCount) {
+      val child: View = reactRoot.getChildAt(i)
+      if (child.width > 0 && child.height > 0) return true
+    }
+    return false
+  }
+
+  private companion object {
+    /** Safety valve: never let a stalled JS bundle wedge the splash forever. */
+    const val MAX_SPLASH_HOLD_MS = 8_000L
+  }
 }

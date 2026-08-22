@@ -16,7 +16,41 @@ import {
 } from "../icons";
 import { ROLE_LABELS, type UserRole } from "../../types";
 import { useGetConfigQuery } from "../../store/endpoints/configApi";
+import { usePasSubmissionStatsQuery } from "../../store/endpoints/programAdminSurveyApi";
+import { useLiveData } from "../../lib/useLiveData";
+import { useAuth } from "../../store/useAuth";
+import { canOpen, managedRoles } from "../../lib/access";
 import type { ComponentType, SVGProps } from "react";
+
+// Sub-items under "Survey Submissions", each a status group with a live count.
+const SURVEY_STATUS_ITEMS: Array<{
+  status: string;
+  label: string;
+  keys: string[];
+  badge: string;
+}> = [
+  {
+    status: "",
+    label: "All Submissions",
+    keys: [
+      "draft",
+      "submitted",
+      "qualified",
+      "contract_sent",
+      "contract_signed",
+      "enrolled",
+      "not_qualified",
+      "withdrawn",
+    ],
+    badge: "bg-gray-200 text-gray-600",
+  },
+  { status: "registered", label: "Registered", keys: ["draft"], badge: "bg-indigo-100 text-indigo-700" },
+  { status: "under_review", label: "Under Review", keys: ["submitted", "qualified"], badge: "bg-amber-100 text-amber-700" },
+  { status: "contract_sent", label: "Contract Sent", keys: ["contract_sent", "contract_signed"], badge: "bg-blue-100 text-blue-700" },
+  { status: "enrolled", label: "Enrolled", keys: ["enrolled"], badge: "bg-emerald-100 text-emerald-700" },
+  { status: "not_qualified", label: "Not Qualified", keys: ["not_qualified"], badge: "bg-rose-100 text-rose-700" },
+  { status: "withdrawn", label: "Withdrawn", keys: ["withdrawn"], badge: "bg-gray-200 text-gray-600" },
+];
 
 interface NavItem {
   to: string;
@@ -30,15 +64,16 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/organizations", label: "Organizations", Icon: BuildingIcon, saasOnly: true },
   { to: "/farms", label: "Farms", Icon: FarmIcon },
   { to: "/fields", label: "Fields", Icon: FieldsIcon },
+  // A program, what its farmers and assessors submitted, then its own survey
+  // and the producers who applied through it: the order they are worked in.
   { to: "/programs", label: "Programs", Icon: LinkIcon },
-  { to: "/assignments", label: "Assessor Assignments", Icon: UsersIcon },
+  { to: "/submissions", label: "Submissions", Icon: FileIcon },
+  { to: "/surveys", label: "Surveys", Icon: LinkIcon },
+  { to: "/survey-submissions", label: "Survey Submissions", Icon: FileIcon },
   { to: "/live-visits", label: "Live visits", Icon: MapPinIcon },
   { to: "/assessments", label: "Assessments", Icon: ChartIcon },
-  { to: "/submissions", label: "Submissions", Icon: FileIcon },
-  { to: "/eligibility", label: "Survey Submissions", Icon: UsersIcon },
-  { to: "/survey-questions", label: "Survey Questions", Icon: ChartIcon },
-  { to: "/enquiries", label: "Contact Enquiries", Icon: FileIcon },
-  { to: "/reports", label: "Reports", Icon: FileIcon },
+  // Reports are not in use yet.
+  // { to: "/reports", label: "Reports", Icon: FileIcon },
   { to: "/login-logs", label: "Login activity", Icon: FileIcon },
   { to: "/settings", label: "Settings", Icon: SettingsIcon },
 ];
@@ -64,8 +99,23 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
   const { data: config } = useGetConfigQuery();
   const saasEnabled = config?.saasEnabled ?? false;
+  const { user } = useAuth();
+  // Only the modules this role works with, and only the people they look after.
+  const visible = (to: string) => canOpen(user?.role, to);
+  const userGroups = managedRoles(user?.role, USER_ROLES);
+
+  const onPasSubmissions = location.pathname.startsWith("/survey-submissions");
+  const surveyStatus = params.get("status") ?? "";
+  const { data: pasStats, refetch: refetchPasStats } = usePasSubmissionStatsQuery(
+    undefined,
+    { skip: !visible("/survey-submissions") }
+  );
+  useLiveData(["program_admin_survey"], refetchPasStats);
+  const pasCount = (keys: string[]) =>
+    keys.reduce((n, k) => n + (pasStats?.[k] ?? 0), 0);
 
   const [usersOpen, setUsersOpen] = useState(onUsers);
+  const [pasOpen, setPasOpen] = useState(onPasSubmissions);
 
   return (
     <>
@@ -97,22 +147,24 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           <p className="px-3 pb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
             Main
           </p>
-          <NavLink
-            to="/dashboard"
-            onClick={onClose}
-            className={({ isActive }) =>
-              `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-primary/10 text-primary"
-                  : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-              }`
-            }
-          >
-            <DashboardIcon width={20} height={20} />
-            Dashboard
-          </NavLink>
+          {visible("/dashboard") && (
+            <NavLink
+              to="/dashboard"
+              onClick={onClose}
+              className={({ isActive }) =>
+                `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                }`
+              }
+            >
+              <DashboardIcon width={20} height={20} />
+              Dashboard
+            </NavLink>
+          )}
 
-          <div>
+          <div className={userGroups.length ? "" : "hidden"}>
             <button
               onClick={() => setUsersOpen((o) => !o)}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
@@ -127,31 +179,31 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             </button>
 
             {usersOpen && (
-              <div className="mt-1 space-y-1 pl-7">
+              <div className="mt-1 ml-5 space-y-0.5 border-l border-gray-300 pl-2">
                 <button
                   onClick={() => {
                     navigate("/users");
                     onClose();
                   }}
-                  className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                  className={`-ml-2 flex w-[calc(100%+0.5rem)] items-center border-l-2 py-2 pl-3 pr-2 text-left text-sm transition-colors ${
                     onUsers && !activeRole
-                      ? "bg-primary/10 font-medium text-primary"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                      ? "border-primary font-semibold text-primary"
+                      : "border-transparent text-gray-600 hover:text-gray-900"
                   }`}
                 >
                   All users
                 </button>
-                {USER_ROLES.map((role) => (
+                {userGroups.map((role) => (
                   <button
                     key={role}
                     onClick={() => {
                       navigate(`/users?role=${role}`);
                       onClose();
                     }}
-                    className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                    className={`-ml-2 flex w-[calc(100%+0.5rem)] items-center border-l-2 py-2 pl-3 pr-2 text-left text-sm transition-colors ${
                       onUsers && activeRole === role
-                        ? "bg-primary/10 font-medium text-primary"
-                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                        ? "border-primary font-semibold text-primary"
+                        : "border-transparent text-gray-600 hover:text-gray-900"
                     }`}
                   >
                     {ROLE_LABELS[role]}
@@ -162,9 +214,62 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           </div>
 
           {NAV_ITEMS.filter(
-            (i) => i.to !== "/dashboard" && (!i.saasOnly || saasEnabled)
-          ).map(
-            ({ to, label, Icon }) => (
+            (i) =>
+              i.to !== "/dashboard" && (!i.saasOnly || saasEnabled) && visible(i.to)
+          ).map(({ to, label, Icon }) =>
+            to === "/survey-submissions" ? (
+              <div key={to}>
+                <button
+                  onClick={() => setPasOpen((o) => !o)}
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                    onPasSubmissions
+                      ? "bg-primary/10 text-primary"
+                      : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                  }`}
+                >
+                  <Icon width={20} height={20} />
+                  {label}
+                  <ChevronIcon open={pasOpen} />
+                </button>
+
+                {pasOpen && (
+                  <div className="mt-1 ml-5 space-y-0.5 border-l border-gray-300 pl-2">
+                    {SURVEY_STATUS_ITEMS.map((item) => {
+                      const active =
+                        onPasSubmissions && surveyStatus === item.status;
+                      const n = pasCount(item.keys);
+                      return (
+                        <button
+                          key={item.status || "all"}
+                          onClick={() => {
+                            navigate(
+                              item.status
+                                ? `/survey-submissions?status=${item.status}`
+                                : "/survey-submissions"
+                            );
+                            onClose();
+                          }}
+                          className={`-ml-2 flex w-[calc(100%+0.5rem)] items-center justify-between gap-2 border-l-2 py-2 pl-3 pr-2 text-left text-sm transition-colors ${
+                            active
+                              ? "border-primary font-semibold text-primary"
+                              : "border-transparent text-gray-600 hover:text-gray-900"
+                          }`}
+                        >
+                          <span>{item.label}</span>
+                          {n > 0 && (
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${item.badge}`}
+                            >
+                              {n}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
               <NavLink
                 key={to}
                 to={to}

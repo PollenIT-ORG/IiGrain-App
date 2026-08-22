@@ -4,6 +4,7 @@ import { validate } from "../middlewares/validate.js";
 import {
   startVisitSchema,
   locationSchema,
+  arriveSchema,
   endVisitSchema,
   visitIdParamSchema,
 } from "../validators/visit.schema.js";
@@ -15,6 +16,7 @@ import {
   myAssessorVisit,
   myFarmerVisit,
   getVisit,
+  getVisitTrack,
   listActiveVisits,
 } from "../controllers/visit.controller.js";
 
@@ -40,6 +42,7 @@ router.post(
   "/:id/arrive",
   ...assessorOnly,
   validate(visitIdParamSchema, "params"),
+  validate(arriveSchema),
   arriveVisit
 );
 router.post(
@@ -48,6 +51,13 @@ router.post(
   validate(visitIdParamSchema, "params"),
   validate(endVisitSchema),
   endVisit
+);
+
+router.get(
+  "/:id/track",
+  authenticate,
+  validate(visitIdParamSchema, "params"),
+  getVisitTrack
 );
 
 router.get(

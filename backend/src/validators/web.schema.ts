@@ -40,7 +40,10 @@ export const webRegisterSchema = z.object({
 
 export const webLoginSchema = z.object({
   email: emailField,
-  password: z.string({ error: "Password is required." }).min(1, "Password is required."),
+  password: z
+    .string({ error: "Password is required." })
+    .min(1, "Password is required.")
+    .max(200, "That password is too long."),
 });
 
 export const submitSurveySchema = z.object({
@@ -81,22 +84,6 @@ export const contractTokenParamSchema = z.object({
     .regex(/^[a-f0-9]{32,64}$/i, "This contract link is not valid."),
 });
 
-export const contactSchema = z.object({
-  name: z
-    .string({ error: "Your name is required." })
-    .trim()
-    .min(2, "Please enter your full name.")
-    .max(150, "Name is too long."),
-  email: emailField,
-  phone: phoneField,
-  subject: z.string().trim().max(150).optional().nullable().or(z.literal("")),
-  message: z
-    .string({ error: "Please write your message." })
-    .trim()
-    .min(10, "Please give us a little more detail.")
-    .max(2000, "Message is too long."),
-});
-
 // ---------------------------------------------------------------------------
 // Admin
 // ---------------------------------------------------------------------------
@@ -108,22 +95,40 @@ const categoryEnum = z.enum(["gold", "silver", "bronze", "not_qualified"], {
 export const listSubmissionsQuerySchema = z.object({
   page: pageField(1),
   limit: limitField(20, 100),
+  // Accepts a granular status or a grouped one (under_review, etc.).
   status: z
     .enum([
+      "draft",
       "submitted",
       "not_qualified",
       "qualified",
       "contract_sent",
       "contract_signed",
       "enrolled",
+      "withdrawn",
+      "registered",
+      "under_review",
     ])
     .optional(),
   category: categoryEnum.optional(),
   channel: z.enum(["website", "standalone"]).optional(),
+  referral: z.string().trim().max(100).optional(),
+  createdFrom: z.string().trim().max(40).optional(),
+  createdTo: z.string().trim().max(40).optional(),
   search: z.string().trim().max(100).optional(),
 });
 
-export const setCategorySchema = z.object({ category: categoryEnum });
+export const setCategorySchema = z.object({
+  category: categoryEnum,
+  // Optional admin note explaining the override; stored on the submission.
+  reason: z
+    .string()
+    .trim()
+    .max(250, "Reason is too long.")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+});
 
 export const surveyQuestionSchema = z.object({
   categoryId: uuidField("category id"),
@@ -133,6 +138,8 @@ export const surveyQuestionSchema = z.object({
     .min(3, "Question text is required.")
     .max(500, "Question text is too long."),
   helpText: z.string().trim().max(500).optional().nullable().or(z.literal("")),
+  // Custom labels for answers 0-3. Blank entries fall back to the defaults.
+  options: z.array(z.string().trim().max(120)).max(4).optional(),
   // Multiplier on the 0-3 answer. Weight 1 means the question is worth 0-3.
   weight: z.coerce
     .number({ error: "Weight must be a number." })
@@ -140,7 +147,7 @@ export const surveyQuestionSchema = z.object({
     .min(1, "Weight must be at least 1.")
     .max(20, "Weight is too high.")
     .optional(),
-  sortOrder: z.coerce.number().int().min(0).optional(),
+  sortOrder: z.coerce.number().int().min(0).max(100000).optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -158,7 +165,7 @@ export const surveyCategorySchema = z.object({
     .max(150, "Category name is too long."),
   description: z.string().trim().max(1000).optional().nullable().or(z.literal("")),
   icon: z.string().trim().max(50).optional().nullable().or(z.literal("")),
-  sortOrder: z.coerce.number().int().min(0).optional(),
+  sortOrder: z.coerce.number().int().min(0).max(100000).optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -180,7 +187,7 @@ export const reorderQuestionsSchema = z.object({
     .array(
       z.object({
         id: uuidField("id"),
-        sortOrder: z.coerce.number().int().min(0),
+        sortOrder: z.coerce.number().int().min(0).max(100000),
       })
     )
     .min(1, "Provide at least one item to reorder."),
@@ -188,31 +195,18 @@ export const reorderQuestionsSchema = z.object({
 
 export const updateScoringRuleSchema = z
   .object({
-    minScore: z.coerce.number().int().min(0).max(10000).optional(),
-    maxScore: z.coerce.number().int().min(0).max(10000).optional(),
+    minScore: z.coerce.number().int().min(0).max(100000).max(10000).optional(),
+    maxScore: z.coerce.number().int().min(0).max(100000).max(10000).optional(),
     isActive: z.boolean().optional(),
   })
   .refine((o) => Object.keys(o).length > 0, {
     message: "Provide at least one field to update.",
   });
 
-export const listEnquiriesQuerySchema = z.object({
-  page: pageField(1),
-  limit: limitField(20, 100),
-  unreadOnly: z
-    .enum(["true", "false"], { error: "unreadOnly must be true or false." })
-    .transform((v) => v === "true")
-    .optional(),
-  search: z.string().trim().max(100).optional(),
-});
-
-export const setReadSchema = z.object({ isRead: z.boolean() });
-
 export type WebRegisterBody = z.infer<typeof webRegisterSchema>;
 export type WebLoginBody = z.infer<typeof webLoginSchema>;
 export type SubmitSurveyBody = z.infer<typeof submitSurveySchema>;
 export type SignContractBody = z.infer<typeof signContractSchema>;
-export type ContactBody = z.infer<typeof contactSchema>;
 export type ListSubmissionsQuery = z.infer<typeof listSubmissionsQuerySchema>;
 export type SurveyQuestionBody = z.infer<typeof surveyQuestionSchema>;
 export type UpdateSurveyQuestionBody = z.infer<typeof updateSurveyQuestionSchema>;
@@ -221,4 +215,3 @@ export type UpdateSurveyCategoryBody = z.infer<typeof updateSurveyCategorySchema
 export type ReorderQuestionsBody = z.infer<typeof reorderQuestionsSchema>;
 export type ShareSurveyBody = z.infer<typeof shareSurveySchema>;
 export type UpdateScoringRuleBody = z.infer<typeof updateScoringRuleSchema>;
-export type ListEnquiriesQuery = z.infer<typeof listEnquiriesQuerySchema>;

@@ -7,16 +7,18 @@ import CategoryProgressItem from './CategoryProgressItem';
 export interface CategoryProgressListProps {
   categories: AssessmentCategory[];
   onCategoryPress?: (category: AssessmentCategory) => void;
+  locked?: boolean;
 }
 
 const CategoryProgressList: React.FC<CategoryProgressListProps> = ({
   categories,
   onCategoryPress,
+  locked = false,
 }) => (
   <View>
     {categories.map((cat, index) => (
       <View key={cat.id}>
-        <CategoryProgressItem category={cat} onPress={onCategoryPress} />
+        <CategoryProgressItem category={cat} onPress={onCategoryPress} locked={locked} />
         {index < categories.length - 1 ? <View style={styles.divider} /> : null}
       </View>
     ))}

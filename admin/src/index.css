@@ -66,6 +66,7 @@
       focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20;
   }
 
+
   .label {
     @apply mb-1.5 block text-sm font-medium text-gray-700;
   }
@@ -158,4 +159,39 @@
 .sidebar-scroll {
   scrollbar-width: thin;
   scrollbar-color: #136f3f transparent;
+}
+
+/* Field monitoring tabs and record tables. The strip is dragged with the mouse
+   (see DragScroll), so the browser's bar is hidden and DragScroll draws a one
+   pixel line in its place. Hidden rather than resized because the global rule
+   above puts `scrollbar-width` on every element, and Chrome then ignores any
+   ::-webkit-scrollbar height given here. */
+.drag-scroll {
+  scrollbar-width: none;
+}
+.drag-scroll::-webkit-scrollbar {
+  display: none;
+}
+.drag-scroll.is-scrollable {
+  cursor: grab;
+}
+.drag-scroll.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+.drag-scroll-rail {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  pointer-events: none;
+}
+.drag-scroll-thumb {
+  position: absolute;
+  top: 0;
+  height: 1px;
+  min-width: 24px;
+  background: #136f3f;
+  border-radius: 9999px;
 }

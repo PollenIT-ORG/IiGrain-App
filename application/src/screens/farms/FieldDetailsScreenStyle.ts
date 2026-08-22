@@ -121,7 +121,6 @@ export const styles = StyleSheet.create({
     ...presets.bodyXS,
     color: COLORS.gray500,
     width: '96%',
-
   },
 
   statsGrid: {
@@ -311,29 +310,27 @@ export const styles = StyleSheet.create({
     padding: spacing[2],
   },
 
-  // ── Farm Boundary entry row (Overview) ──────────────────────────────────
-  boundaryRow: {
+  mapFab: {
+    position: 'absolute',
+    right: spacing[3],
+    bottom: spacing[3],
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing[3],
-    marginTop: spacing[3],
-    marginHorizontal: spacing[4],
-    paddingHorizontal: spacing[4],
-    paddingVertical: spacing[3],
-    borderRadius: borderRadius.lg,
-    backgroundColor: COLORS.white,
+    gap: spacing[2],
+    paddingLeft: spacing[3],
+    paddingRight: spacing[4],
+    paddingVertical: spacing[2],
+    borderRadius: borderRadius.full,
     borderWidth: borderWidth.thin,
-    borderColor: COLORS.gray200,
-    ...shadows.sm,
+    ...shadows.md,
   },
-  boundaryIcon: {
-    width: scale(38),
-    height: scale(38),
-    borderRadius: borderRadius.md,
-    backgroundColor: addAlpha(COLORS.primary, 0.12),
-    alignItems: 'center',
-    justifyContent: 'center',
+  mapFabAdd: {
+    backgroundColor: addAlpha(COLORS.gray900, 0.5),
+    borderColor: addAlpha(COLORS.white, 0.35),
   },
-  boundaryTitle: { ...presets.labelMD, color: COLORS.gray900 },
-  boundarySub: { ...presets.caption, color: COLORS.gray600 },
+  mapFabEdit: {
+    backgroundColor: addAlpha(COLORS.primary, 0.88),
+    borderColor: addAlpha(COLORS.white, 0.35),
+  },
+  mapFabText: { ...presets.labelSM, color: COLORS.white },
 });

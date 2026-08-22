@@ -150,6 +150,8 @@ export interface PublicSurveyQuestion {
   weight: number;
   sort_order: number;
   is_active: boolean;
+  // Custom labels for the 0-3 answers; null entries fall back to the default.
+  options: Array<string | null>;
 }
 
 const Q_SELECT = {
@@ -157,36 +159,79 @@ const Q_SELECT = {
   category_id: true,
   question_text: true,
   help_text: true,
+  option_0: true,
+  option_1: true,
+  option_2: true,
+  option_3: true,
   weight: true,
   sort_order: true,
   is_active: true,
 };
 
+interface QRow {
+  id: string;
+  category_id: string | null;
+  question_text: string;
+  help_text: string | null;
+  option_0: string | null;
+  option_1: string | null;
+  option_2: string | null;
+  option_3: string | null;
+  weight: number;
+  sort_order: number;
+  is_active: boolean;
+}
+
+function toPublicQuestion(r: QRow): PublicSurveyQuestion {
+  return {
+    id: r.id,
+    category_id: r.category_id,
+    question_text: r.question_text,
+    help_text: r.help_text,
+    weight: r.weight,
+    sort_order: r.sort_order,
+    is_active: r.is_active,
+    options: [r.option_0, r.option_1, r.option_2, r.option_3],
+  };
+}
+
 /** Active questions in display order. Used by the public survey. */
 export async function listActiveQuestions(): Promise<PublicSurveyQuestion[]> {
-  return prisma.survey_questions.findMany({
-    where: { deleted_at: null, is_active: true, category_id: { not: null } },
+  const rows = await prisma.survey_questions.findMany({
+    // A question is only part of the live survey when its category is active too.
+    // Without the category check, questions inside a deactivated category would
+    // still be scored/required even though the survey never shows them - so a
+    // farmer who answered every visible question would be told to answer more.
+    where: {
+      deleted_at: null,
+      is_active: true,
+      category_id: { not: null },
+      category: { is_active: true, deleted_at: null },
+    },
     orderBy: [{ sort_order: "asc" }, { created_at: "asc" }],
     select: Q_SELECT,
   });
+  return rows.map(toPublicQuestion);
 }
 
 /** Every question including inactive ones. Used by the admin panel. */
 export async function listAllQuestions(): Promise<PublicSurveyQuestion[]> {
-  return prisma.survey_questions.findMany({
+  const rows = await prisma.survey_questions.findMany({
     where: { deleted_at: null },
     orderBy: [{ sort_order: "asc" }, { created_at: "asc" }],
     select: Q_SELECT,
   });
+  return rows.map(toPublicQuestion);
 }
 
 export async function findQuestionById(
   id: string
 ): Promise<PublicSurveyQuestion | null> {
-  return prisma.survey_questions.findFirst({
+  const row = await prisma.survey_questions.findFirst({
     where: { id, deleted_at: null },
     select: Q_SELECT,
   });
+  return row ? toPublicQuestion(row) : null;
 }
 
 export interface CreateQuestionParams {
@@ -196,22 +241,29 @@ export interface CreateQuestionParams {
   weight: number;
   sortOrder: number;
   isActive: boolean;
+  options?: Array<string | null>;
 }
 
 export async function createQuestion(
   p: CreateQuestionParams
 ): Promise<PublicSurveyQuestion> {
-  return prisma.survey_questions.create({
+  const o = p.options ?? [];
+  const row = await prisma.survey_questions.create({
     data: {
       category_id: p.categoryId,
       question_text: p.questionText,
       help_text: p.helpText,
+      option_0: o[0] ?? null,
+      option_1: o[1] ?? null,
+      option_2: o[2] ?? null,
+      option_3: o[3] ?? null,
       weight: p.weight,
       sort_order: p.sortOrder,
       is_active: p.isActive,
     },
     select: Q_SELECT,
   });
+  return toPublicQuestion(row);
 }
 
 export type UpdateQuestionParams = Partial<CreateQuestionParams>;
@@ -224,6 +276,12 @@ export async function updateQuestion(
   if (p.categoryId !== undefined) data.category_id = p.categoryId;
   if (p.questionText !== undefined) data.question_text = p.questionText;
   if (p.helpText !== undefined) data.help_text = p.helpText;
+  if (p.options !== undefined) {
+    data.option_0 = p.options[0] ?? null;
+    data.option_1 = p.options[1] ?? null;
+    data.option_2 = p.options[2] ?? null;
+    data.option_3 = p.options[3] ?? null;
+  }
   if (p.weight !== undefined) data.weight = p.weight;
   if (p.sortOrder !== undefined) data.sort_order = p.sortOrder;
   if (p.isActive !== undefined) data.is_active = p.isActive;

@@ -39,7 +39,6 @@ export const saveFieldSoilThunk = createAsyncThunk<
 interface SoilState {
   fieldId: string | null;
   record: SoilRecord | null;
-  /** Nutrient inputs stay hidden/disabled until the field is enrolled. */
   locked: boolean;
   loading: boolean;
   error: string | null;

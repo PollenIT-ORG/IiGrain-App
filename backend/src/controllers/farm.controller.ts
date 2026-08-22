@@ -44,6 +44,12 @@ export const updateFarm = asyncHandler(async (req, res) => {
   return ApiResponse.send(res, 200, "Farm updated successfully.", { farm });
 });
 
+/** What deleting this farm takes with it, so the panel can spell it out. */
+export const farmDeletionSummary = asyncHandler(async (req, res) => {
+  const items = await farmService.getFarmDeletionSummary(req.params.id);
+  return ApiResponse.send(res, 200, "Deletion summary.", { items });
+});
+
 export const deleteFarm = asyncHandler(async (req, res) => {
   await farmService.removeFarm(req.params.id);
   return ApiResponse.send(res, 200, "Farm deleted successfully.");

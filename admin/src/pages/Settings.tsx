@@ -13,8 +13,22 @@ import { useDeleteMyAccountMutation } from "../store/endpoints/profileApi";
 import { useAppDispatch } from "../store/hooks";
 import { clearCredentials } from "../store/authSlice";
 import { showSuccess, showError } from "../lib/toast";
+import { phone as validatePhone } from "../lib/validation";
 import { useDialog } from "../components/ui/DialogProvider";
 import Loader from "../components/Loader";
+import EmailTab from "./settings/EmailTab";
+import PasswordForm from "../components/PasswordForm";
+import Select from "../components/ui/Select";
+import {
+  TIMEZONES,
+  TIME_FORMATS,
+  fmtDateTime,
+  setLocaleSettings,
+  timezoneLabel,
+} from "../lib/datetime";
+import { useAuth } from "../store/useAuth";
+import { accountSettingsOnly } from "../lib/access";
+import PhoneInput from "../components/ui/PhoneInput";
 import { TrashIcon } from "../components/icons";
 
 function errMsg(err: unknown): string {
@@ -24,49 +38,88 @@ function errMsg(err: unknown): string {
   );
 }
 
-type Tab = "organization" | "branding" | "danger";
+type Tab = "organization" | "branding" | "email" | "password" | "danger";
 
 const BRANDING_MAX = 5 * 1024 * 1024;
 
 export default function Settings() {
-  const [tab, setTab] = useState<Tab>("organization");
+  const { user } = useAuth();
+  // A program administrator has their own account here, not the organization.
+  const accountOnly = accountSettingsOnly(user?.role);
+  const [tab, setTab] = useState<Tab>(accountOnly ? "password" : "organization");
 
   const { data: config } = useGetConfigQuery();
   const saasEnabled = config?.saasEnabled ?? false;
 
-  const { data: org, isLoading, isError } = useGetCurrentOrganizationQuery();
+  const { data: org, isLoading, isError } = useGetCurrentOrganizationQuery(
+    undefined,
+    { skip: accountOnly }
+  );
 
-  if (isLoading) {
+  if (isLoading && !accountOnly) {
     return <Loader variant="fullPage" message="Loading settings..." />;
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto w-full max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Manage your organization and account.
-          {!saasEnabled &&
+          {accountOnly
+            ? "Manage your account."
+            : "Manage your organization and account."}
+          {!accountOnly &&
+            !saasEnabled &&
             " The platform is running in single-organization mode."}
         </p>
       </div>
 
-      <div className="flex gap-1 border-b border-gray-300">
-        <TabButton active={tab === "organization"} onClick={() => setTab("organization")}>
-          Organization
+      {/* The tabs scroll sideways on a phone instead of pushing the page
+          across: five of them do not fit 320px. */}
+      <div className="-mx-1 flex gap-1 overflow-x-auto border-b border-gray-300 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {!accountOnly && (
+          <>
+            <TabButton
+              active={tab === "organization"}
+              onClick={() => setTab("organization")}
+            >
+              Organization
+            </TabButton>
+            <TabButton active={tab === "branding"} onClick={() => setTab("branding")}>
+              Branding
+            </TabButton>
+            {/* Mail credentials let whoever holds them send as the platform,
+                so they stay with the platform team. */}
+            <TabButton active={tab === "email"} onClick={() => setTab("email")}>
+              Email
+            </TabButton>
+          </>
+        )}
+        <TabButton active={tab === "password"} onClick={() => setTab("password")}>
+          Password
         </TabButton>
-        <TabButton active={tab === "branding"} onClick={() => setTab("branding")}>
-          Branding
-        </TabButton>
+        {/* Everyone who signs into the panel can close their own account. */}
         <TabButton active={tab === "danger"} onClick={() => setTab("danger")} danger>
-          Danger
+          Delete account
         </TabButton>
       </div>
 
-      {tab === "organization" ? (
+      {tab === "password" ? (
+        <div className="card p-6 sm:p-8">
+          <h2 className="text-base font-bold text-gray-900">Change password</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Enter your current password and choose a new one.
+          </p>
+          <div className="mt-5">
+            <PasswordForm />
+          </div>
+        </div>
+      ) : tab === "organization" ? (
         <OrganizationTab org={org} isError={isError} />
       ) : tab === "branding" ? (
         <BrandingTab org={org} isError={isError} />
+      ) : tab === "email" ? (
+        <EmailTab />
       ) : (
         <DangerTab />
       )}
@@ -89,7 +142,7 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
+      className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
         active
           ? activeColor
           : "border-transparent text-gray-500 hover:text-gray-800"
@@ -117,6 +170,9 @@ function OrganizationTab({
   const [contactHours, setContactHours] = useState("");
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
+  // How every date and time in the panel is shown.
+  const [timezone, setTimezone] = useState("America/Chicago");
+  const [timeFormat, setTimeFormat] = useState<"12h" | "24h">("12h");
 
   useEffect(() => {
     if (org) {
@@ -127,6 +183,8 @@ function OrganizationTab({
       setContactHours(org.contact_hours ?? "");
       setAddress(org.address ?? "");
       setDescription(org.description ?? "");
+      setTimezone(org.timezone ?? "America/Chicago");
+      setTimeFormat((org.time_format as "12h" | "24h") ?? "12h");
     }
   }, [org]);
 
@@ -135,6 +193,8 @@ function OrganizationTab({
     if (!org) return;
     if (!name.trim()) return showError("Organization name is required.");
     if (!code.trim()) return showError("Organization code is required.");
+    const phoneErr = validatePhone(contactPhone, { label: "Contact phone" });
+    if (phoneErr) return showError(phoneErr);
 
     try {
       await updateOrganization({
@@ -147,8 +207,12 @@ function OrganizationTab({
           contactHours: contactHours.trim() || undefined,
           address: address.trim() || undefined,
           description: description.trim() || undefined,
+          timezone,
+          timeFormat,
         },
       }).unwrap();
+      // Applied at once, so the dates on screen change with the setting.
+      setLocaleSettings({ timezone, timeFormat });
       showSuccess("Organization details updated.");
     } catch (err) {
       showError(errMsg(err));
@@ -234,13 +298,11 @@ function OrganizationTab({
             <label htmlFor="contactPhone" className="label">
               Contact phone
             </label>
-            <input
+            <PhoneInput
               id="contactPhone"
-              className="input-field"
               value={contactPhone}
-              onChange={(e) => setContactPhone(e.target.value)}
-              maxLength={20}
-              placeholder="+91 ..."
+              onChange={setContactPhone}
+              placeholder="Enter phone number"
             />
           </div>
         </div>
@@ -279,6 +341,36 @@ function OrganizationTab({
           website shows on its contact page. Leave a field empty and the website
           falls back to its built-in default.
         </p>
+
+        {/* One clock for everyone: every date and time in the panel, in emails
+            and on contracts is shown this way, whatever machine it is read on. */}
+        <div className="border-t border-gray-300 pt-5">
+          <h3 className="text-sm font-semibold text-gray-900">Dates and times</h3>
+          <p className="mt-1 text-xs text-gray-500">
+            Everything in the panel, in emails and on contracts is shown in this
+            timezone and on this clock. It is {timezoneLabel()} right now:{" "}
+            <span className="font-semibold text-gray-700">{fmtDateTime(new Date())}</span>.
+          </p>
+          <div className="mt-4 grid gap-5 sm:grid-cols-2">
+            <div>
+              <label className="label">Timezone</label>
+              <Select
+                value={timezone}
+                onChange={setTimezone}
+                options={TIMEZONES}
+                placeholder="Choose a timezone"
+              />
+            </div>
+            <div>
+              <label className="label">Time format</label>
+              <Select
+                value={timeFormat}
+                onChange={(v) => setTimeFormat(v as "12h" | "24h")}
+                options={TIME_FORMATS}
+              />
+            </div>
+          </div>
+        </div>
 
         <div className="flex justify-end pt-2">
           <button type="submit" disabled={saving} className="btn-primary">

@@ -60,9 +60,21 @@ const VisitTrackingFab: React.FC = () => {
     };
   }, []);
 
+  const arrived = visit?.status === 'arrived';
+
+  const visible = Boolean(visit) && !HIDDEN_ROUTES.has(routeName ?? '');
+
   const ring1 = useRef(new Animated.Value(0)).current;
   const ring2 = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
+    if (!visible) {
+      return;
+    }
+
+    ring1.setValue(0);
+    ring2.setValue(0);
+
     const mk = (v: Animated.Value) =>
       Animated.loop(
         Animated.timing(v, {
@@ -76,12 +88,13 @@ const VisitTrackingFab: React.FC = () => {
     const l2 = mk(ring2);
     l1.start();
     const t = setTimeout(() => l2.start(), 1000);
+
     return () => {
       clearTimeout(t);
       l1.stop();
       l2.stop();
     };
-  }, [ring1, ring2]);
+  }, [visible, ring1, ring2]);
 
   const openMap = useCallback(() => {
     if (!nav.isReady()) {
@@ -94,11 +107,10 @@ const VisitTrackingFab: React.FC = () => {
     }
   }, [activeVisit, incomingVisit]);
 
-  if (!visit || HIDDEN_ROUTES.has(routeName ?? '')) {
+  if (!visible) {
     return null;
   }
 
-  const arrived = visit.status === 'arrived';
   const label = arrived ? 'Arrived' : 'Live';
 
   const ringStyle = (v: Animated.Value) => ({

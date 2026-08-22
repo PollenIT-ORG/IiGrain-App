@@ -29,20 +29,6 @@ import {
 import type { MediaPermissionStatus } from '../types/media';
 import { presentationFor } from '../utils/resolveError';
 
-/**
- * Upload compression is centralised here — every picked photo/video in the app
- * (profile avatar, assessment evidence) goes through this service, so these are
- * the only knobs that matter.
- *
- * Tuned for "clearly smaller uploads, no visible quality loss":
- *   compressQuality 0.75 — JPEG quality. Below ~0.7 compression artefacts start
- *                          showing on crop/soil photos, so this is the floor we
- *                          are comfortable with.
- *   compressMaxEdge 1600 — bounding box, aspect ratio preserved. 1600px is well
- *                          above what any screen in the app renders and still
- *                          zooms fine in the photo viewer, while carrying ~36%
- *                          fewer pixels than the old 2000px.
- */
 const DEFAULTS = {
   multiple: false,
   maxSelection: 10,
@@ -75,12 +61,6 @@ const makeError = (
   message: message ?? presentationFor(code).message,
 });
 
-/**
- * Picker error codes share names with the central catalogue, so the copy comes
- * from src/config/errorMessages.ts by default. `message` is only passed for the
- * one case the catalogue cannot express: a limit that depends on the caller's
- * own configuration.
- */
 const errorResult = (
   code: ImagePickerErrorCode,
   message?: string,
@@ -134,7 +114,6 @@ const toMediaFile = (raw: RawMedia, source: ImagePickerSource): MediaFile => {
   };
 };
 
-/** e.g. "58.4 MB" — shown so the user knows how far over the limit they are. */
 const formatMB = (bytes: number): string => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
 const validateFile = (
@@ -152,8 +131,6 @@ const validateFile = (
     return makeError('UNSUPPORTED_TYPE');
   }
   if (file.size > mbToBytes(maxSizeMB)) {
-    // Spell out the limit and the actual size instead of a generic "choose a
-    // smaller file": with videos the user cannot tell how far over they are.
     const noun = file.type === 'video' ? 'Videos' : 'Files';
     const actual = file.size > 0 ? ` (this one is ${formatMB(file.size)})` : '';
     return makeError(
@@ -188,30 +165,12 @@ const buildCropPickerOptions = (
   const base: Record<string, unknown> = {
     mediaType,
     cropping: resolved.crop && isPhoto,
-    // NOTE: the library's own default is Android 1 (no compression) / iOS 0.8,
-    // so this must always be set explicitly or Android uploads stay uncompressed.
     compressImageQuality: resolved.compressQuality,
     compressImageMaxWidth: DEFAULTS.compressMaxEdge,
     compressImageMaxHeight: DEFAULTS.compressMaxEdge,
-    /**
-     * Re-encode picked images as JPEG.
-     *
-     * This is the single biggest size win: `compressImageQuality` only applies
-     * to JPEG output, so with forceJpg off a PNG (every Android screenshot, and
-     * a lot of gallery content) was uploaded essentially uncompressed — often
-     * several MB for one evidence photo.
-     *
-     * Photos only. Transparency is lost in the conversion, which does not matter
-     * for camera/evidence/avatar content but would for a logo-style asset, and
-     * it must never touch a video pick.
-     */
     forceJpg: isPhoto,
   };
   if (!isPhoto) {
-    // iOS ONLY — the library does not implement video transcoding on Android
-    // (see CropperOptions.compressVideoPreset). Kept at MediumQuality because
-    // LowQuality visibly degrades field footage; Android videos are still
-    // uploaded as recorded and are guarded only by the maxSizeMB check below.
     base.compressVideoPreset = 'MediumQuality';
   }
   if (resolved.crop && isPhoto) {
@@ -243,8 +202,6 @@ const finalize = (
     const file = toMediaFile(raw, source);
     const error = validateFile(file, resolved.maxSizeMB, resolved.allowedTypes);
     if (error) {
-      // Only drop what this pick produced. `clean()` wipes the whole temp dir,
-      // which would delete files from earlier picks that are still uploading.
       for (const picked of raws) {
         ImageCropPicker.cleanSingle(picked.path).catch(() => undefined);
       }

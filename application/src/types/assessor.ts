@@ -79,6 +79,8 @@ export interface AssessorFieldEntry {
     name: string;
     crop: string;
     status: string;
+    location: string | null;
+    areaAcres: number | null;
   };
   farm: { id: string; name: string };
   farmer: { id: string; name: string };

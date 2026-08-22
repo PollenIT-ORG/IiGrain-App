@@ -12,26 +12,11 @@ import { tagsForSync, Tags, type SyncPayload } from '../redux/syncTags';
 import { invalidateFieldSoil } from '../redux/slices/fieldDetailsSlice';
 import { connectSocket, getSocket } from '../services/socket';
 
-/**
- * The app's single realtime owner. Mount it exactly once, above the navigators.
- *
- * One Socket.IO connection carries all three server channels:
- *   `sync`                      -> cache invalidation, so every screen stays live
- *   `notification:new`          -> the bell list
- *   `notification:unread_count` -> the bell badge
- *
- * Nothing here patches domain state from a payload. `sync` only bumps cache
- * tags; the screen that owns the data refetches it (see `useSyncedFetch`). That
- * keeps the server as the single source of truth and means a payload shape
- * change can never corrupt the store.
- */
 export const useRealtimeSync = (): void => {
   const dispatch = useAppDispatch();
 
   useEffect(() => {
     let alive = true;
-    // Tracks the FIRST connect so we do not invalidate everything at startup —
-    // screens are about to load anyway. Only a genuine reconnect needs catch-up.
     let hasConnected = false;
 
     dispatch(fetchUnreadCountThunk());
@@ -53,9 +38,6 @@ export const useRealtimeSync = (): void => {
       const notification = mapNotification(raw as RawNotification);
       dispatch(receiveNotification(notification));
       dispatch(invalidateTags([Tags.notifications]));
-      // Enrolling unlocks the soil nutrient inputs server-side, so any cached
-      // soil tab is showing a stale lock. Kept alongside the `sync` enrollment
-      // tag because the field-details buckets are not tag-driven.
       if (notification.type === 'enrolled_in_program') {
         dispatch(invalidateFieldSoil());
       }
@@ -73,8 +55,6 @@ export const useRealtimeSync = (): void => {
       }
       dispatch(setSocketConnected(true));
       if (hasConnected) {
-        // `sync` is fire-and-forget, so anything emitted while we were offline
-        // is gone. Invalidate everything once; each screen refetches on focus.
         dispatch(bumpSyncEpoch());
         dispatch(fetchUnreadCountThunk());
       }

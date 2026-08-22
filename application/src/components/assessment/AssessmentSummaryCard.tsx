@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { AppIcon, ICONS } from '../AppIcon';
 import {
   COLORS,
   borderRadius,
@@ -8,7 +9,7 @@ import {
   shadows,
   spacing,
 } from '../../constants';
-import { formatDate } from '../../utils';
+import { formatDate, moderateScale } from '../../utils';
 import AppText from '../AppText/AppText';
 import Button from '../Button/Button';
 import type { AssessmentSummary } from '../../types/assessment';
@@ -19,12 +20,14 @@ export interface AssessmentSummaryCardProps {
   summary: AssessmentSummary;
   title?: string;
   onContinue?: () => void;
+  locked?: boolean;
 }
 
 const AssessmentSummaryCard: React.FC<AssessmentSummaryCardProps> = ({
   summary,
   title,
   onContinue,
+  locked = false,
 }) => {
   const handleContinue = useCallback(() => {
     onContinue?.();
@@ -71,8 +74,17 @@ const AssessmentSummaryCard: React.FC<AssessmentSummaryCardProps> = ({
       <Button
         title={summary.buttonTitle}
         onPress={handleContinue}
-        variant="primary"
+        variant={locked ? 'outline' : 'primary'}
         size="lg"
+        leftIcon={
+          locked ? (
+            <AppIcon
+              name={ICONS.LOCK}
+              size={moderateScale(18)}
+              color={COLORS.primary}
+            />
+          ) : undefined
+        }
       />
     </View>
   );

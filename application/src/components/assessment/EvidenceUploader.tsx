@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 import AppImageViewer from '../AppImageViewer/AppImageViewer';
 import AppVideoViewer from '../AppVideoViewer/AppVideoViewer';
 import { AppIcon, ICONS } from '../AppIcon';
@@ -122,7 +122,8 @@ const EvidenceTile: React.FC<{
   onRetry: (item: EvidenceItem) => void;
   onPreview: (item: EvidenceItem) => void;
   onPlayVideo: (item: EvidenceItem) => void;
-}> = ({ item, disabled, onRemove, onRetry, onPreview, onPlayVideo }) => {
+  onOpenDocument: (item: EvidenceItem) => void;
+}> = ({ item, disabled, onRemove, onRetry, onPreview, onPlayVideo, onOpenDocument }) => {
   const previewUri = item.url ?? item.media?.uri;
 
   return (
@@ -136,12 +137,16 @@ const EvidenceTile: React.FC<{
           <Image source={{ uri: previewUri }} style={styles.thumb} resizeMode="cover" />
         </Pressable>
       ) : item.kind === 'pdf' ? (
-        <View style={styles.docTile}>
+        <Pressable
+          style={styles.docTile}
+          onPress={() => onOpenDocument(item)}
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${item.name}`}>
           <AppIcon name={ICONS.PDF} size={moderateScale(28)} color={COLORS.danger} />
           <AppText style={styles.docName} numberOfLines={2}>
             {item.name}
           </AppText>
-        </View>
+        </Pressable>
       ) : (
         <Pressable
           style={styles.videoTile}
@@ -241,6 +246,16 @@ const EvidenceUploader: React.FC<EvidenceUploaderProps> = ({
     }
   }, []);
 
+  const openDocument = useCallback((item: EvidenceItem) => {
+    const uri = item.url ?? item.media?.uri ?? null;
+    if (!uri) {
+      return;
+    }
+    Linking.openURL(uri).catch(() =>
+      showToast('Could not open this document.', { type: 'error' }),
+    );
+  }, []);
+
   const uploadRef = useRef(upload);
   uploadRef.current = upload;
   const onChangeRef = useRef(onChange);
@@ -311,11 +326,6 @@ const EvidenceUploader: React.FC<EvidenceUploaderProps> = ({
     [addEvidence],
   );
 
-  /**
-   * A ref, not state: two taps in the same tick would both read a stale
-   * `false` from state and open two native pickers, which iOS rejects the same
-   * way a picker over a live modal is rejected.
-   */
   const pickBusy = useRef(false);
 
   const runPick = useCallback(
@@ -439,6 +449,7 @@ const EvidenceUploader: React.FC<EvidenceUploaderProps> = ({
             onRetry={startUpload}
             onPreview={openPreview}
             onPlayVideo={openVideo}
+            onOpenDocument={openDocument}
           />
         ))}
 

@@ -8,7 +8,7 @@ import {
 } from "../store/endpoints/farmsApi";
 import { useListOrganizationsQuery } from "../store/endpoints/organizationsApi";
 import { showSuccess, showError } from "../lib/toast";
-import { useDialog } from "../components/ui/DialogProvider";
+import { useConfirmCascadeDelete } from "../lib/confirmDelete";
 import Select from "../components/ui/Select";
 import Loader from "../components/Loader";
 import {
@@ -59,7 +59,6 @@ function SortArrow({
 
 export default function Farms() {
   const navigate = useNavigate();
-  const { confirm } = useDialog();
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -108,6 +107,7 @@ export default function Farms() {
   ];
 
   const [deleteFarm] = useDeleteFarmMutation();
+  const confirmDelete = useConfirmCascadeDelete();
 
   useEffect(() => {
     setPage(1);
@@ -119,11 +119,13 @@ export default function Farms() {
   }, [searchInput]);
 
   async function handleDelete(farm: Farm) {
-    const ok = await confirm({
-      title: "Delete farm?",
-      message: `"${farm.name}" and all its fields will be removed.`,
-      confirmLabel: "Delete",
-      tone: "danger",
+    const ok = await confirmDelete({
+      title: "Delete this farm and everything on it?",
+      message:
+        `"${farm.name}" goes with its fields and everything recorded on ` +
+        "them, including their place in any program. Leaving that behind " +
+        "would leave programs counting fields that are no longer there.",
+      summaryPath: `/farms/${farm.id}/deletion-summary`,
     });
     if (!ok) return;
     try {

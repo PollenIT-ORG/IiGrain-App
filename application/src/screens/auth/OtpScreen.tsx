@@ -12,6 +12,7 @@ import {
   selectAuthLoading,
   verifyEmailForSignupThunk,
   verifyOtpThunk,
+  verifyResetCodeThunk,
 } from '../../redux/slices/authSlice';
 import { showSuccess } from '../../services/toastService';
 import type { AuthScreenProps } from '../../navigation/navigationTypes';
@@ -94,7 +95,12 @@ const OtpScreen: React.FC<AuthScreenProps<'Otp'>> = ({ route, navigation }) => {
       }
       setCodeError(undefined);
       if (isReset) {
-        navigation.navigate('ResetPassword', { email, code: otp });
+        const action = await dispatch(verifyResetCodeThunk({ email, code: otp }));
+        if (verifyResetCodeThunk.fulfilled.match(action)) {
+          navigation.navigate('ResetPassword', { email, code: otp });
+        } else {
+          setCodeError(action.payload?.presentation.message);
+        }
         return;
       }
       if (mode === 'verify') {
@@ -105,10 +111,15 @@ const OtpScreen: React.FC<AuthScreenProps<'Otp'>> = ({ route, navigation }) => {
             index: 0,
             routes: [{ name: 'Authentication', params: { mode: 'login' } }],
           });
+        } else {
+          setCodeError(action.payload?.presentation.message);
         }
         return;
       }
-      dispatch(verifyOtpThunk({ email, code: otp }));
+      const action = await dispatch(verifyOtpThunk({ email, code: otp }));
+      if (!verifyOtpThunk.fulfilled.match(action)) {
+        setCodeError(action.payload?.presentation.message);
+      }
     },
     [loading, isReset, mode, navigation, dispatch, email],
   );
@@ -119,8 +130,11 @@ const OtpScreen: React.FC<AuthScreenProps<'Otp'>> = ({ route, navigation }) => {
       if (codeError) {
         setCodeError(undefined);
       }
+      if (serverError) {
+        dispatch(clearError());
+      }
     },
-    [codeError],
+    [codeError, serverError, dispatch],
   );
 
   const handleVerify = useCallback(() => {

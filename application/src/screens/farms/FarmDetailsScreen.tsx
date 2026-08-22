@@ -59,11 +59,8 @@ import {
   selectFieldsLoading,
 } from '../../redux/slices/fieldSlice';
 
-/** Which destructive dialog is open, if any. */
 type PendingAction = 'reset' | 'delete' | null;
 
-/** Scroll delta that must accumulate before the FAB reacts — stops it
- *  flickering on the tiny jitters of a finger resting on the list. */
 const FAB_SCROLL_THRESHOLD = 12;
 
 const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
@@ -86,10 +83,6 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
 
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
-  // Deleting the farm clears `selectedFarm`, which re-runs the effect below with
-  // `farm === null`. Without this guard it would immediately re-fetch the farm
-  // we just deleted and surface the resulting 404 as a "Not Found" error while
-  // the screen is still animating away. Once deleted, never re-fetch.
   const deletedRef = useRef(false);
 
   useEffect(() => {
@@ -116,8 +109,6 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
     }, [dispatch, farmId]),
   );
 
-  // ---------------------------------------------------------------- actions
-
   const goToEditFarm = useCallback(
     () => navigation.navigate('AddFarm', { farmId }),
     [navigation, farmId],
@@ -130,7 +121,6 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
   const runResetFarm = useCallback(async () => {
     const action = await dispatch(resetFarmThunk(farmId));
     if (resetFarmThunk.fulfilled.match(action)) {
-      // Close before the toast: a root-level toast renders behind an open modal.
       setPendingAction(null);
       showSuccess('Farm reset');
       dispatch(refreshFarmFieldsThunk(farmId));
@@ -140,18 +130,13 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
   }, [dispatch, farmId]);
 
   const runDeleteFarm = useCallback(async () => {
-    // Set before dispatch: the fulfilled thunk nulls `selectedFarm` synchronously,
-    // and the guard must already be up when the fetch effect re-runs.
     deletedRef.current = true;
-    // A 409 (submitted assessment / still enrolled) surfaces through the global
-    // error modal with the message the backend returned.
     const action = await dispatch(deleteFarmThunk(farmId));
     setPendingAction(null);
     if (deleteFarmThunk.fulfilled.match(action)) {
       showSuccess('Farm deleted');
       navigation.goBack();
     } else {
-      // Delete failed — the farm still exists, so let the screen behave normally.
       deletedRef.current = false;
     }
   }, [dispatch, farmId, navigation]);
@@ -188,9 +173,6 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
     [navigation, farmId, farm?.name],
   );
 
-  // ------------------------------------------------------------- scroll FAB
-
-  // Held in a ref so scrolling never triggers a React render.
   const fabAnim = useRef(new Animated.Value(0)).current;
   const lastOffset = useRef(0);
   const fabHidden = useRef(false);
@@ -218,7 +200,6 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
         return;
       }
       lastOffset.current = offset;
-      // Always reveal near the top, regardless of direction.
       setFabVisible(delta < 0 || offset <= 0);
     },
     [setFabVisible],
@@ -244,8 +225,6 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
     }),
     [fabAnim],
   );
-
-  // ------------------------------------------------------------ early exits
 
   if (loading) {
     return (
@@ -301,8 +280,6 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
       </View>
     );
   }
-
-  // ----------------------------------------------------------------- render
 
   const farmFields = fieldsFarmId === farmId ? fields : [];
   const liveCount = fieldsFarmId === farmId && !fieldsLoading ? fields.length : undefined;
@@ -381,17 +358,6 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
           </View>
         )}
       </ScrollView>
-
-      {/* <Animated.View style={[styles.fab, fabStyle]} pointerEvents="box-none">
-        <Pressable
-          onPress={goToAddField}
-          android_ripple={FAB_METRICS.ripple}
-          accessibilityRole="button"
-          accessibilityLabel="Add field"
-          style={styles.fabButton}>
-          <AppIcon name={ICONS.PLUS} size={moderateScale(26)} color={COLORS.white} />
-        </Pressable>
-      </Animated.View> */}
 
       <ConfirmationModal
         visible={pendingAction === 'reset'}

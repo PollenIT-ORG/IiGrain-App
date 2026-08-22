@@ -75,6 +75,26 @@ export async function findWebsiteUserByEmailPublic(
   });
 }
 
+/**
+ * Keeps a producer's details current when they fill in a survey again. Without
+ * this the phone/name captured on a later survey would be dropped, because the
+ * account already exists from their first one.
+ */
+export async function updateWebsiteUserDetails(
+  id: string,
+  p: { fullName?: string; phone?: string | null }
+): Promise<void> {
+  const data: Record<string, unknown> = {};
+  if (p.fullName) data.full_name = p.fullName;
+  // Only overwrite the stored phone when a new one was given.
+  if (p.phone) data.phone = p.phone;
+  if (Object.keys(data).length === 0) return;
+  await prisma.website_users.updateMany({
+    where: { id, deleted_at: null },
+    data: { ...data, updated_at: new Date() },
+  });
+}
+
 export async function touchWebsiteLogin(id: string): Promise<void> {
   await prisma.website_users.updateMany({
     where: { id, deleted_at: null },

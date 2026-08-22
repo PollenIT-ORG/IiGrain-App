@@ -1,37 +1,16 @@
-/**
- * src/maps/boundary/hooks/useBoundaryPersistence.ts — load/save a field's
- * boundary through the repository seam.
- *
- * This hook is where Redux is wired to the storage-agnostic `BoundaryRepository`
- * interface. In Phase E, replacing `createLocalBoundaryRepository` with
- * `createApiBoundaryRepository` here is the ONLY change needed to move boundary
- * storage to the server — no component, engine or screen file is touched.
- * (docs/maps/FarmBoundary/ARCHITECTURE.md §5.)
- */
-
-import { useCallback, useMemo, useState } from 'react';
-import { useAppDispatch, useAppStore } from '../../../redux/hooks';
-import {
-  removeBoundary,
-  selectBoundary,
-  upsertBoundary,
-} from '../../../redux/slices/boundarySlice';
+import { useCallback, useEffect, useState } from 'react';
+import { useAppSelector } from '../../../redux/hooks';
+import { selectBoundary } from '../../../redux/slices/boundarySlice';
 import type { LatLng } from '../../types';
 import type { FieldBoundary } from '../types';
-import {
-  createLocalBoundaryRepository,
-  type BoundaryRepository,
-} from '../services/boundaryRepository';
+import { useBoundaryRepository } from './useBoundaryRepository';
 
 export interface UseBoundaryPersistence {
-  /** Read the saved boundary synchronously from the store (for first paint). */
   readonly saved: FieldBoundary | null;
   readonly saving: boolean;
   readonly deleting: boolean;
-  /** Persist a ring for this field. Resolves with the stored boundary (version
-   *  bumped). Throws if the ring is unsavable. */
+  readonly hydrating: boolean;
   readonly save: (ring: readonly LatLng[]) => Promise<FieldBoundary>;
-  /** Remove this field's boundary. */
   readonly remove: () => Promise<void>;
 }
 
@@ -46,29 +25,32 @@ export const useBoundaryPersistence = ({
   farmId,
   orgId = null,
 }: BoundaryPersistenceArgs): UseBoundaryPersistence => {
-  const store = useAppStore();
-  const dispatch = useAppDispatch();
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Bind the local (Phase D) repository to the Redux slice. Swap this line for
-  // the API repository in Phase E — nothing else changes.
-  const repository: BoundaryRepository = useMemo(
-    () =>
-      createLocalBoundaryRepository({
-        store: {
-          read: id => selectBoundary(store.getState(), id),
-          write: boundary => dispatch(upsertBoundary(boundary)),
-          delete: id => dispatch(removeBoundary(id)),
-        },
-        now: () => new Date().toISOString(),
-      }),
-    [store, dispatch],
-  );
+  const repository = useBoundaryRepository(farmId);
 
-  // Read synchronously for first paint; the screen also subscribes via a
-  // selector so it re-renders after a save.
-  const saved = selectBoundary(store.getState(), fieldId);
+  const saved = useAppSelector(state => selectBoundary(state, fieldId));
+
+  const [hydrating, setHydrating] = useState(false);
+  useEffect(() => {
+    if (!fieldId || !farmId) {
+      return;
+    }
+    let alive = true;
+    setHydrating(true);
+    repository
+      .load(fieldId)
+      .catch(() => null)
+      .finally(() => {
+        if (alive) {
+          setHydrating(false);
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, [repository, fieldId, farmId]);
 
   const save = useCallback(
     async (ring: readonly LatLng[]) => {
@@ -91,5 +73,5 @@ export const useBoundaryPersistence = ({
     }
   }, [repository, fieldId]);
 
-  return { saved, saving, deleting, save, remove };
+  return { saved, saving, deleting, hydrating, save, remove };
 };

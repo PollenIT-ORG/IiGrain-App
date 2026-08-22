@@ -16,8 +16,6 @@ export const COLORS = {
   success: '#2FBF71',
   warning: '#F4B740',
   danger: '#E5484D',
-  // Distinct from `warning` amber so a validation prompt never reads as a
-  // system warning, and never as the green success colour.
   validation: '#E36414',
 
   gray900: '#212939',

@@ -19,12 +19,9 @@ export const formatMemberSince = (iso?: string | null): string | null => {
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
 };
 
-// Keep these in sync with ios/iiGrain.xcodeproj/project.pbxproj —
-// MARKETING_VERSION and CURRENT_PROJECT_VERSION respectively.
 export const APP_VERSION = '2.0';
-export const APP_BUILD = '8';
+export const APP_BUILD = '11';
 
-/** What the user sees, e.g. "2.0 (4)". */
 export const APP_VERSION_LABEL = `${APP_VERSION} (${APP_BUILD})`;
 
 export const DELETE_REMOVES: string[] = [

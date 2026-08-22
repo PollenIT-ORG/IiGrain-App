@@ -5,6 +5,7 @@ import {
   farmDashboard,
   farmSummary,
   adminDashboard,
+  programDashboard,
 } from "../controllers/dashboard.controller.js";
 import { authenticate, authorize } from "../middlewares/authenticate.js";
 import { validate } from "../middlewares/validate.js";
@@ -35,6 +36,13 @@ const farmSummaryQuerySchema = z.object({
 });
 
 router.get("/admin", ...adminOnly, adminDashboard);
+// The programs summary, which a program administrator sees for their own.
+router.get(
+  "/programs",
+  authenticate,
+  authorize("super_admin", "admin", "program_administrator"),
+  programDashboard
+);
 
 router.get(
   "/my/farms",

@@ -1,14 +1,13 @@
 import { Router } from "express";
 import { validate } from "../middlewares/validate.js";
 import { authenticateWebsite } from "../middlewares/websiteAuth.js";
-import { loginLimiter, contactLimiter } from "../middlewares/rateLimiters.js";
+import { loginLimiter } from "../middlewares/rateLimiters.js";
 import {
   webRegisterSchema,
   webLoginSchema,
   submitSurveySchema,
   signContractSchema,
   contractTokenParamSchema,
-  contactSchema,
 } from "../validators/web.schema.js";
 import {
   register,
@@ -19,7 +18,6 @@ import {
   myStatus,
   getContract,
   signContract,
-  submitContact,
 } from "../controllers/web.controller.js";
 
 // Public website. Separate from the mobile app's /auth routes on purpose: these
@@ -52,7 +50,5 @@ router.post(
   validate(signContractSchema),
   signContract
 );
-
-router.post("/contact", contactLimiter, validate(contactSchema), submitContact);
 
 export default router;

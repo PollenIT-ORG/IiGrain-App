@@ -9,18 +9,14 @@ import {
 } from '../../../constants';
 import { addAlpha, moderateScale, scale } from '../../../utils';
 
-/** Layout + motion constants, kept out of the component so nothing is magic. */
 export const MENU_METRICS = {
-  /** Gap between the trigger's bottom edge and the popup. */
   gap: spacing[1],
-  /** Minimum breathing room from the screen edge. */
   screenMargin: spacing[2],
   minWidth: scale(200),
   maxWidth: scale(280),
   iconSize: moderateScale(20),
   openMs: 180,
   closeMs: 140,
-  /** Popup grows from slightly small — a subtle "spring out" without overshoot. */
   scaleFrom: 0.92,
   hitSlop: { top: 8, bottom: 8, left: 8, right: 8 },
   ripple: { color: addAlpha(COLORS.primary, 0.1) },
@@ -34,8 +30,6 @@ export const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    // Barely-there scrim: enough to catch the dismiss tap and imply depth
-    // without dimming the screen like a full dialog would.
     backgroundColor: addAlpha(COLORS.black, 0.08),
   },
   menu: {
@@ -48,7 +42,6 @@ export const styles = StyleSheet.create({
     borderColor: COLORS.gray200,
     paddingVertical: spacing[1],
     overflow: 'hidden',
-    // Popups sit above cards, so they take the heaviest elevation token.
     ...shadows.xl,
     transformOrigin: 'top right',
   },

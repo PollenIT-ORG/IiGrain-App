@@ -14,16 +14,14 @@ import { styles } from './MoreScreenStyle';
 interface MenuItem {
   icon: string;
   label: string;
-  target?: 'Account' | 'Profile' | 'Help';
+  target?: 'Account' | 'Profile' | 'Help' | 'OnboardingChecklist';
 }
 
 const MENU: MenuItem[] = [
   { icon: 'account-circle-outline', label: 'Profile', target: 'Profile' },
   { icon: 'account-outline', label: 'Account', target: 'Account' },
-  // Help was previously target-less, so tapping it did nothing. It now opens
-  // HelpScreen, which hosts the self-service tools (Field Map, and whatever
-  // follows it).
-  { icon: 'help-circle-outline', label: 'Help', target: 'Help' },
+  { icon: ICONS.ROCKET, label: 'Getting Started', target: 'OnboardingChecklist' },
+  { icon: 'help-circle-outline', label: 'Help' },
 ];
 
 const MoreScreen: React.FC = () => {

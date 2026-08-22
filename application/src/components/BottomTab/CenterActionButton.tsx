@@ -8,7 +8,6 @@ import { styles } from './CenterActionButtonStyle';
 
 interface CenterActionButtonProps {
   onPress: () => void;
-  /** True while the Enroll tab is the focused route. */
   active?: boolean;
 }
 

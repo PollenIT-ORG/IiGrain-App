@@ -3,6 +3,8 @@ import type {
   AssessmentCategorySummary,
   AssessmentQuestionDetail,
   AssessmentQuestionListItem,
+  AssessmentReview,
+  AssessmentSubmitResult,
   CategoryQuestionList,
   FieldAssessmentSummary,
 } from '../../types/assessment';
@@ -28,6 +30,7 @@ import {
   fetchAssessorCategoryQuestionsThunk,
   fetchAssessorQuestionDetailThunk,
   saveAssessorAnswerThunk,
+  fetchAssessorReviewThunk,
   submitAssessorAssessmentThunk,
   fetchFarmerAssessmentThunk,
   fetchComparisonThunk,
@@ -43,8 +46,14 @@ export interface AssessorState {
   locked: boolean;
   submittedBy: SubmittedBy | null;
   categoryQuestions: CategoryQuestionList | null;
+  requestedCategoryScope: string | null;
   questionDetail: AssessmentQuestionDetail | null;
   requestedQuestionId: string | null;
+  review: AssessmentReview | null;
+  requestedReviewScope: string | null;
+  loadedReviewScope: string | null;
+  submitResult: AssessmentSubmitResult | null;
+  answerVersion: number;
 
   farmerAssessment: FarmerAssessmentView | null;
   farmerAssessmentRequestId: string | null;
@@ -57,6 +66,7 @@ export interface AssessorState {
   loadingSummary: boolean;
   loadingQuestions: boolean;
   loadingQuestion: boolean;
+  loadingReview: boolean;
   refreshing: boolean;
   saving: boolean;
   submitting: boolean;
@@ -72,8 +82,14 @@ const initialState: AssessorState = {
   locked: false,
   submittedBy: null,
   categoryQuestions: null,
+  requestedCategoryScope: null,
   questionDetail: null,
   requestedQuestionId: null,
+  review: null,
+  requestedReviewScope: null,
+  loadedReviewScope: null,
+  submitResult: null,
+  answerVersion: 0,
   farmerAssessment: null,
   farmerAssessmentRequestId: null,
   comparison: null,
@@ -84,6 +100,7 @@ const initialState: AssessorState = {
   loadingSummary: false,
   loadingQuestions: false,
   loadingQuestion: false,
+  loadingReview: false,
   refreshing: false,
   saving: false,
   submitting: false,
@@ -96,6 +113,12 @@ const pct = (answered: number, total: number): number =>
 const scopeKey = (arg: { programId: string; fieldId: string }): string =>
   `${arg.programId}:${arg.fieldId}`;
 
+const categoryScopeKey = (arg: {
+  programId: string;
+  fieldId: string;
+  categoryId: string;
+}): string => `${arg.programId}:${arg.fieldId}:${arg.categoryId}`;
+
 const assessorSlice = createSlice({
   name: 'assessor',
   initialState,
@@ -105,6 +128,9 @@ const assessorSlice = createSlice({
     },
     clearAssessorQuestionDetail(state) {
       state.questionDetail = null;
+    },
+    clearAssessorSubmitResult(state) {
+      state.submitResult = null;
     },
   },
   extraReducers: builder => {
@@ -172,15 +198,22 @@ const assessorSlice = createSlice({
         state.refreshing = false;
         state.error = action.payload?.message ?? 'Failed to refresh assessment';
       })
-      .addCase(fetchAssessorCategoryQuestionsThunk.pending, state => {
+      .addCase(fetchAssessorCategoryQuestionsThunk.pending, (state, action) => {
         state.loadingQuestions = true;
         state.error = null;
+        state.requestedCategoryScope = categoryScopeKey(action.meta.arg);
       })
       .addCase(fetchAssessorCategoryQuestionsThunk.fulfilled, (state, action) => {
+        if (categoryScopeKey(action.meta.arg) !== state.requestedCategoryScope) {
+          return;
+        }
         state.loadingQuestions = false;
         state.categoryQuestions = action.payload;
       })
       .addCase(fetchAssessorCategoryQuestionsThunk.rejected, (state, action) => {
+        if (categoryScopeKey(action.meta.arg) !== state.requestedCategoryScope) {
+          return;
+        }
         state.loadingQuestions = false;
         state.error = action.payload?.message ?? 'Failed to load questions';
       })
@@ -196,6 +229,12 @@ const assessorSlice = createSlice({
         }
         state.loadingQuestion = false;
         state.questionDetail = action.payload;
+        if (action.payload.locked && state.loadedSummaryScope === scopeKey(action.meta.arg)) {
+          state.locked = true;
+          if (state.summary) {
+            state.summary.assessment.submitted = true;
+          }
+        }
       })
       .addCase(fetchAssessorQuestionDetailThunk.rejected, (state, action) => {
         if (action.meta.arg.questionId !== state.requestedQuestionId) {
@@ -210,6 +249,7 @@ const assessorSlice = createSlice({
       })
       .addCase(saveAssessorAnswerThunk.fulfilled, (state, action) => {
         state.saving = false;
+        state.answerVersion += 1;
         const saved = action.payload;
         const qId = saved.questionId;
 
@@ -232,7 +272,9 @@ const assessorSlice = createSlice({
         if (!isNewAnswer) {
           return;
         }
-        if (state.categoryQuestions) {
+        const owningCategoryId = listItem ? state.categoryQuestions?.category.id : null;
+
+        if (state.categoryQuestions && owningCategoryId) {
           const p = state.categoryQuestions.progress;
           p.answered = Math.min(p.answered + 1, p.totalQuestions);
           p.percentage = pct(p.answered, p.totalQuestions);
@@ -246,9 +288,8 @@ const assessorSlice = createSlice({
           } else if (info.answered > 0) {
             info.status = 'IN_PROGRESS';
           }
-          const categoryId = state.categoryQuestions?.category.id;
-          if (categoryId) {
-            const cat = state.summary.categories.find(c => c.id === categoryId);
+          if (owningCategoryId) {
+            const cat = state.summary.categories.find(c => c.id === owningCategoryId);
             if (cat) {
               cat.answered = Math.min(cat.answered + 1, cat.totalQuestions);
               cat.percentage = pct(cat.answered, cat.totalQuestions);
@@ -273,17 +314,53 @@ const assessorSlice = createSlice({
         state.saving = false;
         state.error = action.payload?.message ?? 'Failed to save answer';
       })
+      .addCase(fetchAssessorReviewThunk.pending, (state, action) => {
+        state.loadingReview = true;
+        state.error = null;
+        state.requestedReviewScope = scopeKey(action.meta.arg);
+      })
+      .addCase(fetchAssessorReviewThunk.fulfilled, (state, action) => {
+        if (scopeKey(action.meta.arg) !== state.requestedReviewScope) {
+          return;
+        }
+        state.loadingReview = false;
+        state.review = action.payload.review;
+        state.loadedReviewScope = scopeKey(action.meta.arg);
+        if (
+          action.payload.review.submission.submittedAtISO &&
+          state.loadedSummaryScope === scopeKey(action.meta.arg)
+        ) {
+          state.locked = true;
+          state.submittedBy = action.payload.submittedBy ?? state.submittedBy;
+          if (state.summary) {
+            state.summary.assessment.submitted = true;
+          }
+        }
+      })
+      .addCase(fetchAssessorReviewThunk.rejected, (state, action) => {
+        if (scopeKey(action.meta.arg) !== state.requestedReviewScope) {
+          return;
+        }
+        state.loadingReview = false;
+        state.error = action.payload?.message ?? 'Failed to load review';
+      })
       .addCase(submitAssessorAssessmentThunk.pending, state => {
         state.submitting = true;
         state.error = null;
       })
       .addCase(submitAssessorAssessmentThunk.fulfilled, (state, action) => {
         state.submitting = false;
+        state.answerVersion += 1;
         state.summary = action.payload.summary;
         state.locked = action.payload.locked;
         state.submittedBy = action.payload.submittedBy;
+        state.submitResult = action.payload.result;
         if (state.questionDetail) {
           state.questionDetail.locked = true;
+        }
+        if (state.review) {
+          state.review.submission.status = action.payload.result.status;
+          state.review.submission.submittedAtISO = action.payload.submittedAtISO;
         }
         if (state.fieldsOverview) {
           const { programId, fieldId } = action.meta.arg;
@@ -347,7 +424,11 @@ const assessorSlice = createSlice({
   },
 });
 
-export const { clearAssessorError, clearAssessorQuestionDetail } = assessorSlice.actions;
+export const {
+  clearAssessorError,
+  clearAssessorQuestionDetail,
+  clearAssessorSubmitResult,
+} = assessorSlice.actions;
 export default assessorSlice.reducer;
 
 export {
@@ -357,6 +438,7 @@ export {
   fetchAssessorCategoryQuestionsThunk,
   fetchAssessorQuestionDetailThunk,
   saveAssessorAnswerThunk,
+  fetchAssessorReviewThunk,
   submitAssessorAssessmentThunk,
   fetchFarmerAssessmentThunk,
   fetchComparisonThunk,
@@ -408,6 +490,14 @@ export const selectAssessorQuestionList = (s: HasAssessor): AssessmentQuestionLi
 export const selectAssessorQuestionsLoading = (s: HasAssessor): boolean => s.assessor.loadingQuestions;
 export const selectAssessorQuestionDetail = (s: HasAssessor): AssessmentQuestionDetail | null => s.assessor.questionDetail;
 export const selectAssessorQuestionLoading = (s: HasAssessor): boolean => s.assessor.loadingQuestion;
+export const selectAssessorReview = (s: HasAssessor): AssessmentReview | null =>
+  s.assessor.review;
+export const selectAssessorReviewLoading = (s: HasAssessor): boolean => s.assessor.loadingReview;
+export const selectAssessorLoadedReviewScope = (s: HasAssessor): string | null =>
+  s.assessor.loadedReviewScope;
+export const selectAssessorSubmitResult = (s: HasAssessor): AssessmentSubmitResult | null =>
+  s.assessor.submitResult;
+export const selectAssessorAnswerVersion = (s: HasAssessor): number => s.assessor.answerVersion;
 export const selectAssessorSaving = (s: HasAssessor): boolean => s.assessor.saving;
 export const selectAssessorSubmitting = (s: HasAssessor): boolean => s.assessor.submitting;
 export const selectAssessorError = (s: HasAssessor): string | null => s.assessor.error;

@@ -94,18 +94,8 @@ export const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  errorBanner: {
-    backgroundColor: COLORS.white,
-    borderWidth: borderWidth.thin,
-    borderColor: COLORS.danger,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing[2.5],
-    paddingHorizontal: spacing[3],
+  notice: {
     marginTop: spacing[4],
-  },
-  errorText: {
-    ...presets.bodyXS,
-    color: COLORS.danger,
   },
 
   submit: {

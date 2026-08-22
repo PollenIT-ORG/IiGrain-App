@@ -22,8 +22,6 @@ interface FieldRegenIndexCardProps {
 }
 
 const FieldRegenIndexCard: React.FC<FieldRegenIndexCardProps> = ({ data, loading }) => {
-  // Every category is listed, not just the scored ones — an unanswered category
-  // shows an empty bar with a "—" readout so the user can see what is still open.
   const metrics = useMemo(
     () =>
       (data?.categories ?? []).map(c => ({

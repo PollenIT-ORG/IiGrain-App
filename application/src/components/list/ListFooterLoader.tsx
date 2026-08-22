@@ -5,13 +5,9 @@ import { COLORS } from '../../constants';
 import { styles } from './ListFooterLoaderStyle';
 
 export interface ListFooterLoaderProps {
-  /** True while the next page is in flight. */
   loading: boolean;
-  /** True when more pages remain after the loaded ones. */
   hasMore: boolean;
-  /** Items currently rendered; the end-of-list note is hidden for short lists. */
   loadedCount: number;
-  /** Total across all pages, shown in the end-of-list note. */
   total?: number;
   endLabel?: string;
 }

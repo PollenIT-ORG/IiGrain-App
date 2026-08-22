@@ -206,8 +206,6 @@ const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<AppStackParamList>>();
   const dispatch = useAppDispatch();
 
-  // selectCurrentProfile, not the raw selectProfile: it drops a persisted
-  // profile that belongs to a different account, matching every other consumer.
   const profile = useAppSelector(selectCurrentProfile);
   const loading = useAppSelector(selectProfileLoading);
   const avatarUpdating = useAppSelector(selectAvatarUpdating);
@@ -235,8 +233,6 @@ const ProfileScreen: React.FC = () => {
     }
   }, []);
 
-  // The profile itself is hydrated centrally (useProfileHydration); only the
-  // organization is screen-local.
   useEffect(() => {
     loadOrganization();
   }, [loadOrganization]);
@@ -244,8 +240,6 @@ const ProfileScreen: React.FC = () => {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([
-      // force: an explicit pull-to-refresh must bypass the freshness cache,
-      // otherwise it silently does nothing within the TTL.
       dispatch(fetchProfileThunk({ force: true })),
       loadOrganization(),
     ]);
@@ -492,7 +486,7 @@ const ProfileScreen: React.FC = () => {
         variant="back"
         title="Profile"
         rightActions={profile ? ['edit'] : []}
-        
+
         onActionPress={onHeaderAction}
         onBack={() => navigation.goBack()}
       />

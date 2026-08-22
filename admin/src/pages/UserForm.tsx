@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   useGetUserQuery,
@@ -19,6 +19,7 @@ import Select from "../components/ui/Select";
 import PhoneInput from "../components/ui/PhoneInput";
 import { EyeIcon, EyeOffIcon, ChevronLeftIcon } from "../components/icons";
 import { ROLE_LABELS, type UserRole } from "../types";
+import { useAuth } from "../store/useAuth";
 
 const ROLES: UserRole[] = [
   "farmer",
@@ -27,7 +28,20 @@ const ROLES: UserRole[] = [
   "program_partner",
   "admin",
 ];
-const ROLE_OPTIONS = ROLES.map((r) => ({ value: r, label: ROLE_LABELS[r] }));
+// Who each role may create. A program administrator looks after the assessors
+// and farmers on their programs, and no one above them.
+const CREATABLE: Record<string, UserRole[]> = {
+  program_administrator: ["farmer", "assessor"],
+  admin: ["farmer", "assessor", "program_administrator", "program_partner"],
+};
+
+function roleOptions(actorRole: string | undefined) {
+  const allowed = CREATABLE[actorRole ?? ""] ?? ROLES;
+  return ROLES.filter((r) => allowed.includes(r)).map((r) => ({
+    value: r,
+    label: ROLE_LABELS[r],
+  }));
+}
 
 function errMsg(err: unknown): string {
   return (
@@ -48,6 +62,8 @@ export default function UserForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<UserRole>("farmer");
   const [errors, setErrors] = useState<Record<string, string | null>>({});
+  const { user } = useAuth();
+  const roleChoices = useMemo(() => roleOptions(user?.role), [user?.role]);
 
   const {
     data: existingUser,
@@ -192,14 +208,14 @@ export default function UserForm() {
             <label htmlFor="phone" className="label">
               Mobile number <span className="text-danger">*</span>
             </label>
-            <PhoneInput id="phone" value={phone} onChange={setPhone} />
-            {errors.phone ? (
-              <p className="field-error">{errors.phone}</p>
-            ) : (
-              <p className="mt-1.5 text-xs text-gray-500">
-                Select the country, then enter the number.
-              </p>
-            )}
+            <PhoneInput
+              id="phone"
+              value={phone}
+              onChange={setPhone}
+              required
+              error={errors.phone}
+              hint="Select the country, then enter the number."
+            />
           </div>
 
           {!isEdit && (
@@ -250,7 +266,7 @@ export default function UserForm() {
               id="role"
               value={role}
               onChange={(v) => setRole(v as UserRole)}
-              options={ROLE_OPTIONS}
+              options={roleChoices}
             />
           </div>
 

@@ -5,6 +5,7 @@ import {
   getField,
   updateField,
   deleteField,
+  fieldDeletionSummary,
   myFarmFields,
   myFarmField,
   createMyField,
@@ -12,6 +13,7 @@ import {
   deleteMyField,
   resetField,
   resetMyField,
+  updateMyFieldBoundary,
 } from "../controllers/field.controller.js";
 import {
   getFieldDetails,
@@ -30,6 +32,7 @@ import {
   createFieldSchema,
   updateFieldSchema,
   listFieldsQuerySchema,
+  saveFieldBoundarySchema,
 } from "../validators/field.schema.js";
 import {
   fieldDetailsQuerySchema,
@@ -81,6 +84,13 @@ router.patch(
   withId,
   validate(updateFieldSchema),
   updateField
+);
+router.get(
+  "/:id/deletion-summary",
+  authenticate,
+  orgManagers,
+  withId,
+  fieldDeletionSummary
 );
 router.delete("/:id", authenticate, orgManagers, withId, deleteField);
 router.post("/:id/reset", authenticate, orgManagers, withId, resetField);
@@ -147,3 +157,10 @@ mobileFieldRouter.patch(
 );
 mobileFieldRouter.delete("/:id", authenticate, withFarmAndId, deleteMyField);
 mobileFieldRouter.post("/:id/reset", authenticate, withFarmAndId, resetMyField);
+mobileFieldRouter.put(
+  "/:id/boundary",
+  authenticate,
+  withFarmAndId,
+  validate(saveFieldBoundarySchema),
+  updateMyFieldBoundary
+);

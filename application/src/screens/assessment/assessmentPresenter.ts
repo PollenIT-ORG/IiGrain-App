@@ -13,9 +13,7 @@ import type {
 
 const START_LABEL = 'Start Assessment';
 const CONTINUE_LABEL = 'Continue Assessment';
-/** Everything answered but not yet sent in — the review screen can still submit. */
 const REVIEW_SUBMIT_LABEL = 'View & Submit';
-/** Already submitted — the review screen is read-only from here. */
 const VIEW_LABEL = 'View';
 
 export const isAssessmentComplete = (summary: FieldAssessmentSummary): boolean => {
@@ -23,10 +21,16 @@ export const isAssessmentComplete = (summary: FieldAssessmentSummary): boolean =
   return info.totalQuestions > 0 && info.answered >= info.totalQuestions;
 };
 
+export interface SummaryCardOptions {
+  submitted?: boolean;
+}
+
 export const toSummaryCardModel = (
   summary: FieldAssessmentSummary,
+  options?: SummaryCardOptions,
 ): AssessmentSummary => {
   const info = summary.assessment;
+  const submitted = options?.submitted ?? info.submitted;
   return {
     id: summary.field.id,
     title: info.title,
@@ -36,7 +40,7 @@ export const toSummaryCardModel = (
     totalQuestions: info.totalQuestions,
     progress: info.percentage,
     buttonTitle: isAssessmentComplete(summary)
-      ? info.submitted
+      ? submitted
         ? VIEW_LABEL
         : REVIEW_SUBMIT_LABEL
       : info.answered > 0

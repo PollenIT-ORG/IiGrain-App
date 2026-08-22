@@ -11,7 +11,8 @@ export type SubmissionStatus =
   | "qualified"
   | "contract_sent"
   | "contract_signed"
-  | "enrolled";
+  | "enrolled"
+  | "withdrawn";
 
 export interface StoredAnswer {
   questionId: string;
@@ -41,6 +42,7 @@ export interface PublicSubmission {
   status: SubmissionStatus;
   channel: SubmissionChannel;
   status_token: string | null;
+  override_reason: string | null;
   enrollment_id: string | null;
   reviewed_at: Date | null;
   created_at: Date;
@@ -70,6 +72,7 @@ function toPublic(r: Row): PublicSubmission {
     status: r.status as SubmissionStatus,
     channel: r.channel as SubmissionChannel,
     status_token: r.status_token,
+    override_reason: r.override_reason,
     enrollment_id: r.enrollment_id,
     reviewed_at: r.reviewed_at,
     created_at: r.created_at,
@@ -225,9 +228,12 @@ export async function findSubmissionById(
 }
 
 export interface ListSubmissionsFilters {
-  status?: SubmissionStatus;
+  statuses?: SubmissionStatus[];
   category?: SurveyCategory;
   channel?: SubmissionChannel;
+  referral?: string;
+  createdFrom?: Date;
+  createdTo?: Date;
   search?: string;
   limit: number;
   offset: number;
@@ -236,19 +242,36 @@ export interface ListSubmissionsFilters {
 export async function listSubmissions(
   f: ListSubmissionsFilters
 ): Promise<{ rows: PublicSubmission[]; total: number }> {
+  const createdAt =
+    f.createdFrom || f.createdTo
+      ? {
+          created_at: {
+            ...(f.createdFrom ? { gte: f.createdFrom } : {}),
+            ...(f.createdTo ? { lte: f.createdTo } : {}),
+          },
+        }
+      : {};
   const where: Prisma.eligibility_submissionsWhereInput = {
     deleted_at: null,
-    ...(f.status ? { status: f.status } : {}),
+    // Drafts (registered but not yet submitted) are shown too, as "Registered".
+    ...(f.statuses && f.statuses.length ? { status: { in: f.statuses } } : {}),
     ...(f.category ? { final_category: f.category } : {}),
     ...(f.channel ? { channel: f.channel } : {}),
+    ...(f.referral ? { referral_source: f.referral } : {}),
+    ...createdAt,
     ...(f.search
       ? {
-          website_user: {
-            OR: [
-              { full_name: { contains: f.search, mode: "insensitive" } },
-              { email: { contains: f.search, mode: "insensitive" } },
-            ],
-          },
+          OR: [
+            { farm_name: { contains: f.search, mode: "insensitive" } },
+            {
+              website_user: {
+                OR: [
+                  { full_name: { contains: f.search, mode: "insensitive" } },
+                  { email: { contains: f.search, mode: "insensitive" } },
+                ],
+              },
+            },
+          ],
         }
       : {}),
   };
@@ -271,6 +294,7 @@ export async function updateSubmission(
   data: Partial<{
     final_category: SurveyCategory;
     status: SubmissionStatus;
+    override_reason: string | null;
     reviewed_by: string | null;
     reviewed_at: Date;
     enrollment_id: string;

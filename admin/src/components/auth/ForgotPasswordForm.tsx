@@ -112,6 +112,7 @@ export default function ForgotPasswordForm({
               autoComplete="email"
               className={`input-field ${errors.email ? "input-error" : ""}`}
               placeholder="admin@farmerapp.com"
+              maxLength={255}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -166,6 +167,7 @@ export default function ForgotPasswordForm({
                   errors.newPassword ? "input-error" : ""
                 }`}
                 placeholder="At least 8 characters"
+                maxLength={64}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
               />

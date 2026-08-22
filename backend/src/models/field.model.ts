@@ -1,6 +1,14 @@
 import prisma from "../db/prisma.js";
 import { softDelete } from "../db/softDelete.js";
-import type { Prisma } from "@prisma/client";
+// Value import (not `import type`) - Prisma.DbNull is a runtime sentinel used to
+// clear the JSONB boundary column to SQL NULL.
+import { Prisma } from "@prisma/client";
+
+// A field outline: one closed GeoJSON Polygon ring, [lng, lat] positions.
+export interface GeoJSONPolygon {
+  type: "Polygon";
+  coordinates: number[][][];
+}
 
 export interface PublicField {
   id: string;
@@ -14,6 +22,8 @@ export interface PublicField {
   location: string | null;
   latitude: number | null;
   longitude: number | null;
+  boundary: GeoJSONPolygon | null;
+  boundary_updated_at: string | null;
   sowing_date: string | null;
   expected_harvest: string | null;
   is_active: boolean;
@@ -32,6 +42,8 @@ const PUBLIC_FIELD_SELECT = {
   location: true,
   latitude: true,
   longitude: true,
+  boundary: true,
+  boundary_updated_at: true,
   sowing_date: true,
   expected_harvest: true,
   is_active: true,
@@ -60,6 +72,10 @@ function toPublicField(fi: PublicFieldRow): PublicField {
     location: fi.location,
     latitude: fi.latitude === null ? null : Number(fi.latitude),
     longitude: fi.longitude === null ? null : Number(fi.longitude),
+    boundary: (fi.boundary as GeoJSONPolygon | null) ?? null,
+    boundary_updated_at: fi.boundary_updated_at
+      ? fi.boundary_updated_at.toISOString()
+      : null,
     sowing_date: dateOnly(fi.sowing_date),
     expected_harvest: dateOnly(fi.expected_harvest),
     is_active: fi.is_active,
@@ -196,6 +212,27 @@ export async function updateField(
   const { count } = await prisma.fields.updateMany({
     where: { id, deleted_at: null },
     data,
+  });
+  if (!count) return null;
+  return findFieldById(id);
+}
+
+// Replace (or clear) a field's boundary. A boundary is written wholesale by the
+// editor, never merged. Passing null clears it to SQL NULL via Prisma.DbNull.
+export async function updateFieldBoundary(
+  id: string,
+  boundary: GeoJSONPolygon | null
+): Promise<PublicField | null> {
+  const { count } = await prisma.fields.updateMany({
+    where: { id, deleted_at: null },
+    data: {
+      boundary:
+        boundary === null
+          ? Prisma.DbNull
+          : (boundary as unknown as Prisma.InputJsonValue),
+      boundary_updated_at: boundary === null ? null : new Date(),
+      updated_at: new Date(),
+    },
   });
   if (!count) return null;
   return findFieldById(id);

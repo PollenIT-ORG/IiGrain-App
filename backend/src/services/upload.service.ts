@@ -171,6 +171,115 @@ export function uploadSignatureDataUrl(dataUrl: string): Promise<string> {
   });
 }
 
+const CONTRACT_FOLDER = "farmer_contracts";
+const CONTRACT_PDF_MAX = 10 * 1024 * 1024;
+
+/**
+ * Stores a contract PDF - either the blank one a program administrator uploads,
+ * or the signed copy generated once a producer signs it.
+ */
+const MONITORING_FOLDER = "farmer_monitoring";
+const MONITORING_MAX = 10 * 1024 * 1024;
+
+/**
+ * A file attached to a field monitoring record: a lab report, a training
+ * certificate, or a photo from the field.
+ *
+ * PDFs and Word files go up as raw assets, images as images, because
+ * Cloudinary treats the two differently and a PDF uploaded as an image comes
+ * back unreadable.
+ */
+export async function uploadMonitoringFile(file: {
+  buffer: Buffer;
+  originalname?: string;
+  mimetype?: string;
+  size?: number;
+}): Promise<{ url: string; name: string; mimeType: string | null; sizeBytes: number }> {
+  const bytes = file.size ?? file.buffer.length;
+  if (bytes > MONITORING_MAX) {
+    throw ApiError.badRequest("That file is larger than 10 MB.");
+  }
+
+  const name = (file.originalname ?? "file").slice(0, 200);
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  const isImage = ["jpg", "jpeg", "png", "webp", "heic"].includes(ext);
+  const publicId = name
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^\w-]+/g, "_")
+    .slice(0, 80);
+
+  const url = await new Promise<string>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: MONITORING_FOLDER,
+        resource_type: isImage ? "image" : "raw",
+        public_id: `${publicId}_${Date.now()}`,
+      },
+      (error, result?: UploadApiResponse) => {
+        if (error || !result) {
+          return reject(
+            ApiError.badRequest("Could not save the file. Please try again.")
+          );
+        }
+        resolve(result.secure_url);
+      }
+    );
+    stream.end(file.buffer);
+  });
+
+  return { url, name, mimeType: file.mimetype ?? null, sizeBytes: bytes };
+}
+
+export async function uploadContractPdf(
+  buffer: Buffer,
+  filename: string
+): Promise<string> {
+  if (buffer.length > CONTRACT_PDF_MAX) {
+    throw ApiError.badRequest("The PDF is too large. The limit is 10 MB.");
+  }
+  // Stored as a raw asset with NO .pdf in the public id: Cloudinary blocks
+  // delivery of anything it recognises as a PDF, so a ".pdf" id 401s. The file
+  // is served back to browsers by our own endpoint, which sets the PDF headers.
+  const publicId = filename.replace(/\.pdf$/i, "").replace(/[^\w-]+/g, "_");
+  const url = await new Promise<string>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: CONTRACT_FOLDER,
+        resource_type: "raw",
+        public_id: `${publicId}_${Date.now()}`,
+      },
+      (error, result?: UploadApiResponse) => {
+        if (error || !result) {
+          return reject(
+            ApiError.badRequest("Could not save the PDF. Please try again.")
+          );
+        }
+        resolve(result.secure_url);
+      }
+    );
+    stream.end(buffer);
+  });
+
+  // A contract nobody can open is worse than a failed upload, so check the
+  // stored file can actually be read back before we record it.
+  const check = await fetch(url);
+  if (!check.ok) {
+    await cloudinary.uploader
+      .destroy(publicIdFromUrl(url), { resource_type: "raw" })
+      .catch(() => undefined);
+    throw ApiError.badRequest(
+      "The PDF was saved but could not be read back. Please try again."
+    );
+  }
+  return url;
+}
+
+/** The storage id inside a delivery URL, e.g. "farmer_contracts/deal_17123". */
+function publicIdFromUrl(url: string): string {
+  const match = /\/raw\/upload\/(?:v\d+\/)?(.+)$/.exec(url);
+  return match ? decodeURIComponent(match[1]) : url;
+}
+
 export interface UploadedDocument {
   url: string;
   bytes: number | null;

@@ -34,7 +34,6 @@ export const styles = StyleSheet.create({
     paddingVertical: spacing[1],
     paddingHorizontal: spacing[2],
   },
-  /** Groups the toolbar's action buttons on the right-hand side. */
   toolbarActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -48,7 +47,6 @@ export const styles = StyleSheet.create({
   actionDisabled: {
     opacity: 0.45,
   },
-  /** Selection checkbox, sized to sit where the type icon normally does. */
   checkbox: {
     width: scale(24),
     height: scale(24),

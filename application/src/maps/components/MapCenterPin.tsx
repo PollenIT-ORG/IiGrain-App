@@ -1,28 +1,3 @@
-/**
- * src/maps/components/MapCenterPin.tsx — the fixed centre pin used by the
- * location picker.
- *
- * WHY A CENTRE PIN AND NOT A DRAGGABLE MARKER
- * -------------------------------------------
- * A draggable `<Marker>` requires the user to hit a ~30 pt target with a finger
- * that then covers the very thing being positioned. The "move the map under a
- * fixed pin" pattern (Google Maps, Uber, every ride-hailing app) keeps the
- * target under the crosshair and the finger out of the way, and it means the
- * selected coordinate is simply the map centre — no marker state to keep in
- * sync with the camera.
- *
- * WHY IT IS AN RN VIEW, NOT A MAP CHILD
- * The pin does not move with the map, so it must not be a map child. It is an
- * absolutely-positioned sibling drawn on top, with `pointerEvents="none"` so
- * every touch falls through to the map beneath it.
- *
- * THE LIFT
- * While the map is moving the pin rises and a shadow dot stays on the ground.
- * That parallax is what tells the user the pin is hovering over a point rather
- * than being dragged across the surface — the same affordance the previous
- * Leaflet implementation had, kept so the interaction feels unchanged.
- */
-
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
@@ -30,15 +5,12 @@ import { COLORS } from '../../constants';
 import { moderateScale } from '../../utils';
 
 export interface MapCenterPinProps {
-  /** `true` while the camera is in motion — lifts the pin off its shadow. */
   lifted?: boolean;
-  /** Pin fill. Defaults to the brand primary. */
   color?: string;
 }
 
 const PIN_WIDTH = 34;
 const PIN_HEIGHT = 46;
-/** How far the pin rises while the map moves, in points. */
 const LIFT_DISTANCE = 8;
 const LIFT_DURATION_MS = 120;
 
@@ -50,8 +22,6 @@ const MapCenterPin: React.FC<MapCenterPinProps> = ({ lifted = false, color = COL
       toValue: lifted ? 1 : 0,
       duration: LIFT_DURATION_MS,
       easing: Easing.out(Easing.quad),
-      // Transform-only animation → runs on the UI thread, so the lift stays
-      // smooth even while JS is busy debouncing a reverse-geocode request.
       useNativeDriver: true,
     }).start();
   }, [lifted, lift]);
@@ -66,14 +36,10 @@ const MapCenterPin: React.FC<MapCenterPinProps> = ({ lifted = false, color = COL
 
   return (
     <View style={styles.root} pointerEvents="none">
-      {/* Ground shadow: stays put so the lift is legible as height. */}
       <View style={styles.shadowDot} />
       <Animated.View
         style={[
           styles.pin,
-          // Anchor the pin's TIP at the map centre: shift up by the full pin
-          // height. Without this the pin's centre sits on the coordinate and
-          // the tip points ~23 pt south of the place the user selected.
           { transform: [{ translateY: -height / 2 }, { translateY }] },
         ]}>
         <Svg width={width} height={height} viewBox="0 0 24 32">

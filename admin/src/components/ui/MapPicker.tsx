@@ -177,6 +177,7 @@ export default function MapPicker({
             type="text"
             className="input-field text-sm"
             placeholder="Search a place, address or city..."
+            maxLength={200}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => results.length && setShowResults(true)}

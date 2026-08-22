@@ -9,15 +9,11 @@ import {
 } from '../config/errorMessages';
 import { getApiMessage } from './getApiMessage';
 
-/** What a rule is matched against, extracted from the failure once. */
 export interface ErrorContext {
-  /** `code` from the backend error body, when it sent one. */
   readonly code: string | null;
   readonly status: number | null;
-  /** The backend's human-readable message, if any. */
   readonly message: string | null;
   readonly url: string | null;
-  /** True when the request never reached the server. */
   readonly offline: boolean;
   readonly timeout: boolean;
 }
@@ -29,9 +25,6 @@ const readCode = (body: unknown): string | null => {
   if (!isRecord(body)) {
     return null;
   }
-  // The backend sends `code`; `error` and `type` are accepted so a differently
-  // shaped response (or a future endpoint) still resolves instead of falling
-  // through to UNKNOWN.
   for (const key of ['code', 'error', 'type'] as const) {
     const value = body[key];
     if (typeof value === 'string' && value.trim()) {
@@ -74,8 +67,6 @@ const matches = (rule: ErrorRule, ctx: ErrorContext): boolean => {
   if (rule.offline !== undefined && rule.offline !== ctx.offline) {
     return false;
   }
-  // An offline failure has no status, code or body to match on, so any rule
-  // that asks for one cannot describe it.
   if (ctx.offline && (rule.code || rule.status || rule.message || rule.url)) {
     return false;
   }
@@ -94,13 +85,6 @@ const matches = (rule: ErrorRule, ctx: ErrorContext): boolean => {
   return true;
 };
 
-/**
- * Builds a complete presentation, filling any gap from the UNKNOWN entry.
- *
- * `serverMessage` is used only where the catalogue entry opts in via
- * `preferServerMessage` — an entry that does not opt in always shows its own
- * copy, so raw backend text can never leak into the UI by accident.
- */
 export const presentationFor = (
   code: string,
   serverMessage?: string | null,
@@ -118,16 +102,6 @@ export const presentationFor = (
   };
 };
 
-/**
- * Picks the catalogue code for an already-extracted context.
- *
- * A *specific* code the catalogue knows wins outright — that is how the backend
- * can start sending `FIELD_AREA_EXCEEDED` and have it work with no rule. Codes
- * the backend uses for a whole status class must not short-circuit, or every
- * domain rule below them becomes unreachable and a duplicate field reads as a
- * bare "Already Exists". Otherwise the first matching rule decides, and an
- * unmatched failure falls back to UNKNOWN.
- */
 const codeForContext = (ctx: ErrorContext): string => {
   if (ctx.code && ERROR_MESSAGES[ctx.code] && !GENERIC_BACKEND_CODES.has(ctx.code)) {
     return ctx.code;
@@ -135,11 +109,9 @@ const codeForContext = (ctx: ErrorContext): string => {
   return ERROR_RULES.find(r => matches(r, ctx))?.resolveTo ?? UNKNOWN_ERROR_CODE;
 };
 
-/** Resolves any thrown value to its catalogue code. */
 export const resolveErrorCode = (error: unknown): string =>
   codeForContext(toErrorContext(error));
 
-/** Resolves any thrown value to the copy the user should see. */
 export const resolveError = (error: unknown): ErrorPresentation => {
   const ctx = toErrorContext(error);
   return presentationFor(codeForContext(ctx), ctx.message);

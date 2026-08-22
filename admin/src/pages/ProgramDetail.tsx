@@ -8,13 +8,30 @@ import {
   useGetEnrollmentAssessmentsQuery,
   useUnenrollMutation,
 } from "../store/endpoints/programsApi";
+import {
+  useListPasProgramsQuery,
+  usePasSubmissionStatsQuery,
+} from "../store/endpoints/programAdminSurveyApi";
 import { useListUsersQuery } from "../store/endpoints/usersApi";
 import { useListFieldsQuery } from "../store/endpoints/fieldsApi";
 import { showSuccess, showError } from "../lib/toast";
 import { useDialog } from "../components/ui/DialogProvider";
 import Select from "../components/ui/Select";
+import ProgramStatusBadge, { programStatus } from "../components/ProgramStatusBadge";
+import ProgramSubmissionCards from "../components/ProgramSubmissionCards";
+import ProgramShareModal from "../components/ProgramShareModal";
 import Loader from "../components/Loader";
-import { ChevronLeftIcon, EditIcon, EyeIcon, PlusIcon, TrashIcon } from "../components/icons";
+import { useLiveData } from "../lib/useLiveData";
+import {
+  ChevronLeftIcon,
+  EditIcon,
+  EyeIcon,
+  PlusIcon,
+  TrashIcon,
+  FileIcon,
+  InboxIcon,
+  ShareIcon,
+} from "../components/icons";
 import type { Program, ProgramEnrollment } from "../types";
 
 function errMsg(err: unknown): string {
@@ -85,17 +102,7 @@ export default function ProgramDetail() {
                 {program.user_limit === null ? "No Limit" : program.user_limit}{" "}
                 enrolled
               </span>
-              {program.is_active ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-0.5 text-xs font-semibold text-success">
-                  <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                  Active
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-200 px-2.5 py-0.5 text-xs font-semibold text-gray-600">
-                  <span className="h-1.5 w-1.5 rounded-full bg-gray-500" />
-                  Inactive
-                </span>
-              )}
+              <ProgramStatusBadge program={program} />
             </div>
           </div>
           <button
@@ -127,6 +134,8 @@ export default function ProgramDetail() {
         </dl>
       </div>
 
+      <SurveyPanel program={program} />
+
       <EnrollPanel program={program} enrollments={enrollments} isFull={isFull} />
 
       <EnrolledList
@@ -135,6 +144,109 @@ export default function ProgramDetail() {
         loading={enrollLoading}
         confirm={confirm}
       />
+    </div>
+  );
+}
+
+/**
+ * The program's survey: how it is doing, and everything you would want to do
+ * with it. A program with no survey yet says so and offers to build one.
+ */
+function SurveyPanel({ program }: { program: Program }) {
+  const navigate = useNavigate();
+  const [sharing, setSharing] = useState(false);
+
+  const { data: links, refetch } = useListPasProgramsQuery();
+  const { data: stats, refetch: refetchStats } = usePasSubmissionStatsQuery(
+    { programId: program.id }
+  );
+  useLiveData(["program_admin_survey"], () => {
+    void refetch();
+    void refetchStats();
+  });
+
+  const link = (links ?? []).find((l) => l.program_id === program.id) ?? null;
+
+  if (!link) {
+    return (
+      <div className="card space-y-4 p-6 text-center">
+        <div>
+          <h2 className="text-base font-bold text-gray-900">No survey yet</h2>
+          <p className="mx-auto mt-1 max-w-lg text-sm text-gray-500">
+            A survey is how producers apply to this program. Build its questions
+            and pick the contract they sign, then share the link.
+          </p>
+        </div>
+        <button
+          className="btn-primary mx-auto"
+          onClick={() => navigate(`/programs/${program.id}/survey`)}
+        >
+          <PlusIcon width={18} height={18} />
+          Create the survey
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+            Survey
+          </h2>
+          <p className="mt-1 truncate text-lg font-bold text-gray-900">
+            {link.template_name}
+          </p>
+          <p className="text-sm text-gray-500">
+            Contract: {link.contract_template_name ?? "Global contract"}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-secondary" onClick={() => setSharing(true)}>
+            <ShareIcon width={16} height={16} />
+            Share link
+          </button>
+          <button
+            className="btn-secondary"
+            onClick={() =>
+              navigate(`/survey-submissions?program=${program.id}`)
+            }
+          >
+            <InboxIcon width={16} height={16} />
+            View submissions
+          </button>
+          <button
+            className="btn-primary"
+            onClick={() => navigate(`/programs/${program.id}/survey`)}
+          >
+            <FileIcon width={16} height={16} />
+            Survey and contract
+          </button>
+        </div>
+      </div>
+
+      {/* The same six numbers as the submissions screen, for this program. */}
+      <ProgramSubmissionCards
+        stats={stats}
+        active=""
+        onPick={(status) =>
+          navigate(
+            `/survey-submissions?program=${program.id}${
+              status ? `&status=${status}` : ""
+            }`
+          )
+        }
+      />
+
+      {sharing && (
+        <ProgramShareModal
+          id={link.id}
+          name={link.name}
+          link={link.link}
+          onClose={() => setSharing(false)}
+        />
+      )}
     </div>
   );
 }
@@ -228,20 +340,35 @@ function EnrollPanel({
 
   const fields = fieldsData?.fields ?? [];
 
+  // A program that has ended or been turned off is closed for new enrollments,
+  // the same cutoff the backend enforces - so show why instead of an enroll form
+  // that would only fail.
+  const status = programStatus(program);
+  const isClosed = status.label === "Ended" || status.label === "Inactive";
+
   return (
     <div className="card p-6">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
           Enroll a farmer
         </h2>
-        {isFull && (
-          <span className="rounded-full bg-danger/10 px-2.5 py-1 text-xs font-semibold text-danger">
-            Program full
-          </span>
+        {isClosed ? (
+          <ProgramStatusBadge program={program} />
+        ) : (
+          isFull && (
+            <span className="rounded-full bg-danger/10 px-2.5 py-1 text-xs font-semibold text-danger">
+              Program full
+            </span>
+          )
         )}
       </div>
 
-      {isFull ? (
+      {isClosed ? (
+        <p className="text-sm text-gray-500">
+          This program has {status.label === "Ended" ? "ended" : "been turned off"},
+          so new farmers can no longer be enrolled.
+        </p>
+      ) : isFull ? (
         <p className="text-sm text-gray-500">
           This program has reached its enrollment limit. Increase the limit in
           “Edit program” or unenroll a farmer to add more.

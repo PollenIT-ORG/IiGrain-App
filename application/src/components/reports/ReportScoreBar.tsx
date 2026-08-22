@@ -12,8 +12,6 @@ import AppText from '../AppText/AppText';
 
 export interface ReportScoreBarProps {
   label: string;
-  /** `null` means the category has not been assessed yet — rendered as an em
-   *  dash with an empty track, so it reads as "not started" rather than zero. */
   value: number | null;
   color: string;
   max?: number;

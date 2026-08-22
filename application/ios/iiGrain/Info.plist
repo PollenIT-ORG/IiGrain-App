@@ -42,8 +42,8 @@
 	     GMSServices.provideAPIKey().
 	     $(MAPS_API_KEY) is a BUILD SETTING, expanded by Xcode at build time. It
 	     is defined in ios/Config/Env.generated.xcconfig, which ios/Podfile
-	     regenerates from application/.env on every `pod install`. Never paste a
-	     literal key here — Info.plist is committed to git. -->
+	     regenerates from .env on every `pod install`. Never paste a literal key
+	     here — Info.plist is committed to git. -->
 	<key>GMSApiKey</key>
 	<string>$(MAPS_API_KEY)</string>
 	<key>NSCameraUsageDescription</key>
@@ -60,16 +60,12 @@
 	<string>iiGrain needs photo and video library access so you can attach media to your farms, fields and assessments.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
-	<key>UIAppFonts</key>
-	<array>
-		<string>MaterialCommunityIcons.ttf</string>
-		<string>Inter-Bold.ttf</string>
-		<string>Inter-Medium.ttf</string>
-		<string>Inter-Regular.ttf</string>
-		<string>Inter-SemiBold.ttf</string>
-	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
+	<!-- The app ships one light design. Without this, system-drawn surfaces and
+	     any semantic colour resolve dark on dark-mode devices. -->
+	<key>UIUserInterfaceStyle</key>
+	<string>Light</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>
@@ -87,7 +83,13 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
-	<key>UIUserInterfaceStyle</key>
-	<string>Light</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>MaterialCommunityIcons.ttf</string>
+		<string>Inter-Bold.ttf</string>
+		<string>Inter-Medium.ttf</string>
+		<string>Inter-Regular.ttf</string>
+		<string>Inter-SemiBold.ttf</string>
+	</array>
 </dict>
 </plist>

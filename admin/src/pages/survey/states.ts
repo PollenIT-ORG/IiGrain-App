@@ -13,6 +13,7 @@ export const STATES = [
 ];
 
 export const REFERRAL_SOURCES = [
+  "The app",
   "Search engine",
   "Social media",
   "A friend or neighbour",

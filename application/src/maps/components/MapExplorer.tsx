@@ -29,6 +29,7 @@ import { searchPlaces, type Place } from '../../services/geocoding';
 import { getCurrentLocation } from '../../services/currentLocation';
 import { showToast } from '../../services/toastService';
 import AppMapView from './AppMapView';
+import MapKindSwitch from './MapKindSwitch';
 import { MapMarker } from './MapPrimitives';
 import { useMapCamera } from '../hooks/useMapCamera';
 import { MAP_ZOOM } from '../config/mapDefaults';
@@ -40,12 +41,6 @@ const MIN_PLACE_QUERY = 3;
 const PLACE_DEBOUNCE_MS = 450;
 
 const MAX_LOCAL_RESULTS = 8;
-
-const MAP_KINDS: ReadonlyArray<{ value: MapKind; label: string }> = [
-  { value: 'standard', label: 'Map' },
-  { value: 'satellite', label: 'Satellite' },
-  { value: 'hybrid', label: 'Hybrid' },
-];
 
 const HIT = { top: 8, bottom: 8, left: 8, right: 8 } as const;
 
@@ -503,24 +498,11 @@ function MapExplorer<TData = unknown>({
       ) : null}
 
       {showChrome && mapKindSwitchEnabled ? (
-        <View style={[styles.kindSwitch, !searchEnabled && styles.chromeTopBare]}>
-          {MAP_KINDS.map(kind => {
-            const active = kind.value === mapKind;
-            return (
-              <Pressable
-                key={kind.value}
-                onPress={() => setMapKind(kind.value)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={`${kind.label} view`}
-                style={[styles.kindOption, active && styles.kindOptionActive]}>
-                <AppText style={[styles.kindLabel, active && styles.kindLabelActive]}>
-                  {kind.label}
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </View>
+        <MapKindSwitch
+          value={mapKind}
+          onChange={setMapKind}
+          style={[styles.kindSwitch, !searchEnabled && styles.chromeTopBare]}
+        />
       ) : null}
 
       {showChrome && formatCountLabel ? (
@@ -727,18 +709,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: CHROME_TOP,
     right: spacing[3],
-    flexDirection: 'row',
-    backgroundColor: COLORS.white,
-    borderRadius: borderRadius.full,
-    borderWidth: borderWidth.thin,
-    borderColor: COLORS.gray200,
-    overflow: 'hidden',
-    ...shadows.md,
   },
-  kindOption: { paddingHorizontal: spacing[3], paddingVertical: spacing[2] },
-  kindOptionActive: { backgroundColor: COLORS.primary },
-  kindLabel: { ...presets.caption, fontFamily: fonts.semibold, color: COLORS.gray700 },
-  kindLabelActive: { color: COLORS.white },
 
   countPill: {
     position: 'absolute',

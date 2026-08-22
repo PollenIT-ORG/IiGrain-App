@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   useGetProgramQuery,
+  useLazySuggestProgramCodeQuery,
   useCreateProgramMutation,
   useUpdateProgramMutation,
 } from "../store/endpoints/programsApi";
@@ -45,6 +46,8 @@ export default function ProgramForm() {
   const [userLimit, setUserLimit] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
+  // A code typed by hand is never overwritten by the suggested one.
+  const [codeTouched, setCodeTouched] = useState(false);
 
   const {
     data: program,
@@ -60,6 +63,8 @@ export default function ProgramForm() {
     if (program) {
       setName(program.name);
       setCode(program.code ?? "");
+      // An existing code stands; one that was never set still gets suggested.
+      setCodeTouched(Boolean(program.code));
       setType(program.type ?? "");
       setDescription(program.description ?? "");
       setStartDate(program.start_date ?? "");
@@ -74,6 +79,27 @@ export default function ProgramForm() {
       setIsActive(program.is_active);
     }
   }, [program]);
+
+  // Suggest a code from the name - the initials and a free number - so nobody
+  // has to invent one. It follows the name until the code is edited by hand.
+  const [askForCode] = useLazySuggestProgramCodeQuery();
+  useEffect(() => {
+    if (codeTouched) return;
+    const typed = name.trim();
+    if (typed.length < 2) return;
+    const t = setTimeout(() => {
+      void askForCode(typed)
+        .unwrap()
+        .then((suggested) => {
+          // Still wanted by the time it came back.
+          setCode((current) => (codeTouched ? current : suggested));
+        })
+        .catch(() => {
+          // A suggestion is a convenience; the field stays as it is.
+        });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [name, codeTouched, askForCode]);
 
   useEffect(() => {
     if (loadError) {
@@ -90,8 +116,17 @@ export default function ProgramForm() {
     };
     if (!unlimited) {
       const n = Number(userLimit);
-      if (userLimit.trim() === "" || Number.isNaN(n) || n < 0 || !Number.isInteger(n)) {
-        next.userLimit = "Enter a whole number (0 or more), or choose No Limit.";
+      // A limit of zero would let nobody enrol, so the server starts at 1 and
+      // "no limit" is the checkbox rather than a zero.
+      if (
+        userLimit.trim() === "" ||
+        Number.isNaN(n) ||
+        !Number.isInteger(n) ||
+        n < 1
+      ) {
+        next.userLimit = "Enter a whole number (1 or more), or choose No Limit.";
+      } else if (n > 1000000) {
+        next.userLimit = "User limit looks too large. Please check the value.";
       }
     }
     if (startDate && endDate && endDate < startDate) {
@@ -184,9 +219,16 @@ export default function ProgramForm() {
                 className="input-field"
                 placeholder="GWS-2026"
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
+                onChange={(e) => {
+                  setCode(e.target.value);
+                  setCodeTouched(true);
+                }}
                 maxLength={50}
               />
+              <p className="mt-1.5 text-xs text-gray-500">
+                Filled in from the program name. Change it if you use codes of
+                your own.
+              </p>
             </div>
           </div>
 
@@ -257,7 +299,8 @@ export default function ProgramForm() {
               </label>
               <input
                 type="number"
-                min="0"
+                min="1"
+                max="1000000"
                 step="1"
                 className={`input-field w-40 ${errors.userLimit ? "input-error" : ""} ${
                   unlimited ? "opacity-50" : ""

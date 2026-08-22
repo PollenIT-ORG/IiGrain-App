@@ -1,13 +1,8 @@
 import type { LoginLog } from "../../types";
+import { fmtDateTime } from "../../lib/datetime";
 
 export function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, {
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return fmtDateTime(iso);
 }
 
 export function humanizeReason(reason: string | null): string {

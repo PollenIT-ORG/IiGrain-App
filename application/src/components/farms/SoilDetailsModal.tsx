@@ -64,10 +64,7 @@ export interface SoilDetailsModalProps {
   values: SoilValues;
   onChange: (field: keyof SoilValues, value: string) => void;
   disabled?: boolean;
-  /** Nutrient inputs (pH, OM, N, P, K, moisture) are only editable once the
-   *  field is enrolled in a started program. */
   showNutrients?: boolean;
-  /** When given, the footer becomes a save action instead of a plain dismiss. */
   onSubmit?: () => void;
   submitLabel?: string;
   submitting?: boolean;

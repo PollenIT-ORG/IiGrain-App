@@ -48,12 +48,6 @@ export interface SignupResult {
 }
 
 type ThunkConfig = { rejectValue: StandardizedError };
-// example to undestand
-// createAsyncThunk<
-//     Return Type,
-//     Input Type,
-//     Config Type
-// >
 
 export const bootstrapThunk = createAsyncThunk<AuthUser | null>(
   'auth/bootstrap',
@@ -157,6 +151,17 @@ export const forgotPasswordThunk = createAsyncThunk<
   }
 });
 
+export const verifyResetCodeThunk = createAsyncThunk<void, VerifyOtpPayload, ThunkConfig>(
+  'auth/verifyResetCode',
+  async (payload, { rejectWithValue }) => {
+    try {
+      await authApi.verifyResetCode(payload);
+    } catch (error) {
+      return rejectWithValue(handleApiError(error));
+    }
+  },
+);
+
 export const resetPasswordThunk = createAsyncThunk<void, ResetPasswordPayload, ThunkConfig>(
   'auth/resetPassword',
   async (payload, { rejectWithValue }) => {
@@ -256,6 +261,17 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload?.message ?? 'Verification failed';
       })
+      .addCase(verifyResetCodeThunk.pending, state => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(verifyResetCodeThunk.fulfilled, state => {
+        state.loading = false;
+      })
+      .addCase(verifyResetCodeThunk.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload?.message ?? 'Verification failed';
+      })
       .addCase(verifyEmailForSignupThunk.pending, state => {
         state.loading = true;
         state.error = null;
@@ -278,11 +294,6 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload?.message ?? 'Registration failed';
       })
-      // The profile endpoints are the only ones that return an avatar, so every
-      // profile write is folded back into the auth user. Without this the two
-      // copies drift: auth keeps the avatar it was created with (usually none)
-      // while the profile moves on, and a removed avatar can reappear from the
-      // stale auth copy via the identity fallback chain.
       .addMatcher(
         isAnyOf(
           fetchProfileThunk.fulfilled,
@@ -294,7 +305,6 @@ const authSlice = createSlice({
           if (!state.user) {
             return;
           }
-          // Guard against a response for a previous account landing late.
           if (state.user.id && action.payload.id && state.user.id !== action.payload.id) {
             return;
           }

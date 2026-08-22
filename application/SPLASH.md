@@ -5,21 +5,51 @@ wordmark / no "iiGrain" text** is baked into the icon or the native splash. The
 product name only appears inside the full-screen branded splash image
 (`splashLoader.png`), which is a separate designed asset.
 
-## Splash flow (both platforms) - exactly two, in order
+## Splash flow - three phases, one continuous picture
 
-1. **Native splash = the leaf on white.** Shown instantly by the OS at cold
-   start, before React Native exists.
+The user should see the leaf appear instantly and stay put for ~3 s, then
+cross-fade into the branded artwork. There is **never** a white frame, and the
+leaf **never** re-appears after the artwork has shown.
+
+1. **Native splash = the leaf on white.** Painted by the OS at cold start,
+   before React Native exists.
    - iOS: `LaunchScreen.storyboard` - a 160 pt aspect-fit image view showing the
-     `LeafLogo` imageset, centered on a white background.
-   - Android: `androidx.core` SplashScreen API. `Theme.App.SplashScreen` is
-     MainActivity's launch theme (`windowSplashScreenAnimatedIcon` =
-     `@drawable/splash_icon`, `windowSplashScreenBackground` = `#FFFFFF`);
-     `installSplashScreen()` in `MainActivity.kt` swaps to `AppTheme` once RN is
-     ready.
-2. **Branded image splash = `src/assets/images/splashLoader.png`.** The
-   full-screen JS `SplashScreen` (`src/screens/splash/SplashScreen.tsx`), held
-   for `SPLASH.holdMs` while session-restore finishes. The loader bar filling is
-   what releases it.
+     `LeafLogo` imageset, centered on white.
+   - Android: `androidx.core:core-splashscreen`. `Theme.App.SplashScreen` is
+     MainActivity's launch theme in `AndroidManifest.xml`
+     (`windowSplashScreenAnimatedIcon` = `@drawable/splash_icon`,
+     `windowSplashScreenBackground` = `@color/app_background`);
+     `installSplashScreen()` in `MainActivity.kt` swaps to `AppTheme`.
+     `setKeepOnScreenCondition` holds it until the RN root view has actually
+     laid out a child (capped at 8 s) - **without that hold the OS drops the
+     splash the moment the window is ready, which is the white flash.**
+2. **JS leaf stage = `SplashBackdrop`** (`src/components/splash/`). A redraw of
+   exactly the same leaf at exactly the same size, so the native → JS handover
+   is invisible. Held for `SPLASH.logoMs` (3 s) counted from the first JS frame.
+3. **Branded image splash = `src/assets/images/splashLoader.png`.** Rendered by
+   `src/screens/splash/SplashScreen.tsx`, held for `SPLASH.holdMs` while
+   session restore finishes. The loader bar filling releases it; the overlay
+   then fades out once `bootstrapThunk` has settled (or `SPLASH.bootstrapTimeoutMs`
+   elapses).
+
+### One splash owner
+`src/components/splash/SplashOverlay.tsx` runs all three phases. It is mounted
+**once**, in `App.tsx`, as the last child of `<Provider>` and **outside**
+`<PersistGate>`, and it is absolutely positioned over the whole app. It is the
+only thing allowed to render splash artwork.
+
+That rule exists because breaking it is what produced the
+*white → splash → white → splash* bug: the splash used to be mounted twice -
+once as PersistGate's `loading` view and again as a `Splash` route inside
+`RootNavigator` - so rehydration tore the first copy down and mounted a fresh
+copy of the same image, flashing white across the gap. `RootNavigator` now only
+decides *auth vs app*; it has no splash route. Its `Booting` placeholder is
+`SplashBackdrop` purely so a failure degrades to the leaf rather than to blank
+white.
+
+The branded artwork is mounted behind the leaf from the first frame so it is
+already decoded when the cross-fade starts - a lazily-mounted `<Image>` is a
+white frame.
 
 There are **no other splash screens**, and **no splash library** -
 `react-native-bootsplash` is *not* a dependency of this project. Anything
@@ -33,18 +63,25 @@ background, Android `AppTheme`'s `windowBackground` and
 frame - which is the only thing an OEM skin (MIUI/HyperOS) covers with its own
 dark loading ring.
 
+### Tuning the timings
+All of it lives in `src/config/splash.ts`: `logoMs` (leaf stage), `holdMs`
+(branded stage / loader bar), `fadeMs` (cross-fade and fade-out), `leafSize`
+(must stay equal to `TARGET_LEAF_DP` in the generator), `bootstrapTimeoutMs`.
+
 ## Assets - where the leaf lives
 | Purpose | iOS | Android |
 |---|---|---|
 | App icon (leaf) | `ios/iiGrain/Images.xcassets/AppIcon.appiconset` (21 sizes, **no alpha channel** - Apple rejects icons that carry one) | `mipmap-*/ic_launcher*`, `mipmap-anydpi-v26/ic_launcher.xml` |
 | Native splash logo (leaf) | `Images.xcassets/LeafLogo.imageset` (used by `LaunchScreen.storyboard`) | `drawable-*/splash_icon.png` |
+| JS leaf stage | `src/assets/images/splashLeaf.png` (bundled, shared) | same |
 | Branded image splash | `src/assets/images/splashLoader.png` (bundled, shared) | same |
 
-## Regenerating the native splash logo
+## Regenerating the splash logo
 
-`scripts/gen_splash_assets.py` is the single source of truth: it renders both
-platforms' native splash logo from `branding/splash_master.png` so they can
-never drift. The leaf is `TARGET_LEAF_DP` (67) tall on screen on both.
+`scripts/gen_splash_assets.py` is the single source of truth: it renders the
+iOS asset, the Android asset **and** the JS one from `branding/splash_master.png`
+so the three can never drift. The leaf is `TARGET_LEAF_DP` (67) tall on screen
+in all three - that identical size is what makes the handovers invisible.
 
 ```bash
 python3 -m pip install pillow      # only dependency

@@ -1,14 +1,3 @@
-/**
- * Cache tags — the vocabulary shared by the socket layer and the screens.
- *
- * A screen declares which tags its data depends on (via `useSyncedFetch`); the
- * socket bumps those tags when the server says the underlying data changed. A
- * screen refetches only when one of its tags moved (or its TTL lapsed), which is
- * what stops every screen open / tab switch from hitting the API.
- *
- * Keep tag strings out of screens — always go through this module so a typo
- * cannot silently disconnect a screen from its invalidations.
- */
 export const Tags = {
   farms: 'farms',
   farm: (farmId: string): string => `farm:${farmId}`,
@@ -27,11 +16,16 @@ export const Tags = {
   programs: 'available-programs',
   enrollableFields: 'enrollable-fields',
 
+  monitoring: (programId: string, fieldId: string): string =>
+    `monitoring:${programId}:${fieldId}`,
+  monitoringModule: (programId: string, fieldId: string, module: string): string =>
+    `monitoring:${programId}:${fieldId}:${module}`,
+  monitoringPrograms: (farmId: string): string => `monitoring-programs:${farmId}`,
+
   notifications: 'notifications',
   assessorOverview: 'assessor-overview',
 } as const;
 
-/** The `sync` payload the server emits. See backend/hoppscotch/sockets/README.md. */
 export interface SyncPayload {
   resource: 'assessment' | 'field' | 'farm' | 'soil' | 'enrollment' | 'document' | string;
   action: string;
@@ -41,20 +35,12 @@ export interface SyncPayload {
   categoryId?: string;
   questionId?: string;
   enrollmentId?: string;
+  module?: string;
 }
 
 const compact = (tags: (string | null)[]): string[] =>
   tags.filter((t): t is string => typeof t === 'string' && t.length > 0);
 
-/**
- * Maps one `sync` event to the tags it invalidates.
- *
- * Deliberately broad: the payload is a "something changed" signal, and an extra
- * tag costs at most one refetch on a screen the user actually has open, while a
- * missing tag leaves stale data on screen. Ids are optional in the payload, so
- * every id-scoped tag is emitted only when its id is present — the list-level
- * tags cover the rest.
- */
 export const tagsForSync = (p: SyncPayload): string[] => {
   switch (p.resource) {
     case 'assessment':
@@ -65,7 +51,6 @@ export const tagsForSync = (p: SyncPayload): string[] => {
         Tags.myAssessments,
         Tags.assessmentHistory,
         Tags.assessorOverview,
-        // A score change moves the farm's Regen Health Index on the dashboard.
         Tags.dashboard,
       ]);
 
@@ -76,8 +61,8 @@ export const tagsForSync = (p: SyncPayload): string[] => {
         p.farmId ? Tags.farm(p.farmId) : null,
         Tags.farms,
         Tags.dashboard,
-        // Adding/removing a field changes what can be enrolled.
         Tags.enrollableFields,
+        Tags.programs,
       ]);
 
     case 'farm':
@@ -87,6 +72,7 @@ export const tagsForSync = (p: SyncPayload): string[] => {
         Tags.farms,
         Tags.dashboard,
         Tags.enrollableFields,
+        Tags.programs,
       ]);
 
     case 'soil':
@@ -105,13 +91,20 @@ export const tagsForSync = (p: SyncPayload): string[] => {
         Tags.farms,
         Tags.dashboard,
         p.fieldId ? Tags.field(p.fieldId) : null,
-        // Enrolling unlocks the soil nutrient inputs, so any cached soil tab is
-        // showing a stale lock.
         p.fieldId ? Tags.soil(p.fieldId) : null,
+        p.farmId ? Tags.monitoringPrograms(p.farmId) : null,
       ]);
 
     case 'document':
       return compact([p.fieldId ? Tags.field(p.fieldId) : null]);
+
+    case 'monitoring':
+      return compact([
+        p.programId && p.fieldId ? Tags.monitoring(p.programId, p.fieldId) : null,
+        p.programId && p.fieldId && p.module
+          ? Tags.monitoringModule(p.programId, p.fieldId, p.module)
+          : null,
+      ]);
 
     default:
       return [];

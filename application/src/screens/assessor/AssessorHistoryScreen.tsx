@@ -35,8 +35,6 @@ const AssessorHistoryScreen: React.FC = () => {
 
   const header = <AppHeader variant="title" title="History" rightActions={['notification']} />;
 
-  // Shared overview cache: fetch once, then refresh only when the socket says
-  // an assignment/assessment changed (or the TTL lapses). See the hook.
   useAssessorOverviewSync(!!overview);
 
   const onRefresh = useCallback(() => dispatch(fetchAssessorFieldsThunk()), [dispatch]);

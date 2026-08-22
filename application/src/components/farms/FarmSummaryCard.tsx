@@ -20,13 +20,6 @@ export interface FarmSummaryCardProps {
   fieldsCount?: number;
 }
 
-/**
- * The screen's single source of farm identity.
- *
- * Everything the old layout scattered across "Quick Stats", "Farm Information"
- * and "Business" now lives here exactly once — identity in the header, the
- * attribute list below it. Nothing in this card is repeated elsewhere.
- */
 const FarmSummaryCard: React.FC<FarmSummaryCardProps> = ({ farm, fieldsCount }) => {
   const statusMeta = FARM_STATUS_META[farm.status];
   const resolved = fieldsCount ?? (farm.fieldsCount || undefined);
@@ -47,11 +40,6 @@ const FarmSummaryCard: React.FC<FarmSummaryCardProps> = ({ farm, fieldsCount }) 
           </AppText>
         </View>
       </View>
-
-      {/* On its own line so a long farm name can never squeeze the chip. */}
-      {/* <View style={styles.badgeRow}>
-        <StatusBadge label={statusMeta.label} tone={statusMeta.tone} />
-      </View> */}
 
       <View style={styles.info}>
         {farm.businessEntity ? (

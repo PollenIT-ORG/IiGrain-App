@@ -11,6 +11,7 @@ const userLimit = z.coerce
   .number({ error: "User limit must be a number." })
   .int("User limit must be a whole number.")
   .min(1, "User limit must be at least 1. Choose No Limit to allow everyone.")
+  .max(1000000, "User limit looks too large. Please check the value.")
   .nullable()
   .optional();
 
@@ -23,6 +24,12 @@ export const createProgramSchema = z.object({
   endDate: dateStr("End date"),
   userLimit,
   isActive: z.boolean().optional(),
+  showToFarmers: z.boolean().optional(),
+});
+
+// The toggle on its own, so the list row can flip it without sending a program.
+export const setProgramVisibilitySchema = z.object({
+  showToFarmers: z.boolean({ error: "Choose whether to show this program." }),
 });
 
 export const updateProgramSchema = createProgramSchema.partial();
@@ -30,11 +37,21 @@ export const updateProgramSchema = createProgramSchema.partial();
 export const listProgramsQuerySchema = z.object({
   page: pageField(1),
   limit: limitField(10, 100),
-  isActive: z
-    .enum(["true", "false"], { error: "isActive must be true or false." })
-    .optional()
-    .transform((v) => (v === undefined ? undefined : v === "true")),
+  // The same four the panel shows, so the filter matches the badges.
+  status: z
+    .enum(["active", "inactive", "ended", "scheduled"], {
+      error: "Choose a valid status.",
+    })
+    .optional(),
   search: z.string().trim().max(100).optional(),
+});
+
+export const codeSuggestionQuerySchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Enter the program name first.")
+    .max(150, "Program name is too long."),
 });
 
 export const enrollFarmerSchema = z.object({
@@ -94,6 +111,9 @@ export const selfUnenrollParamsSchema = z.object({
 export type CreateProgramBody = z.infer<typeof createProgramSchema>;
 export type UpdateProgramBody = z.infer<typeof updateProgramSchema>;
 export type ListProgramsQuery = z.infer<typeof listProgramsQuerySchema>;
+export type SetProgramVisibilityBody = z.infer<
+  typeof setProgramVisibilitySchema
+>;
 export type EnrollFarmerBody = z.infer<typeof enrollFarmerSchema>;
 export type UpdateEnrollmentFieldsBody = z.infer<typeof updateEnrollmentFieldsSchema>;
 export type SetEnrollmentAssessorBody = z.infer<typeof setEnrollmentAssessorSchema>;

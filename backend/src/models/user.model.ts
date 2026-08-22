@@ -1,5 +1,4 @@
 import prisma from "../db/prisma.js";
-import { softDelete, restore } from "../db/softDelete.js";
 import type { User, Role } from "../types/index.js";
 import type { Prisma } from "@prisma/client";
 
@@ -122,14 +121,6 @@ export async function getUserAuthStatus(
 }
 
 // Includes soft-deleted rows - used when restoring, where the target is deleted.
-export async function findAnyById(id: string): Promise<UserWithRole | null> {
-  const u = await prisma.users.findFirst({
-    where: { id },
-    include: { roles: true },
-  });
-  return u ? toUserWithRole(u) : null;
-}
-
 export async function findRoleByName(name: string): Promise<Role | null> {
   const r = await prisma.roles.findFirst({
     where: { name, deleted_at: null },
@@ -203,16 +194,6 @@ export async function setUserAvatar(
   return u ? toPublicUser(u) : null;
 }
 
-export async function softDeleteUser(id: string): Promise<boolean> {
-  const affected = await softDelete("users", id);
-  return affected > 0;
-}
-
-export async function restoreUser(id: string): Promise<boolean> {
-  const affected = await restore("users", id);
-  return affected > 0;
-}
-
 interface CreateByAdminParams {
   roleId: number;
   fullName: string;
@@ -251,6 +232,8 @@ export async function findPublicById(id: string): Promise<PublicUser | null> {
 
 export interface ListUsersFilters {
   role?: string;
+  /** The only roles the caller may see, when their own role is limited. */
+  roles?: string[];
   status?: "active" | "inactive";
   search?: string;
   assessor?: "assigned" | "unassigned";
@@ -264,6 +247,7 @@ export async function listUsers(
   const where: Prisma.usersWhereInput = { deleted_at: null };
 
   if (filters.role) where.roles = { name: filters.role };
+  else if (filters.roles?.length) where.roles = { name: { in: filters.roles } };
   if (filters.status) where.is_active = filters.status === "active";
 
   if (filters.assessor === "assigned") {

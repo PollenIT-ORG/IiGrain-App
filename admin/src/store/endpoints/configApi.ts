@@ -8,6 +8,11 @@ interface AppConfig {
     logoUrl: string | null;
     faviconUrl: string | null;
   };
+  /** How dates and times are shown, chosen by the platform team. */
+  locale?: {
+    timezone: string;
+    timeFormat: "12h" | "24h";
+  };
 }
 
 export const configApi = apiSlice.injectEndpoints({

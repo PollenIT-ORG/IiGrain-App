@@ -7,13 +7,11 @@ import { moderateScale } from '../../utils';
 import { styles } from './EntityDangerZoneStyle';
 
 export interface EntityDangerZoneProps {
-  /** Singular noun used in the copy, e.g. "farm" or "field". */
   entity: string;
   onReset: () => void;
   onDelete: () => void;
   resetting?: boolean;
   deleting?: boolean;
-  /** Overrides the delete row's description when the guards differ. */
   deleteHint?: string;
 }
 

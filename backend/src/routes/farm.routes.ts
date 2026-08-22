@@ -5,6 +5,7 @@ import {
   getFarm,
   updateFarm,
   deleteFarm,
+  farmDeletionSummary,
   resetFarm,
   myFarms,
   myFarm,
@@ -74,6 +75,13 @@ router.patch(
   withId,
   validate(updateFarmSchema),
   updateFarm
+);
+router.get(
+  "/:id/deletion-summary",
+  authenticate,
+  orgManagers,
+  withId,
+  farmDeletionSummary
 );
 router.delete("/:id", authenticate, orgManagers, withId, deleteFarm);
 router.post("/:id/reset", authenticate, orgManagers, withId, resetFarm);

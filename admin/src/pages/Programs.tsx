@@ -1,15 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUrlSearchSync } from "../lib/useUrlSearchSync";
 import { useLiveData } from "../lib/useLiveData";
 import {
   useListProgramsQuery,
   useDeleteProgramMutation,
+  useSetProgramVisibilityMutation,
+  type ProgramStatusFilter,
 } from "../store/endpoints/programsApi";
+import {
+  useListPasProgramsQuery,
+  type Program as SurveyLink,
+} from "../store/endpoints/programAdminSurveyApi";
 import { showSuccess, showError } from "../lib/toast";
-import { useDialog } from "../components/ui/DialogProvider";
+import { useConfirmCascadeDelete } from "../lib/confirmDelete";
 import Select from "../components/ui/Select";
+import Toggle from "../components/ui/Toggle";
 import Loader from "../components/Loader";
+import ProgramShareModal from "../components/ProgramShareModal";
+import ProgramStatusBadge from "../components/ProgramStatusBadge";
 import {
   PlusIcon,
   EditIcon,
@@ -17,6 +26,9 @@ import {
   UsersIcon,
   TrashIcon,
   SearchIcon,
+  ShareIcon,
+  FileIcon,
+  InboxIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "../components/icons";
@@ -29,11 +41,57 @@ function errMsg(err: unknown): string {
   );
 }
 
+/**
+ * Offers a program to the farmers already enrolled on the platform. It stays
+ * locked until the program has a survey, because that survey is where a
+ * farmer who taps through is sent; without one there is nothing to show.
+ */
+function ShowToFarmers({ program }: { program: Program }) {
+  const [setVisibility, { isLoading }] = useSetProgramVisibilityMutation();
+
+  async function flip(next: boolean) {
+    try {
+      await setVisibility({ id: program.id, showToFarmers: next }).unwrap();
+      showSuccess(
+        next
+          ? `${program.name} is now shown to enrolled farmers.`
+          : `${program.name} is no longer shown to enrolled farmers.`
+      );
+    } catch (err) {
+      showError(errMsg(err));
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <Toggle
+        checked={program.show_to_farmers}
+        onChange={flip}
+        disabled={!program.has_survey}
+        busy={isLoading}
+        label={`Show ${program.name} to enrolled farmers`}
+        title={
+          program.has_survey
+            ? "Show this program to farmers already enrolled on the platform"
+            : "Add a survey to this program first"
+        }
+      />
+      {!program.has_survey && (
+        <span className="text-xs text-gray-500">Needs a survey</span>
+      )}
+    </div>
+  );
+}
+
 const PAGE_SIZE = 10;
+// The same four the badge on each row shows, so the filter can find every one
+// of them - an ended program was missing here entirely.
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
-  { value: "true", label: "Active" },
-  { value: "false", label: "Inactive" },
+  { value: "active", label: "Active" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "ended", label: "Ended" },
+  { value: "inactive", label: "Inactive" },
 ];
 
 function limitLabel(p: Program): string {
@@ -42,7 +100,6 @@ function limitLabel(p: Program): string {
 
 export default function Programs() {
   const navigate = useNavigate();
-  const { confirm } = useDialog();
 
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
@@ -53,7 +110,7 @@ export default function Programs() {
   const { data, isLoading, isError, error, refetch } = useListProgramsQuery({
     page,
     limit: PAGE_SIZE,
-    isActive: status === "" ? undefined : status === "true",
+    status: (status || undefined) as ProgramStatusFilter | undefined,
     search: search || undefined,
   });
   useLiveData(["programs", "enrollments"], refetch);
@@ -61,6 +118,19 @@ export default function Programs() {
   const meta = data?.meta ?? null;
 
   const [deleteProgram] = useDeleteProgramMutation();
+  const confirmDelete = useConfirmCascadeDelete();
+
+  // Each program can carry one survey (from the Surveys module). The
+  // link row holds the shareable public link.
+  const { data: surveyLinks, refetch: refetchLinks } = useListPasProgramsQuery();
+  useLiveData(["program_admin_survey"], refetchLinks);
+  const surveyByProgram = useMemo(() => {
+    const m = new Map<string, SurveyLink>();
+    for (const l of surveyLinks ?? []) if (l.program_id) m.set(l.program_id, l);
+    return m;
+  }, [surveyLinks]);
+
+  const [share, setShare] = useState<SurveyLink | null>(null);
 
   useEffect(() => {
     setPage(1);
@@ -72,11 +142,14 @@ export default function Programs() {
   }, [searchInput]);
 
   async function handleDelete(program: Program) {
-    const ok = await confirm({
-      title: "Delete program?",
-      message: `"${program.name}" will be removed along with its enrollments. A program with submitted assessments cannot be deleted - set it inactive instead.`,
-      confirmLabel: "Delete",
-      tone: "danger",
+    const ok = await confirmDelete({
+      title: "Delete this program and everything in it?",
+      message:
+        `"${program.name}" is deleted along with its survey, everything ` +
+        "producers sent to it, the farmers enrolled and the work recorded " +
+        "against it. Keeping any of it without the program would only put " +
+        "wrong numbers on the dashboard.",
+      summaryPath: `/programs/${program.id}/deletion-summary`,
     });
     if (!ok) return;
     try {
@@ -151,6 +224,7 @@ export default function Programs() {
                     <th className="px-5 py-3 font-semibold">Type</th>
                     <th className="px-5 py-3 font-semibold">Enrolled / Limit</th>
                     <th className="px-5 py-3 font-semibold">Status</th>
+                    <th className="px-5 py-3 font-semibold">Show To Enrolled Farmers</th>
                     <th className="px-5 py-3 text-right font-semibold">Actions</th>
                   </tr>
                 </thead>
@@ -178,17 +252,10 @@ export default function Programs() {
                         {limitLabel(p)}
                       </td>
                       <td className="px-5 py-3.5">
-                        {p.is_active ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
-                            <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                            Active
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600">
-                            <span className="h-1.5 w-1.5 rounded-full bg-gray-500" />
-                            Inactive
-                          </span>
-                        )}
+                        <ProgramStatusBadge program={p} />
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <ShowToFarmers program={p} />
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-end gap-1">
@@ -205,6 +272,43 @@ export default function Programs() {
                             title="Enrolled farmers"
                           >
                             <UsersIcon width={16} height={16} />
+                          </button>
+                          {/* Share shows for every program that has a survey;
+                              the survey icon adds or changes it. */}
+                          {surveyByProgram.get(p.id) && (
+                            <button
+                              onClick={() =>
+                                setShare(surveyByProgram.get(p.id) ?? null)
+                              }
+                              className="grid h-8 w-8 place-items-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary"
+                              title="Share survey link"
+                            >
+                              <ShareIcon width={16} height={16} />
+                            </button>
+                          )}
+                          {/* Straight to what came in for this program, with
+                              the program already filtered. Keyed on the
+                              program, not its current survey, so submissions
+                              made before the survey was changed still show. */}
+                          <button
+                            onClick={() =>
+                              navigate(`/survey-submissions?program=${p.id}`)
+                            }
+                            className="grid h-8 w-8 place-items-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary"
+                            title="Survey submissions for this program"
+                          >
+                            <InboxIcon width={16} height={16} />
+                          </button>
+                          <button
+                            onClick={() => navigate(`/programs/${p.id}/survey`)}
+                            className="grid h-8 w-8 place-items-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary"
+                            title={
+                              surveyByProgram.get(p.id)
+                                ? "Survey and contract"
+                                : "Add a survey and contract"
+                            }
+                          >
+                            <FileIcon width={16} height={16} />
                           </button>
                           <button
                             onClick={() => navigate(`/programs/${p.id}/edit`)}
@@ -256,6 +360,15 @@ export default function Programs() {
           </>
         )}
       </div>
+
+      {share && (
+        <ProgramShareModal
+          id={share.id}
+          name={share.name}
+          link={share.link}
+          onClose={() => setShare(null)}
+        />
+      )}
     </div>
   );
 }

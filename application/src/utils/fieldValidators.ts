@@ -1,3 +1,4 @@
+import { ENROLLMENT_ID_MAX_LENGTH, normalizeEnrollmentId } from './enrollmentId';
 import { isStrongPassword, isValidEmail } from './validators';
 
 export type FieldValidator<V> = (value: string, values: V) => string | undefined;
@@ -70,6 +71,17 @@ export const passwordValidator: FieldValidator<Record<string, string>> = value =
     return 'Password is required';
   }
   return isStrongPassword(value) ? undefined : PASSWORD_RULE_MESSAGE;
+};
+
+export const enrollmentIdValidator: FieldValidator<Record<string, string>> = value => {
+  const id = normalizeEnrollmentId(value);
+  if (!id) {
+    return 'Enrollment ID is required';
+  }
+  if (id.length > ENROLLMENT_ID_MAX_LENGTH) {
+    return `Enrollment ID cannot be longer than ${ENROLLMENT_ID_MAX_LENGTH} characters`;
+  }
+  return undefined;
 };
 
 export const confirmPasswordValidator =

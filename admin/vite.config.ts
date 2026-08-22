@@ -10,4 +10,10 @@ export default defineConfig({
   server: {
     port: 3001,
   },
+  // Workers are emitted as .js modules. Servers commonly do not know the .mjs
+  // extension and send it as application/octet-stream, which browsers refuse
+  // to run as a module script.
+  worker: {
+    format: "es",
+  },
 });

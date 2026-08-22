@@ -115,11 +115,6 @@ const userSlice = createSlice({
         state.lastFetchedAt = null;
         state.error = null;
       })
-      // The profile is persisted, so a sign-in that did not go through logout
-      // (expired session, account switch) can rehydrate someone else's profile.
-      // Dropping it forces a refetch; a re-login as the same user keeps its
-      // cache so the avatar stays visible with no flash.
-      // Must stay last — RTK forbids addCase after addMatcher.
       .addMatcher(
         isAnyOf(loginThunk.fulfilled, verifyOtpThunk.fulfilled),
         (state, action) => {

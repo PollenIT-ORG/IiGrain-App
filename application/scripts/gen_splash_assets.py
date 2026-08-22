@@ -8,8 +8,12 @@ starts, using each platform's native launch mechanism:
   * iOS     - LaunchScreen.storyboard -> "LeafLogo" imageset (leaf.png)
   * Android - androidx.core SplashScreen API -> @drawable/splash_icon
 
-Both are generated here from ONE master file so the two platforms can never
-drift apart again. To change the branding in the future:
+...and then JS re-draws the SAME leaf at the SAME size as the first RN frame
+(`src/assets/images/splashLeaf.png`, rendered by SplashBackdrop), so the
+native -> JS handoff is invisible. That third asset is generated here too, for
+the same reason: all three must come from one master or the handoff flickers.
+
+To change the branding in the future:
 
   1. Replace  branding/splash_master.png  with the new logo
      (square PNG, transparent background, logo roughly centered).
@@ -62,6 +66,13 @@ IOS_IMAGESET = os.path.join(
 )
 IOS_LEAF_PNG = os.path.join(IOS_IMAGESET, "leaf.png")
 IOS_CONTENTS_JSON = os.path.join(IOS_IMAGESET, "Contents.json")
+
+# --- JS: the first React Native frame, drawn by SplashBackdrop --------------
+# A square canvas whose height IS the leaf height, so `resizeMode="contain"`
+# inside a TARGET_LEAF_DP box renders the leaf at exactly TARGET_LEAF_DP -
+# pixel-identical to what the OS was showing a frame earlier.
+JS_SCALE = 4  # authored at @4x so xxxhdpi / iPhone @3x never upscale
+JS_LEAF_PNG = os.path.join(APP, "src", "assets", "images", "splashLeaf.png")
 
 # An imageset without this manifest is silently skipped by actool: the asset
 # never reaches Assets.car and the storyboard's "LeafLogo" reference resolves
@@ -133,6 +144,12 @@ def main():
     print(f"  ios/leaf.png       canvas={IOS_CANVAS_PX} leaf={ios_leaf_px}px "
           f"-> on-screen {TARGET_LEAF_DP} pt -> {IOS_LEAF_PNG}")
     print(f"  ios/Contents.json  -> {IOS_CONTENTS_JSON}")
+
+    # JS (first RN frame)
+    js_px = TARGET_LEAF_DP * JS_SCALE
+    compose(leaf, js_px, js_px).save(JS_LEAF_PNG, "PNG")
+    print(f"  js/splashLeaf.png  canvas={js_px} leaf={js_px}px "
+          f"(@{JS_SCALE}x of {TARGET_LEAF_DP} dp) -> {JS_LEAF_PNG}")
 
     print("done.")
 

@@ -8,6 +8,7 @@ import {
   type RawPageMeta,
 } from '../types/pagination';
 import { Endpoints } from '../config/endpoints';
+import { isOpenableUrl } from '../utils/openExternalUrl';
 import type {
   AvailableProgram,
   EnrollableField,
@@ -18,7 +19,6 @@ import type {
   UnenrollFieldResult,
 } from '../types/enrollment';
 
-/** Safety stop so a bad `totalPages` can never spin forever. */
 const MAX_FIELD_PAGES = 20;
 
 interface Envelope<T> {
@@ -46,6 +46,10 @@ interface RawProgram {
   enrolled_count: number;
   is_full: boolean;
   already_enrolled?: boolean;
+  can_enroll?: boolean;
+  canEnroll?: boolean;
+  survey_url?: string | null;
+  surveyUrl?: string | null;
   fields?: RawProgramField[] | null;
 }
 interface AvailableProgramsPayload {
@@ -88,6 +92,16 @@ const mapProgramField = (raw: RawProgramField): ProgramField => ({
   enrolled: !!raw.enrolled,
 });
 
+const readCanEnroll = (raw: RawProgram): boolean => {
+  const value = raw.can_enroll ?? raw.canEnroll;
+  return typeof value === 'boolean' ? value : true;
+};
+
+const readSurveyUrl = (raw: RawProgram): string | null => {
+  const value = (raw.survey_url ?? raw.surveyUrl ?? '').trim();
+  return isOpenableUrl(value) ? value : null;
+};
+
 const mapProgram = (raw: RawProgram): AvailableProgram => ({
   id: raw.id,
   name: raw.name ?? '',
@@ -100,6 +114,8 @@ const mapProgram = (raw: RawProgram): AvailableProgram => ({
   enrolledCount: raw.enrolled_count ?? 0,
   isFull: !!raw.is_full,
   alreadyEnrolled: !!raw.already_enrolled,
+  canEnroll: readCanEnroll(raw),
+  surveyUrl: readSurveyUrl(raw),
   fields: (raw.fields ?? []).map(mapProgramField),
 });
 
@@ -156,9 +172,6 @@ const getEnrollableFieldsPage = async (
   return { fields, meta: normalizePageMeta(res.data.meta, fields.length, query) };
 };
 
-/** The enroll screen lets the farmer tick fields to enroll, so a silently
- *  truncated list would hide fields they own. Pages are followed to the end
- *  rather than lazily loaded. */
 export const getEnrollableFields = async (): Promise<EnrollableField[]> => {
   trace('GET enrollableFields', { url: Endpoints.programs.enrollableFields });
   const first = await getEnrollableFieldsPage(1);
@@ -194,18 +207,11 @@ interface RawUnenrollPayload {
   enrollment_removed?: boolean;
 }
 
-/**
- * Farmer-only self-unenroll of one field. The backend gates it on the
- * assessment state: a started assessment must be discarded first (409) and a
- * submitted one blocks it outright (409).
- */
 export const unenrollField = async (
   programId: string,
   fieldId: string,
 ): Promise<UnenrollFieldResult> => {
   trace('DELETE unenrollField', { programId, fieldId });
-  // Silent: the three outcomes (removed / discard-first / already-submitted) are
-  // surfaced inline by the enrol screen, not by the global error modal.
   const res = await http.delete<Envelope<RawUnenrollPayload>>(
     Endpoints.programs.unenrollField(programId, fieldId),
     { silent: true },

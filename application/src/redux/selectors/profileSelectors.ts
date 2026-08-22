@@ -110,3 +110,4 @@ export const selectProfileIdentity = createSelector(
   (profile, authUser, loading): ProfileIdentity =>
     buildProfileIdentity(profile, authUser, loading && !profile),
 );
+

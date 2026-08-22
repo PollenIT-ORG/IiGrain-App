@@ -13,9 +13,7 @@ import { moderateScale, scale } from '../../utils';
 import AppText from '../AppText/AppText';
 
 export interface QuickStatsCardProps {
-  /** Regenerative score, 0–100. */
   regenScore: number;
-  /** Preformatted date string for the last update. */
   lastUpdatedLabel: string;
 }
 
@@ -41,13 +39,6 @@ const Stat: React.FC<StatProps> = ({ icon, value, label, tint, tintBg }) => (
   </View>
 );
 
-/**
- * The two numbers worth surfacing at a glance.
- *
- * Deliberately just two: "Fields" and "Total Area" used to live here as well,
- * but they are attributes of the farm and now appear once, in the summary card.
- * What remains is the health signal and its freshness.
- */
 const QuickStatsCard: React.FC<QuickStatsCardProps> = ({
   regenScore,
   lastUpdatedLabel,
@@ -93,7 +84,6 @@ const styles = StyleSheet.create({
   divider: {
     width: borderWidth.thin,
     backgroundColor: COLORS.gray200,
-    // Inset so the rule reads as a separator, not a full-height border.
     marginVertical: spacing[1],
   },
   iconCircle: {

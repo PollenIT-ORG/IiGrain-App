@@ -71,7 +71,8 @@ export const updateProfileSchema = z
 export const changePasswordSchema = z.object({
   currentPassword: z
     .string({ error: "Current password is required." })
-    .min(1, "Current password is required."),
+    .min(1, "Current password is required.")
+    .max(200, "That password is too long."),
   newPassword: passwordField,
 });
 

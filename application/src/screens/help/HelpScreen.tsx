@@ -1,4 +1,3 @@
- 
 import React, { useCallback } from 'react';
 import { ScrollView, TouchableOpacity, View } from 'react-native';
 import { useNavigation, type NavigationProp } from '@react-navigation/native';
@@ -9,7 +8,7 @@ import { moderateScale } from '../../utils';
 import type { AppStackParamList } from '../../navigation/navigationTypes';
 import { styles } from './HelpScreenStyle';
 
-type HelpTarget = Extract<keyof AppStackParamList, 'FieldMap' | 'SimpleMap' |  'PolygonDebugScreen'>;
+type HelpTarget = Extract<keyof AppStackParamList, 'FieldMap' | 'SimpleMap' | 'AndroidLines'>;
 
 interface HelpItem {
   icon: string;
@@ -18,7 +17,6 @@ interface HelpItem {
   target: HelpTarget;
 }
 
-
 const HELP_ITEMS: HelpItem[] = [
   {
     icon: ICONS.MAP,
@@ -26,14 +24,13 @@ const HELP_ITEMS: HelpItem[] = [
     hint: 'See all your farms on one map, with satellite view',
     target: 'FieldMap',
   },
-    {
-    icon: ICONS.MAP,
-    label: 'TEst And Mark FIle',
-    hint: 'See all your farms on one map, with satellite view',
-    target: 'PolygonDebugScreen',
+  {
+    icon: 'vector-polyline',
+    label: 'Android Map + Lines',
+    hint: 'Many locations, spokes and a boundary — works on Android (SVG overlay)',
+    target: 'AndroidLines',
   },
   {
-    // ⚠️ DEBUG ONLY — minimal normal map + one polyline (A→B).
     icon: 'vector-line',
     label: 'Simple Map + Line',
     hint: 'Normal map with one polyline from A to B (debug)',

@@ -6,7 +6,7 @@ import {
   getUser,
   updateUser,
   deleteUser,
-  restoreUser,
+  userDeletionSummary,
   setUserStatus,
   assignAssessor,
   unassignAssessor,
@@ -35,8 +35,8 @@ router.get("/", validate(listUsersQuerySchema, "query"), listUsers);
 router.get("/assessors", listAssessors);
 router.get("/:id", withId, getUser);
 router.patch("/:id", withId, validate(updateUserSchema), updateUser);
+router.get("/:id/deletion-summary", withId, userDeletionSummary);
 router.delete("/:id", withId, deleteUser);
-router.post("/:id/restore", withId, restoreUser);
 router.patch("/:id/status", withId, validate(setStatusSchema), setUserStatus);
 router.put(
   "/:id/assessor",

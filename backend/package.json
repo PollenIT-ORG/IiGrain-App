@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "postinstall": "prisma generate",
-    "db:check": "tsx src/db/healthcheck.ts"
+    "db:check": "tsx src/db/healthcheck.ts",
+    "db:clock": "tsx src/db/applyClock.ts"
   },
   "keywords": [
     "farmer-app",
@@ -34,9 +35,12 @@
     "express-rate-limit": "^7.4.1",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.3",
+    "libphonenumber-js": "^1.13.10",
     "morgan": "^1.10.0",
     "multer": "^2.2.0",
     "nodemailer": "^9.0.1",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^4.10.38",
     "pg": "^8.13.1",
     "socket.io": "^4.8.3",
     "xlsx": "^0.18.5",

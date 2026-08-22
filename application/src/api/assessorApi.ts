@@ -77,7 +77,16 @@ const mapRef = (raw: RawRef): { id: string; name: string } => ({
 });
 
 interface RawFieldEntry {
-  field: { id: string; name: string; crop: string; status: string };
+  field: {
+    id: string;
+    name: string;
+    crop: string;
+    status: string;
+    location?: string | null;
+    address?: string | null;
+    areaAcres?: number | string | null;
+    area_acres?: number | string | null;
+  };
   farm: RawRef;
   farmer: RawRef;
   program?: { id: string | null; name: string | null } | null;
@@ -100,12 +109,27 @@ interface FieldsPayload {
   fields: RawFieldEntry[];
 }
 
+const toAcres = (raw: number | string | null | undefined): number | null => {
+  if (raw === null || raw === undefined || raw === '') {
+    return null;
+  }
+  const n = typeof raw === 'string' ? Number.parseFloat(raw) : raw;
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
+const toText = (raw: string | null | undefined): string | null => {
+  const trimmed = raw?.trim();
+  return trimmed ? trimmed : null;
+};
+
 const mapFieldEntry = (raw: RawFieldEntry): AssessorFieldEntry => ({
   field: {
     id: raw.field.id,
     name: raw.field.name ?? '',
     crop: raw.field.crop ?? '',
     status: raw.field.status ?? '',
+    location: toText(raw.field.location) ?? toText(raw.field.address),
+    areaAcres: toAcres(raw.field.areaAcres ?? raw.field.area_acres),
   },
   farm: mapRef(raw.farm),
   farmer: mapRef(raw.farmer),

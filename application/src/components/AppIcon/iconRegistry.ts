@@ -3,7 +3,6 @@ export const ICONS = {
   DASHBOARD: 'view-dashboard-outline',
   MENU: 'menu',
   MORE: 'dots-horizontal-circle-outline',
-  /** Bare vertical 3-dot — the overflow/kebab affordance in app bars. */
   MORE_VERTICAL: 'dots-vertical',
   SEARCH: 'magnify',
   FILTER: 'filter-variant',
@@ -88,6 +87,8 @@ export const ICONS = {
   PHONE: 'phone-outline',
   EMAIL: 'email-outline',
   HANDSHAKE: 'handshake-outline',
+  ID_CARD: 'card-account-details-outline',
+  TICKET: 'ticket-confirmation-outline',
 
   PLUS: 'plus',
   MINUS: 'minus',
@@ -121,6 +122,16 @@ export const ICONS = {
   COMPLETED: 'check-decagram-outline',
   ACTIVE: 'circle-medium',
   INACTIVE: 'circle-outline',
+
+  SURVEY: 'clipboard-edit-outline',
+  OPEN_IN_NEW: 'open-in-new',
+
+  CELEBRATE: 'party-popper',
+  CHECK_CIRCLE: 'check-circle',
+  CIRCLE_OUTLINE: 'circle-outline',
+  ROCKET: 'rocket-launch-outline',
+  PROGRAM: 'file-document-outline',
+  PRODUCER: 'account-tie-outline',
 } as const;
 
 export type IconName = keyof typeof ICONS;

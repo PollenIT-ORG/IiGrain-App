@@ -51,23 +51,35 @@ export const otpField = z
 const refreshTokenField = z
   .string({ error: "Refresh token is required." })
   .trim()
-  .min(1, "Refresh token is required.");
+  .min(1, "Refresh token is required.")
+  .max(255, "That token is not valid.");
 
 // Self-registration always creates a farmer. `role` is deliberately NOT accepted
 // here: privileged roles may only be created through the authenticated admin
 // path, which enforces canCreateRole. Any role sent by a client is stripped.
+// The ID from the acceptance email, e.g. IIG-2026-123456. Case and spacing are
+// forgiven because people copy it out of an email by hand.
+export const enrollmentIdField = z
+  .string({ error: "Enrollment ID is required." })
+  .trim()
+  .min(1, "Enrollment ID is required.")
+  .max(32, "That Enrollment ID is too long.")
+  .transform((v) => v.replace(/\s+/g, "").toUpperCase());
+
 export const registerSchema = z.object({
   fullName: nameField,
   email: emailField,
   phone: phoneField,
   password: passwordField,
+  enrollmentId: enrollmentIdField,
 });
 
 export const loginSchema = z.object({
   email: emailField,
   password: z
     .string({ error: "Password is required." })
-    .min(1, "Password is required."),
+    .min(1, "Password is required.")
+    .max(200, "That password is too long."),
 });
 
 export const requestOtpSchema = z.object({

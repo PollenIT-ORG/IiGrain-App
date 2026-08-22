@@ -3,7 +3,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import ApiError from "../utils/ApiError.js";
 import * as service from "../services/dashboard.service.js";
-import { getAdminDashboard } from "../services/adminDashboard.service.js";
+import { getAdminDashboard, getProgramDashboard } from "../services/adminDashboard.service.js";
 import type { PaginationQuery } from "../validators/pagination.schema.js";
 
 function farmerId(req: Request): string {
@@ -50,4 +50,12 @@ export const farmSummary = asyncHandler(async (req: Request, res: Response) => {
 export const adminDashboard = asyncHandler(async (_req: Request, res: Response) => {
   const result = await getAdminDashboard();
   return ApiResponse.send(res, 200, "Admin dashboard fetched.", result);
+});
+
+export const programDashboard = asyncHandler(async (req: Request, res: Response) => {
+  // A program administrator sees the totals for the programs they run.
+  const ownerId =
+    req.user?.role === "program_administrator" ? req.user.sub : null;
+  const result = await getProgramDashboard(ownerId);
+  return ApiResponse.send(res, 200, "Program dashboard fetched.", result);
 });

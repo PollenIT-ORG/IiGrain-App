@@ -8,11 +8,9 @@ import {
 } from '../../constants';
 import { addAlpha, moderateScale, scale } from '../../utils';
 
-/** FAB geometry and hide/show motion, kept next to the styles that use them. */
 export const FAB_METRICS = {
   size: scale(58),
   animMs: 200,
-  /** How far the FAB drops when hiding — its own height plus the inset. */
   hideOffset: scale(96),
   hideScale: 0.85,
   ripple: { color: addAlpha(COLORS.white, 0.24), borderless: false },
@@ -25,15 +23,12 @@ export const styles = StyleSheet.create({
   },
   body: {
     padding: spacing[4],
-    // Clears the FAB so the last field card is never trapped underneath it.
     paddingBottom: spacing[24],
   },
 
-  /** Rhythm between cards. */
   gap: {
     height: spacing[3],
   },
-  /** Larger break before a new section starts. */
   sectionGap: {
     height: spacing[6],
   },
@@ -48,13 +43,10 @@ export const styles = StyleSheet.create({
     ...presets.headingSM,
     color: COLORS.gray900,
   },
-  // Pushed to the right edge so the title and count keep their own spacing.
   fieldsHeaderAction: {
     marginLeft: 'auto',
     height: scale(46),
        paddingHorizontal: scale(12),
-
-
   },
   fieldsCount: {
     ...presets.labelSM,

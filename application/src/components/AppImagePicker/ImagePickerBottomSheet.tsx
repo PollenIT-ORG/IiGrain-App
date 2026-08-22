@@ -76,13 +76,6 @@ const ImagePickerBottomSheet: React.FC<ImagePickerBottomSheetProps> = ({
     }
   }, [visible, translateY, backdrop]);
 
-  /**
-   * The action the user tapped, held until this sheet's native modal is really
-   * gone. On iOS a <Modal> is a presented UIViewController: launching the
-   * camera/gallery while it is still dismissing makes UIKit refuse the
-   * presentation, which leaves an orphaned modal window swallowing every touch
-   * — the app looks frozen. So we never run the action inline.
-   */
   const pendingAction = useRef<(() => void) | null>(null);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -93,7 +86,6 @@ const ImagePickerBottomSheet: React.FC<ImagePickerBottomSheetProps> = ({
     }
   }, []);
 
-  /** Runs the pending action at most once, whichever signal arrives first. */
   const flushPending = useCallback(() => {
     clearFallback();
     const action = pendingAction.current;
@@ -119,13 +111,9 @@ const ImagePickerBottomSheet: React.FC<ImagePickerBottomSheetProps> = ({
           return;
         }
         if (Platform.OS === 'ios') {
-          // Modal.onDismiss is the real "view controller is gone" signal. The
-          // timer only covers the case where it never arrives, so a tap can
-          // never silently do nothing.
           clearFallback();
           fallbackTimer.current = setTimeout(flushPending, 600);
         } else {
-          // Android has no onDismiss; the next frame is enough there.
           requestAnimationFrame(flushPending);
         }
       });

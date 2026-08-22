@@ -29,8 +29,6 @@ export interface YearMonth {
   month: number;
 }
 
-/** Stored as a plain YYYY-MM-DD date (first of the month) so the existing
- *  backend date contract keeps working unchanged. */
 export const toISOMonth = ({ year, month }: YearMonth): string =>
   `${year}-${pad2(month + 1)}-01`;
 
@@ -61,9 +59,7 @@ export interface AppMonthPickerProps {
   placeholder?: string;
   error?: string;
   disabled?: boolean;
-  /** Months earlier than this are not selectable (YYYY-MM-DD). */
   minMonth?: string | null;
-  /** Months later than this are not selectable (YYYY-MM-DD). */
   maxMonth?: string | null;
   icon?: string;
 }

@@ -2,10 +2,22 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { DrawerScreenProps } from '@react-navigation/drawer';
+import type { ModuleKey } from '../types/monitoring';
 
 export type AuthStackParamList = {
-  Authentication: { mode?: 'login' | 'signup' } | undefined;
-  Role: { fullName: string; email: string; phone: string; password: string };
+  Authentication:
+    | {
+        mode?: 'login' | 'signup';
+        enrollmentError?: string;
+      }
+    | undefined;
+  Role: {
+    fullName: string;
+    email: string;
+    phone: string;
+    password: string;
+    enrollmentId: string;
+  };
   Otp: { email: string; code?: string; mode?: 'verify' | 'login' | 'reset' };
   ForgotPassword: undefined;
   ResetPassword: { email: string; code: string };
@@ -14,8 +26,6 @@ export type AuthStackParamList = {
 export type AppTabParamList = {
   Home: undefined;
   Assessment: { fieldId?: string; programId?: string } | undefined;
-  // Driven by the tab bar's centre action button rather than a tab of its own,
-  // so the tab bar stays visible while enrolling.
   EnrollNow: undefined;
   Farms: undefined;
   More: undefined;
@@ -27,6 +37,10 @@ export type AppDrawerParamList = {
 
 export type AppStackParamList = {
   Shell: NavigatorScreenParams<AppDrawerParamList>;
+
+  OnboardingWelcome: undefined;
+  OnboardingChecklist: undefined;
+  OnboardingProgramInfo: undefined;
   Notifications: undefined;
   Account: undefined;
   Reports: { farmId?: string } | undefined;
@@ -52,29 +66,44 @@ export type AppStackParamList = {
   AssessmentFieldSummary: {
     programId: string;
     fieldId: string;
-    /** Shown in the header until the summary loads its real title. */
     fieldName?: string;
   };
   AssessmentReview: { programId: string; fieldId: string; locked?: boolean };
   FarmerVisitTracking: { visitId?: string } | undefined;
-  /** Reached from More → Help. Hosts the self-service tools. */
   Help: undefined;
-  /**
-   * Map of every farm the user owns that has coordinates saved.
-   * `focusFarmId` opens the map already centred on — and with the card open for
-   * — that farm, so the screen can also be linked to from a farm detail page.
-   */
   FieldMap: { focusFarmId?: string } | undefined;
   PolygonDebugScreen: undefined;
-  
-  /**
-   * Full-screen satellite boundary editor for one field. Opened from
-   * FieldDetails. `fieldName` seeds the header until the field data loads.
-   * See docs/maps/FarmBoundary/.
-   */
+
   BoundaryEditor: { farmId: string; fieldId: string; fieldName?: string };
-  /** ⚠️ DEBUG ONLY — minimal map + one polyline (A→B). */
   SimpleMap: undefined;
+  AndroidLines: undefined;
+
+  MonitoringModule: {
+    programId: string;
+    fieldId: string;
+    module: ModuleKey;
+    farmId?: string;
+    fieldName?: string;
+    programName?: string;
+  };
+  MonitoringRecord: {
+    programId: string;
+    fieldId: string;
+    module: ModuleKey;
+    recordId: string;
+    farmId?: string;
+    fieldName?: string;
+    programName?: string;
+  };
+  MonitoringRecordForm: {
+    programId: string;
+    fieldId: string;
+    module: ModuleKey;
+    recordId?: string;
+    farmId?: string;
+    fieldName?: string;
+    programName?: string;
+  };
 };
 
 export type AssessorTabParamList = {
@@ -101,7 +130,7 @@ export type AssessorStackParamList = {
     categoryId: string;
     questionId: string;
   };
-  AssessorReview: { programId: string; fieldId: string };
+  AssessorReview: { programId: string; fieldId: string; locked?: boolean };
   AssessorFarmerAssessment: { programId: string; fieldId: string; fieldName?: string };
   AssessorComparison: { programId: string; fieldId: string; fieldName?: string };
   AssessorVisit: { visitId?: string } | undefined;

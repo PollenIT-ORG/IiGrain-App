@@ -14,6 +14,11 @@ export interface PublicProgram {
   end_date: string | null;
   user_limit: number | null;
   is_active: boolean;
+  // Whether the program is offered to farmers already on the platform.
+  show_to_farmers: boolean;
+  // Whether a survey is attached. The toggle above cannot be turned on without
+  // one, so the panel needs to know.
+  has_survey: boolean;
   created_by: string | null;
   enrolled_count: number;
   created_at: Date;
@@ -34,6 +39,7 @@ const PROGRAM_SELECT = {
   end_date: true,
   user_limit: true,
   is_active: true,
+  show_to_farmers: true,
   created_by: true,
   created_at: true,
   updated_at: true,
@@ -41,6 +47,7 @@ const PROGRAM_SELECT = {
   _count: {
     select: {
       program_enrollments: { where: { deleted_at: null } },
+      program_admin_surveys: { where: { deleted_at: null } },
     },
   },
 } satisfies Prisma.programsSelect;
@@ -60,6 +67,8 @@ function toPublicProgram(p: ProgramRow): PublicProgram {
     end_date: dateOnly(p.end_date),
     user_limit: p.user_limit,
     is_active: p.is_active,
+    show_to_farmers: p.show_to_farmers,
+    has_survey: p._count.program_admin_surveys > 0,
     created_by: p.created_by,
     enrolled_count: p._count.program_enrollments,
     created_at: p.created_at,
@@ -121,10 +130,17 @@ export async function programCodeExists(
   return found !== null;
 }
 
+/** The same four states the panel shows on each program. */
+export type ProgramStatusFilter = "active" | "inactive" | "ended" | "scheduled";
+
 export interface ListProgramsFilters {
   orgId?: string;
-  isActive?: boolean;
+  status?: ProgramStatusFilter;
+  /** Today on the organization's clock, YYYY-MM-DD, for the date-based ones. */
+  today?: string;
   search?: string;
+  // A program administrator only ever sees the programs they run.
+  createdBy?: string;
   limit: number;
   offset: number;
 }
@@ -134,7 +150,29 @@ export async function listPrograms(
 ): Promise<{ rows: PublicProgram[]; total: number }> {
   const where: Prisma.programsWhereInput = { deleted_at: null };
   if (filters.orgId) where.org_id = filters.orgId;
-  if (filters.isActive !== undefined) where.is_active = filters.isActive;
+  if (filters.createdBy) where.created_by = filters.createdBy;
+
+  // Turned off by hand wins over any date, exactly as the badge reads it: a
+  // program is Ended once past its end date, Scheduled before it starts, and
+  // Active in between.
+  if (filters.status === "inactive") {
+    where.is_active = false;
+  } else if (filters.status) {
+    const today = new Date(`${filters.today}T00:00:00.000Z`);
+    where.is_active = true;
+    if (filters.status === "ended") {
+      where.end_date = { lt: today };
+    } else if (filters.status === "scheduled") {
+      where.start_date = { gt: today };
+    } else {
+      // AND, not OR: the search below owns `where.OR`.
+      where.AND = [
+        { OR: [{ end_date: null }, { end_date: { gte: today } }] },
+        { OR: [{ start_date: null }, { start_date: { lte: today } }] },
+      ];
+    }
+  }
+
   if (filters.search) {
     const s = filters.search;
     where.OR = [
@@ -154,6 +192,15 @@ export async function listPrograms(
     prisma.programs.count({ where }),
   ]);
   return { rows: rows.map(toPublicProgram), total };
+}
+
+/** How many programs someone has created, for "you need a program first". */
+export async function countProgramsCreatedBy(
+  createdBy: string
+): Promise<number> {
+  return prisma.programs.count({
+    where: { created_by: createdBy, deleted_at: null },
+  });
 }
 
 export async function findProgramById(
@@ -262,6 +309,8 @@ export interface PublicEnrollment {
   id: string;
   program_id: string;
   farmer_id: string;
+  /** What the farmer quotes when they call about this program. */
+  enrollment_id: string | null;
   farmer_name: string | null;
   farmer_email: string;
   assessor_id: string | null;
@@ -271,7 +320,13 @@ export interface PublicEnrollment {
   status: string;
   note: string | null;
   enrolled_at: Date;
-  fields: Array<{ id: string; field_id: string; field_name: string; farm_name: string | null }>;
+  fields: Array<{
+    id: string;
+    field_id: string;
+    field_name: string;
+    area_acres: number | null;
+    farm_name: string | null;
+  }>;
   created_at: Date;
   updated_at: Date;
 }
@@ -280,6 +335,7 @@ const ENROLLMENT_SELECT = {
   id: true,
   program_id: true,
   farmer_id: true,
+  enrollment_id: true,
   assessor_id: true,
   enrolled_by: true,
   status: true,
@@ -298,7 +354,13 @@ const ENROLLMENT_SELECT = {
     select: {
       id: true,
       field_id: true,
-      fields: { select: { name: true, farms: { select: { name: true } } } },
+      fields: {
+        select: {
+          name: true,
+          area_acres: true,
+          farms: { select: { name: true } },
+        },
+      },
     },
   },
 } satisfies Prisma.program_enrollmentsSelect;
@@ -313,6 +375,7 @@ function toPublicEnrollment(e: EnrollmentRow): PublicEnrollment {
     id: e.id,
     program_id: e.program_id,
     farmer_id: e.farmer_id,
+    enrollment_id: e.enrollment_id,
     farmer_name: e.users_program_enrollments_farmer_idTousers.full_name,
     farmer_email: e.users_program_enrollments_farmer_idTousers.email,
     assessor_id: e.assessor_id,
@@ -326,6 +389,7 @@ function toPublicEnrollment(e: EnrollmentRow): PublicEnrollment {
       id: f.id,
       field_id: f.field_id,
       field_name: f.fields.name,
+      area_acres: f.fields.area_acres === null ? null : Number(f.fields.area_acres),
       farm_name: f.fields.farms?.name ?? null,
     })),
     created_at: e.created_at,
@@ -405,6 +469,8 @@ export async function findEnrollment(
 }
 
 export interface EnrollInput {
+  /** The Enrollment ID to record against this enrolment. */
+  enrollmentId?: string | null;
   programId: string;
   farmerId: string;
   fieldIds: string[];
@@ -424,6 +490,9 @@ export async function createEnrollment(
         assessor_id: input.assessorId,
         enrolled_by: input.enrolledBy,
         note: input.note,
+        // Every enrolment carries an ID: the one from their accepted survey
+        // where there is one, otherwise a fresh one for a manual enrolment.
+        enrollment_id: input.enrollmentId,
       },
       select: { id: true },
     });
@@ -479,6 +548,13 @@ export interface AvailableProgramField {
 
 export interface AvailableProgram {
   id: string;
+  // The token of the program's survey, turned into a link by the service.
+  survey_token: string | null;
+  /**
+   * Whether this farmer holds an Enrollment ID for this program. Without one
+   * they can see the program and open its survey, but not enrol.
+   */
+  can_enroll: boolean;
   name: string;
   code: string | null;
   description: string | null;
@@ -490,6 +566,33 @@ export interface AvailableProgram {
   is_full: boolean;
   already_enrolled: boolean;
   fields: AvailableProgramField[];
+}
+
+/** Flips whether the program is offered to farmers already on the platform. */
+export async function setProgramVisibility(
+  id: string,
+  showToFarmers: boolean
+): Promise<PublicProgram | null> {
+  const found = await prisma.programs.findFirst({
+    where: { id, deleted_at: null },
+    select: { id: true },
+  });
+  if (!found) return null;
+  const row = await prisma.programs.update({
+    where: { id },
+    data: { show_to_farmers: showToFarmers, updated_at: new Date() },
+    select: PROGRAM_SELECT,
+  });
+  return toPublicProgram(row);
+}
+
+/** Whether a survey is attached to this program right now. */
+export async function programHasSurvey(programId: string): Promise<boolean> {
+  const found = await prisma.program_admin_surveys.findFirst({
+    where: { program_id: programId, deleted_at: null },
+    select: { id: true },
+  });
+  return found !== null;
 }
 
 export async function listAvailableProgramsForFarmer(
@@ -510,28 +613,69 @@ export async function listAvailableProgramsForFarmer(
       user_limit: number | null;
       enrolled_count: number;
       already_enrolled: boolean;
+      survey_token: string | null;
+      can_enroll: boolean;
+      show_to_farmers: boolean;
     }>
   >(Prisma.sql`
-    SELECT p.id, p.name, p.code, p.description, p.type,
-           p.start_date, p.end_date, p.user_limit,
-           COALESCE(cnt.c, 0)::int AS enrolled_count,
-           EXISTS (
-             SELECT 1 FROM program_enrollments pe2
-              WHERE pe2.program_id = p.id
-                AND pe2.farmer_id = ${farmerId}::uuid
-                AND pe2.deleted_at IS NULL
-           ) AS already_enrolled
-      FROM programs p
-      LEFT JOIN LATERAL (
-        SELECT COUNT(*)::int AS c
-          FROM program_enrollments pe
-         WHERE pe.program_id = p.id AND pe.deleted_at IS NULL
-      ) cnt ON true
-     WHERE p.deleted_at IS NULL
-       AND p.is_active = true
-       AND (p.start_date IS NULL OR p.start_date <= CURRENT_DATE)
-       AND (p.end_date IS NULL OR p.end_date >= CURRENT_DATE)
-     ORDER BY p.created_at DESC;`);
+    SELECT * FROM (
+      SELECT p.id, p.name, p.code, p.description, p.type,
+             p.start_date, p.end_date, p.user_limit, p.show_to_farmers,
+             srv.token AS survey_token,
+             COALESCE(cnt.c, 0)::int AS enrolled_count,
+             EXISTS (
+               SELECT 1 FROM program_enrollments pe2
+                WHERE pe2.program_id = p.id
+                  AND pe2.farmer_id = ${farmerId}::uuid
+                  AND pe2.deleted_at IS NULL
+             ) AS already_enrolled,
+             -- Holding an Enrollment ID for this program is what allows
+             -- enrolling. It lives on the accepted survey submission, or on the
+             -- enrolment itself for farmers who predate the survey flow.
+             EXISTS (
+               SELECT 1
+                 FROM program_admin_survey_submissions sub
+                 JOIN website_users wu ON wu.id = sub.website_user_id
+                 JOIN users usr
+                   ON lower(usr.email) = lower(wu.email)
+                  AND usr.deleted_at IS NULL
+                 JOIN program_admin_surveys psv
+                   ON psv.id = sub.survey_id AND psv.deleted_at IS NULL
+                WHERE sub.deleted_at IS NULL
+                  AND sub.enrollment_id IS NOT NULL
+                  AND usr.id = ${farmerId}::uuid
+                  AND psv.program_id = p.id
+               UNION ALL
+               SELECT 1
+                 FROM program_enrollments pe3
+                WHERE pe3.deleted_at IS NULL
+                  AND pe3.enrollment_id IS NOT NULL
+                  AND pe3.farmer_id = ${farmerId}::uuid
+                  AND pe3.program_id = p.id
+             ) AS can_enroll
+        FROM programs p
+        LEFT JOIN LATERAL (
+          SELECT COUNT(*)::int AS c
+            FROM program_enrollments pe
+           WHERE pe.program_id = p.id AND pe.deleted_at IS NULL
+        ) cnt ON true
+        LEFT JOIN LATERAL (
+          SELECT s.token
+            FROM program_admin_surveys s
+           WHERE s.program_id = p.id AND s.deleted_at IS NULL
+           ORDER BY s.created_at DESC
+           LIMIT 1
+        ) srv ON true
+       WHERE p.deleted_at IS NULL
+         AND p.is_active = true
+         AND (p.start_date IS NULL OR p.start_date <= org_today())
+         AND (p.end_date IS NULL OR p.end_date >= org_today())
+       ORDER BY p.created_at DESC
+    ) t
+    -- Either it has been opened up to farmers so they can find it and apply,
+    -- or this farmer already holds its Enrollment ID, in which case it stays
+    -- visible whatever the toggle says.
+    WHERE t.show_to_farmers = true OR t.can_enroll;`);
 
   const fields = await prisma.fields.findMany({
     where: {
@@ -574,6 +718,8 @@ export async function listAvailableProgramsForFarmer(
       start_date: dateOnly(r.start_date),
       end_date: dateOnly(r.end_date),
       user_limit: r.user_limit,
+      survey_token: r.survey_token,
+      can_enroll: r.can_enroll,
       enrolled_count: r.enrolled_count,
       is_full: r.user_limit !== null && r.enrolled_count >= r.user_limit,
       already_enrolled: r.already_enrolled,
@@ -667,6 +813,8 @@ export interface SubmissionRow {
 export interface ListSubmissionsFilters {
   programId?: string;
   authorRole?: "farmer" | "assessor";
+  /** Limits the list to the programs this person runs. */
+  programOwnerId?: string;
   limit: number;
   offset: number;
 }
@@ -678,6 +826,17 @@ export async function listSubmissions(
     fa.status = 'submitted'
     ${filters.programId ? Prisma.sql`AND fa.program_id = ${filters.programId}::uuid` : Prisma.empty}
     ${filters.authorRole ? Prisma.sql`AND fa.author_role = ${filters.authorRole}` : Prisma.empty}
+    ${
+      // A subquery, not a join: this clause is also used by the count, which
+      // reads from field_assessments alone.
+      filters.programOwnerId
+        ? Prisma.sql`AND fa.program_id IN (
+             SELECT id FROM programs
+              WHERE deleted_at IS NULL
+                AND created_by = ${filters.programOwnerId}::uuid
+           )`
+        : Prisma.empty
+    }
   `;
 
   const rows = await prisma.$queryRaw<SubmissionRow[]>(Prisma.sql`

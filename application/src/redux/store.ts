@@ -16,6 +16,7 @@ import userReducer from './slices/userSlice';
 import farmReducer from './slices/farmSlice';
 import fieldReducer from './slices/fieldSlice';
 import fieldDetailsReducer from './slices/fieldDetailsSlice';
+import monitoringReducer from './slices/monitoringSlice';
 import soilReducer from './slices/soilSlice';
 import assessmentReducer from './slices/assessmentSlice';
 import assessmentProgressReducer from './slices/assessmentProgressSlice';
@@ -27,6 +28,7 @@ import notificationReducer from './slices/notificationSlice';
 import syncReducer from './slices/syncSlice';
 import appReducer from './slices/appSlice';
 import boundaryReducer from './slices/boundarySlice';
+import onboardingReducer from './slices/onboardingSlice';
 import { setUnauthorizedHandler } from '../services/http';
 import { PERSIST_ROOT_KEY, PERSIST_VERSION } from '../config/storageKeys';
 
@@ -51,14 +53,18 @@ const dashboardPersistConfig = {
   whitelist: ['selectedFarmId'],
 };
 
-// Phase D of the Farm Boundary module: boundaries live only on the device, so
-// the whole slice is persisted. When the API sync layer lands (Phase E) this
-// becomes the offline cache. See docs/maps/FarmBoundary/DATA_MODEL.md §2.
 const boundaryPersistConfig = {
   key: 'boundary',
   version: PERSIST_VERSION,
   storage: AsyncStorage,
-  whitelist: ['byFieldId'],
+  whitelist: ['byFieldId', 'pointsSeeded'],
+};
+
+const onboardingPersistConfig = {
+  key: 'onboarding',
+  version: PERSIST_VERSION,
+  storage: AsyncStorage,
+  whitelist: ['enrollmentIdByEmail', 'dismissedByUserId', 'programInfoSeenByUserId'],
 };
 
 const rootReducer = combineReducers({
@@ -67,6 +73,7 @@ const rootReducer = combineReducers({
   farm: farmReducer,
   field: fieldReducer,
   fieldDetails: fieldDetailsReducer,
+  monitoring: monitoringReducer,
   soil: soilReducer,
   assessment: assessmentReducer,
   assessmentProgress: persistReducer(assessmentProgressPersistConfig, assessmentProgressReducer),
@@ -78,6 +85,7 @@ const rootReducer = combineReducers({
   sync: syncReducer,
   app: appReducer,
   boundary: persistReducer(boundaryPersistConfig, boundaryReducer),
+  onboarding: persistReducer(onboardingPersistConfig, onboardingReducer),
 });
 
 const rootPersistConfig = {

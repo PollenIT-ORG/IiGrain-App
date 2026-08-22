@@ -1,89 +1,133 @@
-/**
- * src/maps/boundary/hooks/useBoundaryDraft.ts — the engine as React state.
- *
- * A thin `useReducer` wrapper over the pure `boundaryReducer`, exposing bound
- * action dispatchers and memoised selectors (area, validation, canUndo…).
- * Components consume THIS, never the reducer directly, so the pure core stays
- * free of React.
- */
-
 import { useCallback, useMemo, useReducer } from 'react';
 import type { LatLng } from '../../types';
-import { polygonAreaSqMeters } from '../../utils/geo';
+import { polygonAreaSqMeters, polygonPerimeterMeters } from '../../utils/geo';
 import { boundaryReducer } from '../engine/boundaryReducer';
 import { emptyDraft } from '../engine/boundaryActions';
-import { validateRing } from '../engine/boundaryValidation';
+import { crossingVertexIds, validateRing } from '../engine/boundaryValidation';
+import { edgeMidpoints, toRing } from '../engine/boundaryGeometry';
 import { MIN_VERTICES } from '../engine/boundaryConfig';
-import type { BoundaryValidation, DraftBoundary } from '../types';
+import type {
+  BoundaryRejection,
+  BoundaryValidation,
+  BoundaryVertex,
+  DraftBoundary,
+  EdgeMidpoint,
+} from '../types';
 
 export interface UseBoundaryDraft {
   readonly draft: DraftBoundary;
+  readonly vertices: readonly BoundaryVertex[];
   readonly ring: readonly LatLng[];
+  readonly midpoints: readonly EdgeMidpoint[];
   readonly closed: boolean;
-  readonly selected: number | null;
+  readonly selectedId: string | null;
+  readonly selectedIndex: number;
+  readonly selectedVertex: BoundaryVertex | null;
   readonly vertexCount: number;
-  /** Live area in m² (0 until the ring is a valid simple polygon). */
   readonly areaSqM: number;
+  readonly perimeterM: number;
   readonly validation: BoundaryValidation;
+  readonly crossingIds: ReadonlySet<string>;
+  readonly rejection: BoundaryRejection | null;
   readonly canUndo: boolean;
   readonly canRedo: boolean;
   readonly canClose: boolean;
+  readonly canDelete: boolean;
   readonly canSave: boolean;
 
-  // ── Actions (each geometry op is one undo step) ──
   readonly addVertex: (point: LatLng) => void;
-  readonly moveVertex: (index: number, point: LatLng) => void;
+  readonly moveVertex: (id: string, point: LatLng, commitKey?: string) => void;
   readonly insertVertex: (edgeIndex: number, point: LatLng) => void;
-  readonly deleteVertex: (index: number) => void;
+  readonly deleteVertex: (id: string) => void;
   readonly close: () => void;
-  readonly select: (index: number | null) => void;
+  readonly select: (id: string | null) => void;
   readonly undo: () => void;
   readonly redo: () => void;
   readonly reset: () => void;
   readonly load: (ring: readonly LatLng[]) => void;
+  readonly clearRejection: () => void;
 }
 
-export const useBoundaryDraft = (initial: DraftBoundary = emptyDraft): UseBoundaryDraft => {
+export const useBoundaryDraft = (
+  initial: DraftBoundary = emptyDraft,
+): UseBoundaryDraft => {
   const [draft, dispatch] = useReducer(boundaryReducer, initial);
 
-  // Area only means something once the ring can be a polygon; validateRing
-  // already guards simplicity, but the readout should update live during DRAW
-  // too, so compute a best-effort area whenever there are ≥ 3 points.
+  const ring = useMemo(() => toRing(draft.vertices), [draft.vertices]);
+  const midpoints = useMemo(() => edgeMidpoints(draft.vertices), [draft.vertices]);
+  const validation = useMemo(() => validateRing(ring), [ring]);
+
   const areaSqM = useMemo(
-    () => (draft.ring.length >= MIN_VERTICES ? polygonAreaSqMeters(draft.ring) : 0),
-    [draft.ring],
+    () => (ring.length >= MIN_VERTICES && validation.isSimple ? polygonAreaSqMeters(ring) : 0),
+    [ring, validation.isSimple],
   );
 
-  const validation = useMemo(() => validateRing(draft.ring), [draft.ring]);
+  const perimeterM = useMemo(
+    () => polygonPerimeterMeters(ring, ring.length >= MIN_VERTICES),
+    [ring],
+  );
 
-  const addVertex = useCallback((point: LatLng) => dispatch({ type: 'ADD_VERTEX', point }), []);
+  const crossingIds = useMemo(
+    () => crossingVertexIds(draft.vertices, validation.selfIntersections),
+    [draft.vertices, validation.selfIntersections],
+  );
+
+  const selectedIndex = useMemo(
+    () =>
+      draft.selectedId === null
+        ? -1
+        : draft.vertices.findIndex(v => v.id === draft.selectedId),
+    [draft.vertices, draft.selectedId],
+  );
+
+  const addVertex = useCallback(
+    (point: LatLng) => dispatch({ type: 'ADD_VERTEX', point }),
+    [],
+  );
   const moveVertex = useCallback(
-    (index: number, point: LatLng) => dispatch({ type: 'MOVE_VERTEX', index, point }),
+    (id: string, point: LatLng, commitKey?: string) =>
+      dispatch({ type: 'MOVE_VERTEX', id, point, commitKey }),
     [],
   );
   const insertVertex = useCallback(
-    (edgeIndex: number, point: LatLng) => dispatch({ type: 'INSERT_VERTEX', edgeIndex, point }),
+    (edgeIndex: number, point: LatLng) =>
+      dispatch({ type: 'INSERT_VERTEX', edgeIndex, point }),
     [],
   );
-  const deleteVertex = useCallback((index: number) => dispatch({ type: 'DELETE_VERTEX', index }), []);
+  const deleteVertex = useCallback(
+    (id: string) => dispatch({ type: 'DELETE_VERTEX', id }),
+    [],
+  );
   const close = useCallback(() => dispatch({ type: 'CLOSE' }), []);
-  const select = useCallback((index: number | null) => dispatch({ type: 'SELECT', index }), []);
+  const select = useCallback((id: string | null) => dispatch({ type: 'SELECT', id }), []);
   const undo = useCallback(() => dispatch({ type: 'UNDO' }), []);
   const redo = useCallback(() => dispatch({ type: 'REDO' }), []);
   const reset = useCallback(() => dispatch({ type: 'RESET' }), []);
-  const load = useCallback((ring: readonly LatLng[]) => dispatch({ type: 'LOAD', ring }), []);
+  const load = useCallback(
+    (next: readonly LatLng[]) => dispatch({ type: 'LOAD', ring: next }),
+    [],
+  );
+  const clearRejection = useCallback(() => dispatch({ type: 'CLEAR_REJECTION' }), []);
 
   return {
     draft,
-    ring: draft.ring,
+    vertices: draft.vertices,
+    ring,
+    midpoints,
     closed: draft.closed,
-    selected: draft.selected,
-    vertexCount: draft.ring.length,
+    selectedId: draft.selectedId,
+    selectedIndex,
+    selectedVertex: selectedIndex >= 0 ? draft.vertices[selectedIndex] : null,
+    vertexCount: draft.vertices.length,
     areaSqM,
+    perimeterM,
     validation,
+    crossingIds,
+    rejection: draft.rejection,
     canUndo: draft.past.length > 0,
     canRedo: draft.future.length > 0,
-    canClose: !draft.closed && draft.ring.length >= MIN_VERTICES,
+    canClose: !draft.closed && draft.vertices.length >= MIN_VERTICES,
+    canDelete: draft.vertices.length > MIN_VERTICES,
     canSave: validation.isValid,
     addVertex,
     moveVertex,
@@ -95,5 +139,6 @@ export const useBoundaryDraft = (initial: DraftBoundary = emptyDraft): UseBounda
     redo,
     reset,
     load,
+    clearRejection,
   };
 };

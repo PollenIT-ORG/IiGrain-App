@@ -17,14 +17,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
   /// Authorises the Google Maps iOS SDK for this process.
   ///
   /// This MUST run before the first `GMSMapView` is instantiated. React Native
-  /// mounts `<AppMapView>` some time after `startReactNative`, but the SDK is a
+  /// mounts the map some time after `startReactNative`, but the SDK is a
   /// process-wide singleton with no retry: if it is unkeyed when the first map
   /// view is created it logs
   /// "Google Maps SDK for iOS must be initialized via [GMSServices provideAPIKey:]"
   /// and every map in the session stays blank. Hence: first statement of
   /// `didFinishLaunchingWithOptions`.
   ///
-  /// The key travels: application/.env → ios/Podfile (pod install) →
+  /// The key travels: .env → ios/Podfile (pod install) →
   /// Config/Env.generated.xcconfig → $(MAPS_API_KEY) → Info.plist `GMSApiKey` →
   /// here. It is deliberately never hardcoded in this file, which is committed.
   private func configureGoogleMaps() {
@@ -36,8 +36,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       // simulator runs by developers without Maps Platform access).
       NSLog(
         "[Maps] GMSApiKey is empty — maps will render blank. "
-          + "Set MAPS_API_KEY in application/.env and re-run `pod install`. "
-          + "See docs/maps/SETUP.md."
+          + "Set MAPS_API_KEY in .env and re-run `pod install`."
       )
       return
     }
@@ -59,6 +58,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     reactNativeFactory = factory
 
     window = UIWindow(frame: UIScreen.main.bounds)
+    // The window is visible for the gap between the launch screen tearing down
+    // and the RN root view drawing its first frame; unset it defaults to black.
+    window?.backgroundColor = .white
+    // Single light design — never mirror the system dark appearance.
+    window?.overrideUserInterfaceStyle = .light
 
     factory.startReactNative(
       withModuleName: "iiGrain",

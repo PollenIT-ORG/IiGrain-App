@@ -3,6 +3,8 @@ import * as assessorApi from '../../api/assessorApi';
 import type {
   CategoryQuestionList,
   AssessmentQuestionDetail,
+  AssessmentReview,
+  AssessmentSubmitResult,
   FieldAssessmentSummary,
   SaveAnswerInput,
   SavedAnswer,
@@ -46,7 +48,14 @@ const enrichSummary = (
     : base.summary.field;
   const locked = entry?.assessment.completed ?? false;
   return {
-    summary: { ...base.summary, field },
+    summary: {
+      ...base.summary,
+      field,
+      assessment: {
+        ...base.summary.assessment,
+        submitted: locked || base.summary.assessment.submitted,
+      },
+    },
     locked,
     submittedBy: locked ? assessorStamp(root.auth.user) : null,
   };
@@ -55,6 +64,12 @@ const enrichSummary = (
 export interface AssessorSubmitResult extends AssessorAssessmentSummary {
   submittedAtISO: string;
   scorePercentage: number;
+  result: AssessmentSubmitResult;
+}
+
+export interface AssessorReviewResult {
+  review: AssessmentReview;
+  submittedBy: SubmittedBy | null;
 }
 
 export interface FieldScopeArg {
@@ -158,6 +173,23 @@ export const saveAssessorAnswerThunk = createAsyncThunk<SavedAnswer, SaveAnswerA
   },
 );
 
+export const fetchAssessorReviewThunk = createAsyncThunk<
+  AssessorReviewResult,
+  FieldScopeArg,
+  ThunkConfig
+>('assessor/fetchReview', async ({ programId, fieldId }, { getState, rejectWithValue }) => {
+  try {
+    const review = await assessorApi.getReview(programId, fieldId);
+    const root = getState() as RootLike;
+    return {
+      review,
+      submittedBy: review.submission.submittedAtISO ? assessorStamp(root.auth.user) : null,
+    };
+  } catch (error) {
+    return rejectWithValue(handleApiError(error));
+  }
+});
+
 export const submitAssessorAssessmentThunk = createAsyncThunk<AssessorSubmitResult, FieldScopeArg, ThunkConfig>(
   'assessor/submit',
   async ({ programId, fieldId }, { getState, rejectWithValue }) => {
@@ -182,6 +214,7 @@ export const submitAssessorAssessmentThunk = createAsyncThunk<AssessorSubmitResu
           totalQuestions,
           answered: totalQuestions,
           percentage: 100,
+          submitted: true,
         },
       };
       return {
@@ -190,6 +223,7 @@ export const submitAssessorAssessmentThunk = createAsyncThunk<AssessorSubmitResu
         submittedBy: assessorStamp(root.auth.user),
         submittedAtISO: result.submittedAtISO,
         scorePercentage: result.percentage,
+        result,
       };
     } catch (error) {
       return rejectWithValue(handleApiError(error));

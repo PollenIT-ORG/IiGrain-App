@@ -41,7 +41,9 @@ function pct(answered: number, total: number): number {
  * Gate for anything that WRITES assessment work on a (field, program).
  * Reads (history, review, comparison) are intentionally left open.
  *
- * - A closed or ended program is a hard cutoff for both roles.
+ * - A closed or ended program is a hard cutoff for editing and submitting.
+ *   `allowClosedProgram` lets discard through so a farmer can still delete a
+ *   draft that got stranded when the program closed or ended.
  * - An inactive farm or field cannot be assessed or submitted.
  *   `allowInactiveEntity` is used by discard, which is a cleanup action and must
  *   stay possible so a draft on a deactivated farm is not stuck forever.
@@ -49,20 +51,22 @@ function pct(answered: number, total: number): number {
 export async function assertAssessmentWritable(
   fieldId: string,
   programId: string,
-  opts: { allowInactiveEntity?: boolean } = {}
+  opts: { allowInactiveEntity?: boolean; allowClosedProgram?: boolean } = {}
 ): Promise<void> {
   const ctx = await getAssessmentWriteContext(fieldId, programId);
   if (!ctx) throw ApiError.notFound("Field not found.");
 
-  if (!ctx.program_active) {
-    throw ApiError.conflict(
-      "This program is closed, so its assessments can no longer be changed."
-    );
-  }
-  if (ctx.program_ended) {
-    throw ApiError.conflict(
-      "This program has ended, so its assessments can no longer be changed."
-    );
+  if (!opts.allowClosedProgram) {
+    if (!ctx.program_active) {
+      throw ApiError.conflict(
+        "This program is closed, so its assessments can no longer be changed."
+      );
+    }
+    if (ctx.program_ended) {
+      throw ApiError.conflict(
+        "This program has ended, so its assessments can no longer be changed."
+      );
+    }
   }
   if (!opts.allowInactiveEntity) {
     if (!ctx.farm_active) {
@@ -248,6 +252,15 @@ export interface FieldAssessmentSummary {
     answered: number;
     percentage: number;
   };
+  // Whether this assessment can still be changed, and why not. When the program
+  // has ended the field stays readable but every answer is locked; the client
+  // shows a "program ended" banner and offers only a delete/discard action.
+  canEdit: boolean;
+  program: {
+    active: boolean;
+    ended: boolean;
+    endDate: string | null;
+  };
   categories: CategorySummary[];
 }
 
@@ -280,6 +293,18 @@ export async function getFieldAssessmentSummary(
         ? "completed"
         : "in_progress";
 
+  // Program / entity state, so the client knows to lock the answers and show the
+  // "program ended" banner while keeping the assessment readable.
+  const ctx = await getAssessmentWriteContext(fieldId, programId);
+  const programActive = ctx?.program_active ?? true;
+  const programEnded = ctx?.program_ended ?? false;
+  const canEdit =
+    !!ctx &&
+    ctx.program_active &&
+    !ctx.program_ended &&
+    ctx.farm_active &&
+    ctx.field_active;
+
   return {
     field: {
       id: field.id,
@@ -294,6 +319,12 @@ export async function getFieldAssessmentSummary(
       totalQuestions,
       answered,
       percentage: pct(answered, totalQuestions),
+    },
+    canEdit,
+    program: {
+      active: programActive,
+      ended: programEnded,
+      endDate: ctx?.program_end_date ?? null,
     },
     categories,
   };
@@ -871,8 +902,14 @@ export async function discardFieldAssessmentForUser(
   const field = await findOwnedField(fieldId, userId, programId);
   if (!field) throw ApiError.notFound("Field not found.");
 
-  // Discard stays available on an inactive farm/field so a draft is never stuck.
-  await assertAssessmentWritable(fieldId, programId, { allowInactiveEntity: true });
+  // Discard is a cleanup action, so it stays available even on an inactive
+  // farm/field or a closed/ended program - the farmer can always delete a draft
+  // that would otherwise be stuck (for example one left unfinished when the
+  // program ended). A submitted assessment is still final and cannot be removed.
+  await assertAssessmentWritable(fieldId, programId, {
+    allowInactiveEntity: true,
+    allowClosedProgram: true,
+  });
 
   const existing = await findFieldAssessment(fieldId, programId, "farmer");
   if (existing?.status === "submitted") {

@@ -165,7 +165,6 @@ export const updateMyFarm = async (
   return mapFarm(res.data.data.farm);
 };
 
-/** Clears the farm's editable data but keeps its identity. No guards. */
 export const resetMyFarm = async (farmId: string): Promise<Farm> => {
   const res = await http.post<Envelope<FarmDetailPayload>>(
     Endpoints.farms.resetMyFarm(farmId),
@@ -173,8 +172,6 @@ export const resetMyFarm = async (farmId: string): Promise<Farm> => {
   return mapFarm(res.data.data.farm);
 };
 
-/** Soft-delete. Rejects with 409 when any field has a submitted assessment or is
- *  still enrolled in a program; the message explains which. */
 export const deleteMyFarm = async (farmId: string): Promise<void> => {
   await http.delete(Endpoints.farms.myFarm(farmId));
 };

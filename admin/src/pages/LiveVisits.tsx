@@ -1,18 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   MapContainer,
   TileLayer,
   Marker,
   Popup,
   Polyline,
+  Polygon,
   useMap,
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useListActiveVisitsQuery, type Visit } from "../store/endpoints/visitsApi";
-import { getSocket } from "../lib/socket";
+import {
+  useListActiveVisitsQuery,
+  type GeoJSONPolygon,
+  type Visit,
+} from "../store/endpoints/visitsApi";
+import { getSocket, joinVisitRoom } from "../lib/socket";
 import { useLiveData } from "../lib/useLiveData";
 import Loader from "../components/Loader";
+import { fmtDate, fmtTime } from "../lib/datetime";
 
 type LatLng = [number, number];
 
@@ -77,6 +83,133 @@ function emojiPin(emoji: string, label: string, ring: string) {
 
 const ASSESSOR_COLOR = "#136F3F";
 const DEST_COLOR = "#374151";
+// Amber, matching the field outline on both mobile maps.
+const BOUNDARY_COLOR = "#F5A623";
+
+// Time of day for a visit event, with the date only when it is not today (a
+// visit that ran past midnight or is being reviewed the next morning).
+function fmtVisitTime(iso: string | null): string {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "-";
+  const time = fmtTime(d);
+  const isToday = d.toDateString() === new Date().toDateString();
+  return isToday ? time : `${fmtDate(d)}, ${time}`;
+}
+
+/**
+ * The arrival verdict. This is what an arrival record is worth: without it
+ * "Reached 10:42" is only the assessor's own word, and the whole point of the
+ * server-side geofence is that this line can be trusted.
+ *
+ * `null` is left blank rather than shown as a failure — an unmapped field or a
+ * client too old to send its position is not the assessor's fault.
+ */
+function ArrivalVerdict({ visit }: { visit: Visit }) {
+  if (!visit.arrived_at) return null;
+
+  const verified = visit.arrival_verified;
+  const metres = visit.arrival_distance_m;
+
+  const text =
+    verified === null
+      ? "Arrival not verified — field has no boundary or point"
+      : verified
+        ? metres && metres > 0
+          ? `Verified on field (${Math.round(metres)} m from edge)`
+          : "Verified on field"
+        : metres === null
+          ? "Marked arrived away from the field"
+          : `Marked arrived ${fmtDistance(metres)} from the field`;
+
+  const tone =
+    verified === null
+      ? "text-gray-500"
+      : verified
+        ? "text-success"
+        : "text-danger";
+  const dot =
+    verified === null ? "bg-gray-300" : verified ? "bg-success" : "bg-danger";
+
+  return (
+    <div className="mt-2 space-y-1">
+      <div className="flex items-start gap-2 text-xs">
+        <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
+        <span className={tone}>{text}</span>
+      </div>
+      {visit.location_flag ? (
+        <div className="flex items-start gap-2 text-xs">
+          <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />
+          <span className="text-warning">{FLAG_LABEL[visit.location_flag]}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const FLAG_LABEL: Record<NonNullable<Visit["location_flag"]>, string> = {
+  mock_location: "Flagged — device reported a mock location",
+  impossible_speed: "Flagged — movement implies an impossible speed",
+  teleport: "Flagged — arrived far from the previous position",
+};
+
+/**
+ * GeoJSON stores `[lng, lat]` and closes the ring by repeating the first point;
+ * Leaflet wants `[lat, lng]` and closes it for you. Returns `null` for anything
+ * malformed, so a bad polygon degrades to "no outline" instead of throwing.
+ */
+function boundaryToLatLngs(polygon: GeoJSONPolygon | null): LatLng[] | null {
+  const ring = polygon?.type === "Polygon" ? polygon.coordinates?.[0] : null;
+  if (!Array.isArray(ring) || ring.length < 4) return null;
+  const points = ring
+    .slice(0, -1)
+    .map(([lng, lat]) => [lat, lng] as LatLng)
+    .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+  return points.length >= 3 ? points : null;
+}
+
+function fmtDistance(metres: number): string {
+  return metres >= 1000 ? `${(metres / 1000).toFixed(1)} km` : `${Math.round(metres)} m`;
+}
+
+function VisitTimes({ visit }: { visit: Visit }) {
+  const rows: Array<{ label: string; value: string; dot: string }> = [
+    { label: "Departed", value: fmtVisitTime(visit.started_at), dot: "bg-info" },
+  ];
+  if (visit.arrived_at) {
+    rows.push({ label: "Reached", value: fmtVisitTime(visit.arrived_at), dot: "bg-success" });
+  }
+  if (visit.ended_at) {
+    rows.push({
+      label:
+        visit.status === "cancelled"
+          ? "Cancelled"
+          : visit.status === "expired"
+            ? "Timed out"
+            : "Completed",
+      value: fmtVisitTime(visit.ended_at),
+      dot:
+        visit.status === "cancelled"
+          ? "bg-danger"
+          : visit.status === "expired"
+            ? "bg-warning"
+            : "bg-gray-500",
+    });
+  }
+  return (
+    <div className="mt-2.5 space-y-1 border-t border-gray-200 pt-2.5">
+      {rows.map((r) => (
+        <div key={r.label} className="flex items-center gap-2 text-xs">
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${r.dot}`} />
+          <span className="text-gray-400">{r.label}</span>
+          <span className="ml-auto font-medium tabular-nums text-gray-700">
+            {r.value}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function statusChip(status: Visit["status"]) {
   const map: Record<Visit["status"], string> = {
@@ -84,12 +217,14 @@ function statusChip(status: Visit["status"]) {
     arrived: "bg-success/10 text-success",
     completed: "bg-gray-200 text-gray-600",
     cancelled: "bg-danger/10 text-danger",
+    expired: "bg-warning/15 text-warning",
   };
   const label: Record<Visit["status"], string> = {
     en_route: "En route",
     arrived: "Arrived",
     completed: "Completed",
     cancelled: "Cancelled",
+    expired: "Timed out",
   };
   return (
     <span
@@ -122,7 +257,7 @@ export default function LiveVisits() {
   useLiveData(["visits"], refetch);
   const [visits, setVisits] = useState<Record<string, Visit>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const joined = useRef<Set<string>>(new Set());
+
 
   useEffect(() => {
     if (initial) {
@@ -136,15 +271,11 @@ export default function LiveVisits() {
   useEffect(() => {
     const socket = getSocket();
 
+    // Keep completed and cancelled visits on the board (they carry the arrival
+    // and completion times the admin wants to see). The backend already limits
+    // the list to recently-ended visits, so they age off on the next refetch.
     const apply = (v: Visit) => {
-      setVisits((prev) => {
-        if (v.status === "completed" || v.status === "cancelled") {
-          const copy = { ...prev };
-          delete copy[v.id];
-          return copy;
-        }
-        return { ...prev, [v.id]: v };
-      });
+      setVisits((prev) => ({ ...prev, [v.id]: v }));
     };
 
     socket.on("visit:location", apply);
@@ -158,13 +289,12 @@ export default function LiveVisits() {
     };
   }, [refetch]);
 
+  // Room membership is tracked in the socket module, which re-joins everything
+  // after a reconnect — a local "already joined" ref could not, and that is what
+  // used to freeze the dots once the connection blipped.
   useEffect(() => {
-    const socket = getSocket();
     for (const id of Object.keys(visits)) {
-      if (!joined.current.has(id)) {
-        socket.emit("visit:join", { visitId: id });
-        joined.current.add(id);
-      }
+      joinVisitRoom(id);
     }
   }, [visits]);
 
@@ -186,6 +316,11 @@ export default function LiveVisits() {
       ? [selected.dest_latitude, selected.dest_longitude]
       : null;
 
+  const boundary = useMemo(
+    () => boundaryToLatLngs(selected?.field_boundary ?? null),
+    [selected]
+  );
+
   const road = useRoadRoute(assessorPos, destPos);
 
   return (
@@ -193,7 +328,8 @@ export default function LiveVisits() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Live visits</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Assessors currently visiting farmers, tracked in real time.
+          Assessors visiting farmers, tracked in real time. Visits completed in
+          the last 12 hours stay on the board with their timings.
         </p>
       </div>
 
@@ -201,7 +337,7 @@ export default function LiveVisits() {
         <Loader message="Loading visits..." />
       ) : list.length === 0 ? (
         <div className="card px-5 py-16 text-center text-sm text-gray-500">
-          No active visits right now.
+          No active or recently completed visits.
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-3">
@@ -228,13 +364,15 @@ export default function LiveVisits() {
                   {v.field_name ?? "Field"}
                   {v.farmer_name ? ` · ${v.farmer_name}` : ""}
                 </p>
-                <p className="mt-1 text-xs text-gray-400">
-                  {v.last_location_at
-                    ? `Updated ${new Date(
-                        v.last_location_at
-                      ).toLocaleTimeString()}`
-                    : "Awaiting first location..."}
-                </p>
+                {(v.status === "en_route" || v.status === "arrived") && (
+                  <p className="mt-1 text-xs text-gray-400">
+                    {v.last_location_at
+                      ? `Location updated ${fmtTime(v.last_location_at)}`
+                      : "Awaiting first location..."}
+                  </p>
+                )}
+                <VisitTimes visit={v} />
+                <ArrivalVerdict visit={v} />
               </button>
             ))}
           </div>
@@ -269,6 +407,21 @@ export default function LiveVisits() {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 <FitBounds visit={selected} />
+
+                {/* The farmer's surveyed outline, same as both mobile maps show.
+                    A pin says roughly where the field is; the outline says which
+                    field, which is what an admin reviewing an arrival needs. */}
+                {boundary && (
+                  <Polygon
+                    positions={boundary}
+                    pathOptions={{
+                      color: BOUNDARY_COLOR,
+                      weight: 2,
+                      fillColor: BOUNDARY_COLOR,
+                      fillOpacity: 0.18,
+                    }}
+                  />
+                )}
 
                 {destPos && (
                   <Marker

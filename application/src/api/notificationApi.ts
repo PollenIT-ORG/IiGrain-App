@@ -110,12 +110,6 @@ export const getUnreadCount = async (): Promise<number> => {
   return res.data.data.count ?? 0;
 };
 
-/**
- * `silent` on purpose: marking read is a background side effect of tapping a
- * row. A stale id (already deleted, or never the user's) now answers 404, and
- * the user must not get an error modal for it — the thunk drops the row
- * instead. See the mobile-api-changes README.
- */
 export const markNotificationRead = async (id: string): Promise<number> => {
   const res = await http.patch<Envelope<RawMarkReadPayload>>(
     Endpoints.notifications.markRead(id),
@@ -132,7 +126,6 @@ export const markAllNotificationsRead = async (): Promise<RawMarkAllReadPayload>
   return res.data.data;
 };
 
-/** Deletes one notification. Returns the server's new unread total. */
 export const deleteNotification = async (id: string): Promise<number> => {
   const res = await http.delete<Envelope<RawMarkReadPayload>>(
     Endpoints.notifications.remove(id),
@@ -140,7 +133,6 @@ export const deleteNotification = async (id: string): Promise<number> => {
   return res.data.data?.unreadCount ?? 0;
 };
 
-/** Deletes the selected notifications. Returns how many went, plus the new unread total. */
 export const deleteNotifications = async (ids: string[]): Promise<RawDeletePayload> => {
   const res = await http.post<Envelope<RawDeletePayload>>(Endpoints.notifications.removeMany, {
     ids,
@@ -151,7 +143,6 @@ export const deleteNotifications = async (ids: string[]): Promise<RawDeletePaylo
   };
 };
 
-/** Deletes every notification the user has. */
 export const deleteAllNotifications = async (): Promise<RawDeletePayload> => {
   const res = await http.delete<Envelope<RawDeletePayload>>(Endpoints.notifications.removeAll);
   return {

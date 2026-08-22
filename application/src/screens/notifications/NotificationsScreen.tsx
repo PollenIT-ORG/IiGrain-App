@@ -6,7 +6,7 @@ import { AppHeader, AppText, Button } from '../../components';
 import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog';
 import { AppShimmerRow } from '../../components/Shimmer';
 import { EmptyState } from '../../components/farms';
-import { COLORS } from '../../constants';
+import { COLORS, LIST_PERF } from '../../constants';
 import { addAlpha, moderateScale, scale } from '../../utils';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
@@ -37,7 +37,6 @@ import { targetForRedirect } from './notificationRoute';
 import type { AppNotification } from '../../types/notification';
 import { styles } from './NotificationsScreenStyle';
 
-/** The list is socket-driven, so this only guards against a very long session. */
 const NOTIFICATIONS_TTL_MS = 5 * 60 * 1000;
 
 type Prompt = 'deleteSelected' | 'deleteAll' | null;
@@ -67,9 +66,6 @@ const NotificationsScreen: React.FC = () => {
     dispatch(fetchNotificationsThunk({ page: 1 }));
   }, [dispatch]);
 
-  // Was an unconditional fetch on every mount — and this is a stack screen, so
-  // every push hit the API. Now it loads once and refetches only when the socket
-  // reports a new notification (or after the TTL).
   useSyncedFetch({
     tags: [Tags.notifications],
     run: load,
@@ -83,7 +79,6 @@ const NotificationsScreen: React.FC = () => {
     }
   }, [dispatch, loadingMore, hasMore, page]);
 
-  // ── Selection ──────────────────────────────────────────────────────────────
   const exitSelectMode = useCallback(() => {
     setSelectMode(false);
     setSelected([]);
@@ -107,7 +102,6 @@ const NotificationsScreen: React.FC = () => {
     setSelected(allSelected ? [] : visibleIds);
   }, [allSelected, visibleIds]);
 
-  // ── Actions ────────────────────────────────────────────────────────────────
   const onPressItem = useCallback(
     (item: AppNotification) => {
       if (selectMode) {
@@ -117,8 +111,6 @@ const NotificationsScreen: React.FC = () => {
       if (!item.read) {
         dispatch(markNotificationReadThunk(item.id));
       }
-      // `redirect` is always present; an unmapped key resolves to null and the
-      // user simply stays on the list.
       const target = targetForRedirect(item.redirect, isAssessor);
       if (!target) {
         return;
@@ -152,7 +144,8 @@ const NotificationsScreen: React.FC = () => {
     setPrompt(null);
   }, [prompt, dispatch, selected, exitSelectMode]);
 
-  // ── Rendering ──────────────────────────────────────────────────────────────
+  const keyExtractor = useCallback((item: AppNotification) => item.id, []);
+
   const renderItem = useCallback(
     ({ item }: { item: AppNotification }) => {
       const meta = metaForNotificationType(item.type);
@@ -296,11 +289,11 @@ const NotificationsScreen: React.FC = () => {
     }
     return (
       <View style={styles.toolbar}>
-        <AppText style={styles.toolbarText}>
-          {unreadCount > 0
-            ? `${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}`
-            : 'All caught up'}
-        </AppText>
+       <AppText style={styles.toolbarText}>
+  {unreadCount > 0
+    ? `${unreadCount} unread`
+    : 'All caught up'}
+</AppText>
         <View style={styles.toolbarActions}>
           {unreadCount > 0 ? (
             <Pressable
@@ -352,10 +345,11 @@ const NotificationsScreen: React.FC = () => {
       ) : (
         <FlatList
           data={items ?? []}
-          keyExtractor={item => item.id}
+          keyExtractor={keyExtractor}
           renderItem={renderItem}
           contentContainerStyle={styles.body}
           showsVerticalScrollIndicator={false}
+          {...LIST_PERF}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

@@ -223,9 +223,6 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
 
   const persistSoil = useCallback(
     async (savedFieldId: string) => {
-      // Nutrients are locked until the field is enrolled in a started program, so
-      // the create/edit form only persists the always-editable fields. Nutrients
-      // are entered later from the field's soil tab.
       const input: SaveSoilInput = {
         texture: soilTexture.trim() || null,
         notes: soilNotes.trim() || null,
@@ -246,8 +243,6 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
     if (saving || soilSaving) {
       return;
     }
-    // The button is disabled in this state, but the guard stays: it is the only
-    // thing that holds if the farm's free area shrinks between render and press.
     if (areaWarning) {
       return;
     }
@@ -306,9 +301,6 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
       }),
     );
     if (createFieldThunk.fulfilled.match(action)) {
-      // The field is already created at this point, so never send the user back
-      // to re-submit — that would create a duplicate. Report what actually
-      // happened instead.
       const soilSaved = await persistSoil(action.payload.field.id);
       showSuccess(
         soilSaved ? 'Field added' : 'Field added, but the soil details could not be saved',
@@ -337,8 +329,6 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
     navigation,
   ]);
 
-  // Nutrients are locked until the field is enrolled, so this form neither shows
-  // nor sends them; they are edited later from the field's soil tab.
   const soilValues = useMemo<SoilValues>(
     () => ({
       texture: soilTexture,
@@ -457,8 +447,6 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
           onChangeText={setLocation}
           autoCapitalize="words"
           multiline
-          // A map-picked address can be long — wrap it inside the field instead
-          // of overflowing the box (iOS doesn't clip overflow like Android).
           blurOnSubmit
           returnKeyType="next"
         />

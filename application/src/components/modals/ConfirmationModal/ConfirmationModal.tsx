@@ -7,13 +7,6 @@ import { COLORS } from '../../../constants';
 import { styles, CONFIRM_METRICS } from './ConfirmationModalStyle';
 import type { ConfirmationModalProps } from './types';
 
-/**
- * Reusable confirm dialog for actions that deserve a beat of thought.
- *
- * `tone="danger"` is for irreversible actions: it recolours the icon and the
- * primary button, and pairs with `consequences` so the user reads *what* they
- * lose before confirming, rather than a generic "are you sure?".
- */
 const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   visible,
   title,
@@ -24,6 +17,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   tone = 'default',
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
+  hideCancel = false,
   loading = false,
   onConfirm,
   onCancel,
@@ -31,7 +25,6 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   const isDanger = tone === 'danger';
   const accent = isDanger ? COLORS.danger : COLORS.primary;
 
-  // Entrance: fade the scrim, lift + scale the card. One driver, native.
   const progress = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(progress, {
@@ -42,7 +35,6 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
     }).start();
   }, [visible, progress]);
 
-  // A pending request must not be dismissable — the action is already in flight.
   const handleCancel = useCallback(() => {
     if (!loading) {
       onCancel();
@@ -114,13 +106,15 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
           ) : null}
 
           <View style={styles.actions}>
-            <Button
-              title={cancelLabel}
-              variant="outline"
-              onPress={handleCancel}
-              disabled={loading}
-              style={styles.action}
-            />
+            {hideCancel ? null : (
+              <Button
+                title={cancelLabel}
+                variant="outline"
+                onPress={handleCancel}
+                disabled={loading}
+                style={styles.action}
+              />
+            )}
             <Button
               title={confirmLabel}
               variant={isDanger ? 'danger' : 'primary'}

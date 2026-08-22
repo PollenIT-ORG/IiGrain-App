@@ -7,6 +7,7 @@ import Select from "../components/ui/Select";
 import Loader from "../components/Loader";
 import { ChevronLeftIcon, ChevronRightIcon } from "../components/icons";
 import type { Submission } from "../types";
+import { fmtDate } from "../lib/datetime";
 
 function errMsg(err: unknown): string {
   return (
@@ -23,13 +24,7 @@ const ROLE_OPTIONS = [
 ];
 
 function formatDate(iso: string | null): string {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "-" : d.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-  });
+  return fmtDate(iso);
 }
 
 function RoleBadge({ role }: { role: Submission["authorRole"] }) {

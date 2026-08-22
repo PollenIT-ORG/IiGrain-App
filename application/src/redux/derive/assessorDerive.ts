@@ -124,3 +124,4 @@ export const deriveDashboard = (overview: AssessorFieldsOverview): AssessorDashb
     assignedPreview: assigned.slice(0, 3),
   };
 };
+

@@ -7,6 +7,7 @@ export const pageField = (def = 1) =>
     .number({ error: "Page must be a number." })
     .int("Page must be a whole number.")
     .min(1, "Page must be 1 or higher.")
+    .max(100000, "That page number is too high.")
     .default(def);
 
 export const limitField = (def = 20, max = 100) =>

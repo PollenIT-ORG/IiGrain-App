@@ -4,17 +4,10 @@ import Geolocation from '@react-native-community/geolocation';
 export interface Coords {
   latitude: number;
   longitude: number;
+  accuracyM?: number | null;
+  isMock?: boolean;
 }
 
-/**
- * Actionable failure reasons for a single location acquisition. Each one maps to
- * a specific recovery path in the UI:
- *  - permission_denied         → ask again (soft "not now")
- *  - permission_blocked        → open App Settings (never-ask-again / iOS denied)
- *  - location_services_disabled→ open Location Settings (GPS provider is off)
- *  - timeout                   → no fix in time (indoors / weak signal) → retry
- *  - position_unavailable      → anything else
- */
 export type LocationErrorCode =
   | 'permission_denied'
   | 'permission_blocked'
@@ -22,10 +15,6 @@ export type LocationErrorCode =
   | 'timeout'
   | 'position_unavailable';
 
-/**
- * Typed error carrying a stable {@link LocationErrorCode}. `message` is set to the
- * code as well so older call sites that read `error.message` keep working.
- */
 export class LocationError extends Error {
   readonly code: LocationErrorCode;
   constructor(code: LocationErrorCode) {
@@ -66,10 +55,6 @@ const requestIOS = (): Promise<void> =>
     );
   });
 
-/**
- * Ensures permission only (no fix). Kept for the assessor visit stream, which
- * manages its own `watchPosition`. Returns true when granted.
- */
 export const ensureLocationPermission = async (): Promise<boolean> => {
   if (Platform.OS === 'android') {
     return (await requestAndroid()) === 'granted';
@@ -89,24 +74,34 @@ interface PositionOpts {
   maximumAge: number;
 }
 
-// Fast, cache-tolerant first try, then a precise GPS try. Two profiles instead of
-// a single high-accuracy call so a cached/network fix returns instantly when it
-// exists, and we only pay the GPS-warmup cost when it doesn't.
 const LOW_ACCURACY: PositionOpts = { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 };
 const HIGH_ACCURACY: PositionOpts = { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 };
+
+interface MaybeMockedPosition {
+  coords: { latitude: number; longitude: number; accuracy?: number | null };
+  mocked?: boolean;
+}
+
+export const toCoords = (position: unknown): Coords => {
+  const p = position as MaybeMockedPosition;
+  const accuracy = p.coords.accuracy;
+  return {
+    latitude: p.coords.latitude,
+    longitude: p.coords.longitude,
+    accuracyM: typeof accuracy === 'number' && Number.isFinite(accuracy) ? accuracy : null,
+    isMock: p.mocked === true,
+  };
+};
 
 const getPosition = (opts: PositionOpts): Promise<Coords> =>
   new Promise<Coords>((resolve, reject) => {
     Geolocation.getCurrentPosition(
-      pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      pos => resolve(toCoords(pos)),
       err => reject(err),
       opts,
     );
   });
 
-// Geolocation error codes: 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE
-// (on Android this is what a disabled location provider surfaces as),
-// 3 = TIMEOUT.
 const toCode = (err: GeoError): LocationErrorCode => {
   switch (err.code) {
     case 1:
@@ -120,14 +115,6 @@ const toCode = (err: GeoError): LocationErrorCode => {
   }
 };
 
-/**
- * Acquires a single location fix with full permission + provider handling.
- * Throws {@link LocationError} with an actionable {@link LocationErrorCode}.
- *
- * This is intentionally a ONE-SHOT read, never a `watchPosition`: a picker must
- * not stream fixes, otherwise the map re-centers on every GPS tick and appears
- * to "continuously refresh". Live tracking belongs only to the visit stream.
- */
 export const getCurrentLocation = async (): Promise<Coords> => {
   if (Platform.OS === 'android') {
     const status = await requestAndroid();
@@ -145,12 +132,9 @@ export const getCurrentLocation = async (): Promise<Coords> => {
     return await getPosition(LOW_ACCURACY);
   } catch (e1) {
     const code1 = toCode(e1 as GeoError);
-    // A permission failure won't be fixed by retrying — surface it now.
     if (code1 === 'permission_denied' || code1 === 'permission_blocked') {
       throw new LocationError(code1);
     }
-    // The network provider may be unavailable while GPS still works (and vice
-    // versa), so give the precise provider a chance before deciding it failed.
     try {
       return await getPosition(HIGH_ACCURACY);
     } catch (e2) {
@@ -159,24 +143,17 @@ export const getCurrentLocation = async (): Promise<Coords> => {
   }
 };
 
-/**
- * Opens the OS screen where the user can turn the device location provider (GPS)
- * back on. Android has a dedicated intent; iOS has no such deep link, so we fall
- * back to the app's own settings page.
- */
 export const openLocationSettings = async (): Promise<void> => {
   if (Platform.OS === 'android') {
     try {
       await Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS');
       return;
     } catch {
-      // Fall through to the generic settings screen if the intent is unavailable.
     }
   }
   await Linking.openSettings();
 };
 
-/** Opens this app's settings page (to grant a permanently-denied permission). */
 export const openAppSettings = (): void => {
   Linking.openSettings();
 };

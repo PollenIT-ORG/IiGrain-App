@@ -25,8 +25,6 @@ export const styles = StyleSheet.create({
   labelError: {
     color: COLORS.danger,
   },
-  // Red `*` marking a mandatory field; stays red regardless of focus/error so
-  // the requirement reads at a glance.
   required: {
     color: COLORS.danger,
   },
@@ -39,12 +37,8 @@ export const styles = StyleSheet.create({
     borderColor: COLORS.gray300,
     borderRadius: borderRadius.lg,
     paddingHorizontal: scale(14),
-    // minHeight (not height): single-line inputs still sit at 52, but a
-    // multiline field can grow to wrap a long value instead of overflowing it.
     minHeight: scale(52),
   },
-  // Multiline (e.g. a full address): let the box grow, and align its content to
-  // the top with real vertical padding since it no longer centres one line.
   fieldMultiline: {
     alignItems: 'flex-start',
     paddingVertical: scale(10),
@@ -66,7 +60,6 @@ export const styles = StyleSheet.create({
     paddingVertical: 0,
     color: COLORS.gray900,
   },
-  // Drop the fixed 100% height so the input can grow with its wrapped lines.
   inputMultiline: {
     height: undefined,
     paddingTop: 0,
@@ -83,5 +76,23 @@ export const styles = StyleSheet.create({
     ...presets.bodyXS,
     color: COLORS.danger,
     marginTop: spacing[1],
+  },
+
+  hintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1],
+    marginTop: spacing[1],
+  },
+  hint: {
+    ...presets.bodyXS,
+    flex: 1,
+    color: COLORS.gray600,
+  },
+  hintSuccess: {
+    color: COLORS.success,
+  },
+  hintWarning: {
+    color: COLORS.validation,
   },
 });

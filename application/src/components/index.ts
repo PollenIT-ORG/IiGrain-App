@@ -8,7 +8,14 @@ export { default as Button } from './Button/Button';
 export type { ButtonProps, ButtonVariant, ButtonSize } from './Button/Button';
 
 export { default as Input } from './Input/Input';
-export type { InputProps } from './Input/Input';
+export type { InputProps, InputHintTone } from './Input/Input';
+
+export { default as NoticeCard } from './feedback/NoticeCard';
+export type {
+  NoticeCardProps,
+  NoticeTone,
+  NoticeAction,
+} from './feedback/NoticeCard';
 
 export { default as AuthHeader } from './AuthHeader/AuthHeader';
 export type { AuthHeaderProps } from './AuthHeader/AuthHeader';
@@ -111,5 +118,6 @@ export type { ConfirmDialogProps, ConfirmTone } from './ConfirmDialog/ConfirmDia
 export { default as FieldSelectSheet } from './enroll/FieldSelectSheet';
 export type {
   FieldSelectSheetProps,
+  FieldSheetEmptyState,
   SelectableField,
 } from './enroll/FieldSelectSheet';

@@ -52,6 +52,10 @@ class ApiError extends Error {
     return new ApiError(409, message, { code: "CONFLICT" });
   }
 
+  static unprocessable(message = "Unprocessable request"): ApiError {
+    return new ApiError(422, message, { code: "UNPROCESSABLE_ENTITY" });
+  }
+
   static internal(message = "Something went wrong on our end"): ApiError {
     return new ApiError(500, message, {
       code: "INTERNAL_SERVER_ERROR",

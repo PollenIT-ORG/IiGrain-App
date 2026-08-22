@@ -45,13 +45,15 @@ export const checkEmail = asyncHandler(async (req, res) => {
 });
 
 export const register = asyncHandler(async (req, res) => {
-  const { fullName, email, phone, password } = req.body as RegisterBody;
+  const { fullName, email, phone, password, enrollmentId } =
+    req.body as RegisterBody;
 
   const { code, ...result } = await authService.register({
     email,
     password,
     fullName,
     phone,
+    enrollmentId,
   });
 
   return ApiResponse.send(
@@ -134,6 +136,14 @@ export const resetPassword = asyncHandler(async (req, res) => {
     200,
     "Password reset successful. You can now sign in with your new password."
   );
+});
+
+export const verifyResetCode = asyncHandler(async (req, res) => {
+  const { email, code } = req.body as VerifyOtpBody;
+
+  await authService.verifyResetCode(email, code);
+
+  return ApiResponse.send(res, 200, "Code verified. You can set a new password.");
 });
 
 export const me = asyncHandler(async (req, res) => {

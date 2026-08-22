@@ -30,9 +30,11 @@ const QuestionHeader: React.FC<QuestionHeaderProps> = ({
           {categoryName}
         </AppText>
       </View>
-      <AppText style={styles.progress} color={COLORS.gray600}>
-        {index} of {total}
-      </AppText>
+      {total > 0 ? (
+        <AppText style={styles.progress} color={COLORS.gray600}>
+          {index} of {total}
+        </AppText>
+      ) : null}
     </View>
 
     <AppText style={styles.title} color={COLORS.gray900}>

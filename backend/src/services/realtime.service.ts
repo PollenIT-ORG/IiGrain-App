@@ -14,7 +14,7 @@ export type ChangedResource =
   | "organizations"
   | "eligibility"
   | "survey_questions"
-  | "contact_enquiries";
+  | "program_admin_survey";
 
 export function broadcastToAdmins(
   resource: ChangedResource,
@@ -49,7 +49,8 @@ export type WebsiteEvent =
   | "band_changed"
   | "contract_sent"
   | "contract_signed"
-  | "enrolled";
+  | "enrolled"
+  | "withdrawn";
 
 /**
  * Tells one website account that their application moved. Every device signed

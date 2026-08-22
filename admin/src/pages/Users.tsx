@@ -9,7 +9,7 @@ import {
 import { showSuccess, showError } from "../lib/toast";
 import { useUrlSearchSync } from "../lib/useUrlSearchSync";
 import { useLiveData } from "../lib/useLiveData";
-import { useDialog } from "../components/ui/DialogProvider";
+import { useConfirmCascadeDelete } from "../lib/confirmDelete";
 import Select from "../components/ui/Select";
 import Loader from "../components/Loader";
 import {
@@ -22,6 +22,7 @@ import {
   ChevronRightIcon,
 } from "../components/icons";
 import { ROLE_LABELS, type User, type UserRole } from "../types";
+import { fmtDate } from "../lib/datetime";
 
 function errMsg(err: unknown): string {
   return (
@@ -49,17 +50,11 @@ const STATUS_OPTIONS = [
 ];
 
 function formatDate(iso: string | null): string {
-  if (!iso) return "-";
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-  });
+  return fmtDate(iso);
 }
 
 export default function Users() {
   const navigate = useNavigate();
-  const { confirm } = useDialog();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const roleFromUrl = searchParams.get("role") || "";
@@ -88,6 +83,7 @@ export default function Users() {
   const loading = isLoading || isFetching;
 
   const [deleteUser] = useDeleteUserMutation();
+  const confirmDelete = useConfirmCascadeDelete();
   const [setUserStatus] = useSetUserStatusMutation();
 
   useEffect(() => {
@@ -109,11 +105,14 @@ export default function Users() {
   }
 
   async function handleDelete(user: User) {
-    const ok = await confirm({
-      title: "Delete user?",
-      message: `"${user.full_name || user.email}" will be removed from the panel.`,
-      confirmLabel: "Delete",
-      tone: "danger",
+    const who = user.full_name || user.email;
+    const ok = await confirmDelete({
+      title: "Delete this account and all of its data?",
+      message:
+        `Everything belonging to ${who} is deleted with the account. ` +
+        "This is how the numbers stay right - nothing is left behind without " +
+        "an owner.",
+      summaryPath: `/users/${user.id}/deletion-summary`,
     });
     if (!ok) return;
     try {
@@ -174,14 +173,15 @@ export default function Users() {
           />
         </div>
 
-        {isAllUsersView && (
-          <Select
-            value={roleFromUrl}
-            onChange={onRoleChange}
-            options={ROLE_OPTIONS}
-            className="sm:w-44"
-          />
-        )}
+        {/* Shown on every one of these pages, not only All users: landing on
+            Farmers from the sidebar and then wanting Assessors is the same
+            move, and picking one here moves the sidebar with it. */}
+        <Select
+          value={roleFromUrl}
+          onChange={onRoleChange}
+          options={ROLE_OPTIONS}
+          className="sm:w-44"
+        />
 
         <Select
           value={status}

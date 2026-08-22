@@ -22,8 +22,6 @@ interface SoilPayload {
   locked?: boolean;
 }
 
-/** `locked` is true until the field is enrolled in a started program; while it is
- *  true the backend rejects any nutrient value with a 403. */
 export interface SoilRecordResult {
   record: SoilRecord;
   locked: boolean;

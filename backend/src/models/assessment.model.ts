@@ -138,9 +138,23 @@ export async function updateCategory(
   return findCategoryById(id);
 }
 
+/**
+ * A category and the questions asked under it. A question left behind belongs
+ * to a category nothing can show, so it would sit in the bank unusable.
+ */
 export async function softDeleteCategory(id: string): Promise<boolean> {
-  const affected = await softDelete("assessment_categories", id);
-  return affected > 0;
+  const now = new Date();
+  const { count } = await prisma.assessment_categories.updateMany({
+    where: { id, deleted_at: null },
+    data: { deleted_at: now, updated_at: now },
+  });
+  if (count) {
+    await prisma.assessment_questions.updateMany({
+      where: { category_id: id, deleted_at: null },
+      data: { deleted_at: now, updated_at: now },
+    });
+  }
+  return count > 0;
 }
 
 export async function upsertCategoryByName(

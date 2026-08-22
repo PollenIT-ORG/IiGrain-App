@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppStatusBar, AppText, AuthHeader, AuthSwitcher } from '../../components';
@@ -13,6 +13,14 @@ const AuthenticationScreen: React.FC<AuthScreenProps<'Authentication'>> = ({
   route,
 }) => {
   const [authMode, setAuthMode] = useState<AuthMode>(route.params?.mode ?? 'login');
+
+  const paramMode = route.params?.mode;
+  const paramError = route.params?.enrollmentError;
+  useEffect(() => {
+    if (paramMode) {
+      setAuthMode(paramMode);
+    }
+  }, [paramMode, paramError]);
 
   const handleSwitch = useCallback((next: AuthMode) => setAuthMode(next), []);
   const goSignup = useCallback(() => setAuthMode('signup'), []);

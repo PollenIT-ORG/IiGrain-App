@@ -1,15 +1,25 @@
 import ApiError from "../utils/ApiError.js";
+import { surveyPublicLink } from "./programAdminSurvey.service.js";
+import {
+  holdsEnrollmentIdForProgram,
+  enrollmentIdForProgram,
+  issueEnrollmentId,
+} from "../models/enrollmentId.model.js";
 import prisma from "../db/prisma.js";
 import { findById } from "../models/user.model.js";
 import { getDefaultOrgId } from "./tenancy.service.js";
+import { orgToday } from "../utils/datetime.js";
+import {
+  summarizeProgramDeletion,
+  deleteProgramCascade,
+  type DeletionLine,
+} from "./cascadeDelete.service.js";
 import {
   createProgram,
   listPrograms,
   findProgramById,
   updateProgram,
-  softDeleteProgramCascade,
   programCodeExists,
-  programHasSubmittedAssessment,
   countEnrollments,
   listEnrollments,
   findEnrollment,
@@ -22,12 +32,15 @@ import {
   listEnrollmentsPaged,
   listAvailableProgramsForFarmer,
   listEnrollableFieldsForFarmer,
+  programHasSurvey,
+  setProgramVisibility as setVisibility,
   getProgramAssessmentProgress,
   type PublicProgram,
   type PublicEnrollment,
   type SubmissionRow,
   type AvailableProgram,
   type EnrollableField,
+  type ProgramStatusFilter,
 } from "../models/program.model.js";
 import {
   setFarmerAssessor,
@@ -89,6 +102,39 @@ function assertProgramEnrollable(program: {
   }
 }
 
+/**
+ * A short code built from the program's name: the initial of each word, then a
+ * number that makes it unique in the organization. "New Test Program" becomes
+ * NTP-001, and NTP-002 if that is taken.
+ */
+export async function suggestProgramCode(name: string): Promise<string> {
+  const orgId = await getDefaultOrgId();
+  const words = name
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const letters = words
+    .filter((w) => /^[A-Z]/.test(w))
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 4);
+  // One word gives no initials worth reading, so take the start of it instead.
+  const prefix =
+    letters.length >= 2
+      ? letters
+      : (words[0] ?? "").replace(/[^A-Z]/g, "").slice(0, 3) || "PRG";
+
+  if (!orgId) return `${prefix}-001`;
+  for (let n = 1; n <= 999; n += 1) {
+    const code = `${prefix}-${String(n).padStart(3, "0")}`;
+    if (!(await programCodeExists(orgId, code))) return code;
+  }
+  // Every number taken, which needs a different shape rather than a 1000th try.
+  return `${prefix}-${Date.now().toString().slice(-6)}`;
+}
+
 export async function addProgram(
   input: CreateProgramInput,
   actor: Actor
@@ -103,7 +149,9 @@ export async function addProgram(
     throw ApiError.badRequest("End date cannot be before start date.");
   }
 
-  const code = nn(input.code);
+  // Left blank, a program still gets a code - it is what people quote when
+  // they talk about the scheme.
+  const code = nn(input.code) ?? (await suggestProgramCode(input.name));
   if (code && (await programCodeExists(orgId, code))) {
     throw ApiError.conflict("A program with this code already exists.");
   }
@@ -161,8 +209,10 @@ async function notifyOrgFarmersOfNewProgram(
 export interface ListProgramsInput {
   page: number;
   limit: number;
-  isActive?: boolean;
+  status?: ProgramStatusFilter;
   search?: string;
+  /** Set for a program administrator, who only sees their own programs. */
+  createdBy?: string;
 }
 
 export async function getPrograms(input: ListProgramsInput): Promise<{
@@ -170,8 +220,11 @@ export async function getPrograms(input: ListProgramsInput): Promise<{
   meta: { page: number; limit: number; total: number; totalPages: number };
 }> {
   const { rows, total } = await listPrograms({
-    isActive: input.isActive,
+    status: input.status,
+    // Ended and Scheduled are decided against the office's own day.
+    today: input.status ? await orgToday() : undefined,
     search: input.search,
+    createdBy: input.createdBy,
     limit: input.limit,
     offset: (input.page - 1) * input.limit,
   });
@@ -261,20 +314,27 @@ export async function editProgram(
   return updated;
 }
 
+/** What deleting this program would take with it, for the confirmation. */
+export async function getProgramDeletionSummary(
+  id: string
+): Promise<DeletionLine[]> {
+  await getProgramById(id);
+  return summarizeProgramDeletion(id);
+}
+
+/**
+ * Deletes a program and everything that only existed as part of it: its
+ * survey and the submissions to it, the enrollments, the assessments and the
+ * visits. Nothing is left behind to be counted or listed without the program
+ * that explained it. The panel warns before calling this.
+ */
 export async function removeProgram(id: string): Promise<void> {
   await getProgramById(id);
-  // Submitted assessments are real records - a program that holds any should be
-  // set inactive to archive it, not deleted. Deleting would hide that work.
-  if (await programHasSubmittedAssessment(id)) {
-    throw ApiError.conflict(
-      "This program has submitted assessments, so it can't be deleted. Set it to inactive instead to close it while keeping its records."
-    );
-  }
-  // Cascade so the program's enrollments and their fields go with it - otherwise
-  // the fields stay attached to a removed program and can never be deleted.
-  const ok = await softDeleteProgramCascade(id);
+  const ok = await deleteProgramCascade(id);
   if (!ok) throw ApiError.notFound("Program not found.");
   broadcastToAdmins("programs", { programId: id });
+  broadcastToAdmins("enrollments");
+  broadcastToAdmins("program_admin_survey");
 }
 
 export async function getEnrollments(
@@ -432,6 +492,11 @@ export async function enrollFarmer(
     assessorId,
     enrolledBy: actor.id,
     note: nn(input.note),
+    // Their survey ID when they have one, otherwise a fresh one so a
+    // hand-made enrolment still carries an ID like every other.
+    enrollmentId:
+      (await enrollmentIdForProgram(input.farmerId, programId)) ??
+      (await issueEnrollmentId()),
   });
 
   await syncAssessorAssignment(input.farmerId, assessorId, actor.id);
@@ -634,10 +699,42 @@ export async function unenroll(
   }
 }
 
+/**
+ * What a farmer already on the platform is offered. Only programs someone has
+ * opened up to farmers come back, each with the link to its survey so the app
+ * can send them straight there.
+ */
+export type AvailableProgramForFarmer = Omit<AvailableProgram, "survey_token"> & {
+  survey_url: string | null;
+};
+
 export async function getAvailableProgramsForFarmer(
   farmerId: string
-): Promise<AvailableProgram[]> {
-  return listAvailableProgramsForFarmer(farmerId);
+): Promise<AvailableProgramForFarmer[]> {
+  const rows = await listAvailableProgramsForFarmer(farmerId);
+  return rows.map(({ survey_token, ...rest }) => ({
+    ...rest,
+    survey_url: survey_token ? surveyPublicLink(survey_token) : null,
+  }));
+}
+
+/**
+ * Turn the offer to existing farmers on or off. It can only go on once the
+ * program has a survey, because that survey is where the farmer is sent.
+ */
+export async function setProgramShownToFarmers(
+  id: string,
+  showToFarmers: boolean
+): Promise<PublicProgram> {
+  await getProgramById(id); // 404s if it is gone
+  if (showToFarmers && !(await programHasSurvey(id))) {
+    throw ApiError.conflict(
+      "Add a survey to this program before showing it to enrolled farmers."
+    );
+  }
+  const updated = await setVisibility(id, showToFarmers);
+  if (!updated) throw ApiError.notFound("Program not found.");
+  return updated;
 }
 
 export interface EnrollableFieldsInput {
@@ -682,6 +779,16 @@ export async function selfEnroll(
   const program = await findProgramById(programId);
   if (!program) throw ApiError.notFound("Program not found.");
   assertProgramEnrollable(program);
+  // Enrolling yourself needs the Enrollment ID for this exact program, which is
+  // only issued once its survey has been completed and accepted. The list
+  // already reflects this, but a farmer can still hold a program id from a
+  // cached screen or an old link, so the rule is enforced on the way in too.
+  // Only self-enrollment is gated: your team can still enroll anyone by hand.
+  if (!(await holdsEnrollmentIdForProgram(farmerId, programId))) {
+    throw ApiError.badRequest(
+      "Please complete this program's survey first. You can enroll once your Enrollment ID for it has been issued."
+    );
+  }
 
   await assertFieldsOwnedByFarmer(input.fieldIds, farmerId);
 
@@ -739,6 +846,7 @@ export async function selfEnroll(
     assessorId: null,
     enrolledBy: farmerId,
     note: nn(input.note),
+    enrollmentId: await enrollmentIdForProgram(farmerId, programId),
   });
 
   void notifyUser({
@@ -857,6 +965,17 @@ export async function selfUnenrollField(
     fieldId,
     enrollmentId: enrollment.id,
   });
+  // Tell the assigned assessor too, so the field the farmer just left drops off
+  // their list in real time (the same notice admin-side unenroll already sends).
+  if (full?.assessor_id) {
+    emitSync(full.assessor_id, {
+      resource: "enrollment",
+      action: "unenrolled",
+      programId,
+      fieldId,
+      enrollmentId: enrollment.id,
+    });
+  }
   return { programId, fieldId, unenrolled: true, enrollmentRemoved };
 }
 
@@ -865,6 +984,8 @@ export interface ListSubmissionsInput {
   limit: number;
   programId?: string;
   authorRole?: "farmer" | "assessor";
+  /** Set for a program administrator: only their own programs' submissions. */
+  programOwnerId?: string;
 }
 
 function toSubmission(r: SubmissionRow) {
@@ -890,6 +1011,7 @@ export async function getSubmissions(input: ListSubmissionsInput) {
   const { rows, total } = await listSubmissions({
     programId: input.programId,
     authorRole: input.authorRole,
+    programOwnerId: input.programOwnerId,
     limit: input.limit,
     offset: (input.page - 1) * input.limit,
   });
