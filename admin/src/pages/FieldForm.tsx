@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   useGetFieldQuery,
@@ -13,7 +13,9 @@ import { useListFarmsQuery } from "../store/endpoints/farmsApi";
 import { showSuccess, showError } from "../lib/toast";
 import Loader from "../components/Loader";
 import Select from "../components/ui/Select";
-import MapPicker, { type LatLng } from "../components/ui/MapPicker";
+import MapPicker from "../components/ui/MapPicker";
+import BoundaryMap from "../components/ui/BoundaryMap";
+import type { LatLng, GeoJSONPolygon } from "../lib/geo";
 import { ChevronLeftIcon } from "../components/icons";
 import { applyServerFieldErrors } from "../lib/serverErrors";
 import { MAX_AREA_ACRES } from "../lib/validation";
@@ -53,6 +55,15 @@ export default function FieldForm() {
   const [irrigation, setIrrigation] = useState("");
   const [location, setLocation] = useState("");
   const [coords, setCoords] = useState<LatLng | null>(null);
+  const [boundary, setBoundary] = useState<GeoJSONPolygon | null>(null);
+  const [drawnAcres, setDrawnAcres] = useState(0);
+  // Set once the area is typed or loaded, so drawing stops overwriting it.
+  const areaTouched = useRef(false);
+
+  function onAreaDrawn(acres: number) {
+    setDrawnAcres(acres);
+    if (!areaTouched.current && acres > 0) setAreaAcres(String(acres));
+  }
   const [sowingDate, setSowingDate] = useState("");
   const [expectedHarvest, setExpectedHarvest] = useState("");
   const [isActive, setIsActive] = useState(true);
@@ -108,6 +119,7 @@ export default function FieldForm() {
       setFarmId(field.farm_id);
       setName(field.name);
       setAreaAcres(field.area_acres ?? "");
+      areaTouched.current = field.area_acres != null;
       setCrop(field.crop ?? "");
       setSeason(field.season ?? "");
       setIrrigation(field.irrigation ?? "");
@@ -119,6 +131,7 @@ export default function FieldForm() {
       );
       setSowingDate(field.sowing_date ?? "");
       setExpectedHarvest(field.expected_harvest ?? "");
+      setBoundary(field.boundary ?? null);
       setIsActive(field.is_active);
     }
   }, [field]);
@@ -222,6 +235,7 @@ export default function FieldForm() {
             longitude: coords?.lng ?? null,
             sowingDate: sowingDate || undefined,
             expectedHarvest: expectedHarvest || undefined,
+            boundary,
             isActive,
           },
         }).unwrap();
@@ -238,6 +252,7 @@ export default function FieldForm() {
           longitude: coords?.lng ?? null,
           sowingDate: sowingDate || undefined,
           expectedHarvest: expectedHarvest || undefined,
+          boundary,
           isActive,
         }).unwrap();
         fieldId = created.id;
@@ -340,7 +355,10 @@ export default function FieldForm() {
                 className={`input-field ${errors.area ? "input-error" : ""}`}
                 placeholder="50.5"
                 value={areaAcres}
-                onChange={(e) => setAreaAcres(e.target.value)}
+                onChange={(e) => {
+                  areaTouched.current = true;
+                  setAreaAcres(e.target.value);
+                }}
               />
               {errors.area ? (
                 <p className="field-error">{errors.area}</p>
@@ -423,6 +441,32 @@ export default function FieldForm() {
           <div>
             <label className="label">Map location</label>
             <MapPicker value={coords} onChange={setCoords} height={280} />
+            <p className="mt-1 text-xs text-gray-500">
+              A single point, used to verify an assessor has arrived at the field.
+            </p>
+          </div>
+
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="label mb-0">Mark boundary</label>
+              {drawnAcres > 0 && areaAcres.trim() !== String(drawnAcres) && (
+                <button
+                  type="button"
+                  onClick={() => setAreaAcres(String(drawnAcres))}
+                  className="text-sm font-medium text-primary hover:underline"
+                >
+                  Use drawn area ({drawnAcres.toFixed(2)} acres)
+                </button>
+              )}
+            </div>
+            <div className="mt-2">
+              <BoundaryMap
+                value={boundary}
+                onChange={setBoundary}
+                onAreaChange={onAreaDrawn}
+                height={340}
+              />
+            </div>
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2">

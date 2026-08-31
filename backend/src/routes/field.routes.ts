@@ -14,6 +14,7 @@ import {
   resetField,
   resetMyField,
   updateMyFieldBoundary,
+  updateFieldBoundaryForStaff,
 } from "../controllers/field.controller.js";
 import {
   getFieldDetails,
@@ -93,6 +94,16 @@ router.get(
   fieldDeletionSummary
 );
 router.delete("/:id", authenticate, orgManagers, withId, deleteField);
+// Saves only the outline, so the rest of the field is not resent with it.
+router.put(
+  "/:id/boundary",
+  authenticate,
+  orgManagers,
+  withId,
+  validate(saveFieldBoundarySchema),
+  updateFieldBoundaryForStaff
+);
+
 router.post("/:id/reset", authenticate, orgManagers, withId, resetField);
 
 router.get(

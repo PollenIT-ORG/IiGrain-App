@@ -66,9 +66,15 @@ export const enrollmentIdField = z
   .max(32, "That Enrollment ID is too long.")
   .transform((v) => v.replace(/\s+/g, "").toUpperCase());
 
+export const enrollmentLookupSchema = z.object({
+  enrollmentId: enrollmentIdField,
+});
+
 export const registerSchema = z.object({
   fullName: nameField,
-  email: emailField,
+  // Optional: the Enrollment ID already names the address. Sent by older app
+  // builds, and still checked against the ID when it is.
+  email: emailField.optional(),
   phone: phoneField,
   password: passwordField,
   enrollmentId: enrollmentIdField,

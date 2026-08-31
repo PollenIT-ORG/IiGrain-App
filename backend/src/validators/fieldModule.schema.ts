@@ -182,6 +182,28 @@ export const moduleBodySchemas = {
     k2o_pct: pct("Potash percent"),
     rate_lbs_acre: num(0, 999999, "Rate in lbs per acre"),
   }),
+
+  crop_intensification: z.object({
+    ...base,
+    event_date: optionalDate("Date"),
+    zone: z
+      .enum(["1", "2", "3"], { error: "Zone must be 1, 2 or 3." })
+      .optional()
+      .nullable()
+      .or(z.literal("")),
+    in_use: bool,
+    crops_per_period: num(0, 99, "Number of crops"),
+    period_years: num(1, 10, "Period in years"),
+    fallow_eliminated: bool,
+  }),
+
+  animal_integration: z.object({
+    ...base,
+    event_date: optionalDate("Date"),
+    animal_breed: text(150, "Animal breed"),
+    grazing_period: text(100, "Grazing period"),
+    biomass_foraged_pct: pct("Biomass foraged percent"),
+  }),
 } as const;
 
 /**
@@ -211,20 +233,17 @@ export const farmParamsSchema = z.object({
   farmId: z.string().uuid("Invalid farm id."),
 });
 
-export const farmProgramParamsSchema = z.object({
-  farmId: z.string().uuid("Invalid farm id."),
-  programId: z.string().uuid("Invalid program id."),
-});
-
-export const farmModuleParamsSchema = farmProgramParamsSchema.extend({
+export const farmModuleParamsSchema = farmParamsSchema.extend({
   module: z.enum(MODULE_KEYS as [string, ...string[]], {
     error: "Unknown module.",
   }),
 });
 
-export const moduleParamsSchema = z.object({
-  programId: z.string().uuid("Invalid program id."),
+export const fieldParamsSchema = z.object({
   fieldId: z.string().uuid("Invalid field id."),
+});
+
+export const moduleParamsSchema = fieldParamsSchema.extend({
   module: z.enum(MODULE_KEYS as [string, ...string[]], {
     error: "Unknown module.",
   }),
@@ -232,11 +251,6 @@ export const moduleParamsSchema = z.object({
 
 export const moduleRecordParamsSchema = moduleParamsSchema.extend({
   id: z.string().uuid("Invalid record id."),
-});
-
-export const fieldProgramParamsSchema = z.object({
-  programId: z.string().uuid("Invalid program id."),
-  fieldId: z.string().uuid("Invalid field id."),
 });
 
 // ---------------------------------------------------------------------------
@@ -296,7 +310,7 @@ export const listDocumentsQuerySchema = z.object({
   recordId: z.string().uuid("Invalid record id.").optional(),
 });
 
-export const documentParamsSchema = fieldProgramParamsSchema.extend({
+export const documentParamsSchema = fieldParamsSchema.extend({
   documentId: z.string().uuid("Invalid document id."),
 });
 

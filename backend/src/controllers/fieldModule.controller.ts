@@ -30,8 +30,8 @@ function actor(req: Request): service.Actor {
 }
 
 /** The three ids every route in this file carries. */
-function target(req: Request): { fieldId: string; programId: string } {
-  return { fieldId: req.params.fieldId, programId: req.params.programId };
+function target(req: Request): { fieldId: string } {
+  return { fieldId: req.params.fieldId };
 }
 
 function moduleOf(req: Request): ModuleKey {
@@ -50,10 +50,10 @@ export const getModules = asyncHandler(async (req: Request, res: Response) => {
   return ApiResponse.send(res, 200, "Modules fetched.", { context, modules });
 });
 
-export const getFarmPrograms = asyncHandler(
+export const getFarmFields = asyncHandler(
   async (req: Request, res: Response) => {
-    const data = await service.getFarmPrograms(req.params.farmId, actor(req));
-    return ApiResponse.send(res, 200, "Farm programs fetched.", data);
+    const data = await service.getFarmFields(req.params.farmId, actor(req));
+    return ApiResponse.send(res, 200, "Farm fields fetched.", data);
   }
 );
 
@@ -61,7 +61,6 @@ export const getFarmModules = asyncHandler(
   async (req: Request, res: Response) => {
     const data = await service.getFarmModuleSummary({
       farmId: req.params.farmId,
-      programId: req.params.programId,
       actor: actor(req),
     });
     return ApiResponse.send(res, 200, "Farm modules fetched.", data);
@@ -73,7 +72,6 @@ export const listFarmModuleRecords = asyncHandler(
     const data = await service.getFarmRecords({
       module: moduleOf(req),
       farmId: req.params.farmId,
-      programId: req.params.programId,
       actor: actor(req),
     });
     return ApiResponse.send(res, 200, "Farm records fetched.", data);

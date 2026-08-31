@@ -11,6 +11,9 @@ import { showSuccess, showError } from "../lib/toast";
 import { useConfirmCascadeDelete } from "../lib/confirmDelete";
 import { useDialog } from "../components/ui/DialogProvider";
 import Loader from "../components/Loader";
+import FieldMonitoringCard from "../components/fieldMonitoring/FieldMonitoringCard";
+import BoundaryMap from "../components/ui/BoundaryMap";
+import { boundaryToRing, validateRing } from "../lib/geo";
 import {
   ChevronLeftIcon,
   EditIcon,
@@ -196,6 +199,10 @@ export default function FieldDetail() {
 
       <Soil soil={soil ?? null} loading={soilLoading} />
 
+      <Boundary field={field} formatDate={formatDate} />
+
+      <FieldMonitoringCard fieldId={field.id} />
+
       <Documents
         documents={documents}
         loading={docsLoading}
@@ -343,6 +350,42 @@ function Documents({
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Boundary({
+  field,
+  formatDate,
+}: {
+  field: Field;
+  formatDate: (iso: string | null) => string;
+}) {
+  const ring = boundaryToRing(field.boundary);
+  const check = validateRing(ring);
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex flex-col gap-2 border-b border-gray-300 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+          Boundary
+        </h2>
+        {ring.length > 0 && (
+          <p className="text-xs text-gray-500">
+            {ring.length} points, {check.areaAcres.toFixed(2)} acres, marked{" "}
+            {formatDate(field.boundary_updated_at)}
+          </p>
+        )}
+      </div>
+      {ring.length === 0 ? (
+        <div className="px-5 py-12 text-center text-sm text-gray-500">
+          No boundary marked for this field yet.
+        </div>
+      ) : (
+        <div className="p-5">
+          <BoundaryMap value={field.boundary} onChange={() => {}} readOnly height={320} />
         </div>
       )}
     </div>

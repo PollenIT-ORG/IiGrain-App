@@ -86,6 +86,7 @@ interface CreateInput {
   sowingDate?: string;
   expectedHarvest?: string;
   isActive?: boolean;
+  boundary?: GeoJSONPolygon | null;
 }
 
 async function assertFieldNameFree(
@@ -134,6 +135,7 @@ export async function createFieldFor(input: CreateInput): Promise<PublicField> {
     sowingDate: nn(input.sowingDate),
     expectedHarvest: nn(input.expectedHarvest),
     isActive: input.isActive ?? true,
+    boundary: input.boundary ?? null,
   });
   await syncFieldOwner(input.farmId, "created", field.id);
   return field;
@@ -145,6 +147,7 @@ interface ListInput {
   farmId?: string;
   ownerId?: string;
   isActive?: boolean;
+  hasBoundary?: boolean;
   search?: string;
 }
 
@@ -156,6 +159,7 @@ export async function getFields(input: ListInput): Promise<{
     farmId: input.farmId,
     ownerId: input.ownerId,
     isActive: input.isActive,
+    hasBoundary: input.hasBoundary,
     search: input.search,
     limit: input.limit,
     offset: (input.page - 1) * input.limit,
@@ -190,6 +194,8 @@ interface UpdateInput {
   sowingDate?: string | null;
   expectedHarvest?: string | null;
   isActive?: boolean;
+  /** Left out keeps the stored boundary; null clears it. */
+  boundary?: GeoJSONPolygon | null;
 }
 
 export async function editField(id: string, input: UpdateInput): Promise<PublicField> {
@@ -216,6 +222,7 @@ export async function editField(id: string, input: UpdateInput): Promise<PublicF
     sowingDate: input.sowingDate !== undefined ? nn(input.sowingDate) : undefined,
     expectedHarvest: input.expectedHarvest !== undefined ? nn(input.expectedHarvest) : undefined,
     isActive: input.isActive,
+    boundary: input.boundary,
   });
   if (!updated) throw ApiError.notFound("Field not found.");
   await syncFieldOwner(existing.farm_id, "updated", id);
@@ -312,6 +319,18 @@ export async function resetMyFarmField(
   const field = await findFieldById(fieldId);
   if (!field || field.farm_id !== farmId) throw ApiError.notFound("Field not found.");
   return resetFieldById(fieldId);
+}
+
+/** Staff save. The role gate is on the route, so only the field is checked. */
+export async function saveFieldBoundary(
+  fieldId: string,
+  boundary: GeoJSONPolygon | null
+): Promise<PublicField> {
+  const field = await findFieldById(fieldId);
+  if (!field) throw ApiError.notFound("Field not found.");
+  const updated = await updateFieldBoundary(fieldId, boundary);
+  if (!updated) throw ApiError.notFound("Field not found.");
+  return updated;
 }
 
 export async function saveMyFarmFieldBoundary(

@@ -144,7 +144,7 @@ export default function App() {
                     element={<ProgramSurveySetup />}
                   />
                   <Route
-                    path="/programs/:id/fields/:fieldId/monitoring"
+                    path="/fields/:fieldId/monitoring"
                     element={<FieldMonitoring />}
                   />
                   <Route

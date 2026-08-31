@@ -6,6 +6,7 @@ import type {
   FieldHistoryEvent,
   AssessmentComparison,
   PageMeta,
+  GeoJSONPolygon,
 } from "../../types";
 
 interface ListFieldsParams {
@@ -13,6 +14,7 @@ interface ListFieldsParams {
   limit?: number;
   farmId?: string;
   ownerId?: string;
+  hasBoundary?: boolean;
   isActive?: boolean;
   search?: string;
 }
@@ -30,6 +32,8 @@ interface CreateFieldBody {
   sowingDate?: string;
   expectedHarvest?: string;
   isActive?: boolean;
+  /** Left out keeps the stored outline; null clears it. */
+  boundary?: GeoJSONPolygon | null;
 }
 
 type UpdateFieldBody = Partial<Omit<CreateFieldBody, "farmId">>;

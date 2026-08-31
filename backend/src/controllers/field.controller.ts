@@ -17,6 +17,7 @@ import {
   resetFieldById,
   resetMyFarmField,
   saveMyFarmFieldBoundary,
+  saveFieldBoundary,
 } from "../services/field.service.js";
 
 export const createField = asyncHandler(async (req: Request, res: Response) => {
@@ -26,15 +27,24 @@ export const createField = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const listFields = asyncHandler(async (req: Request, res: Response) => {
-  const { page, limit, farmId, ownerId, isActive, search } =
-    req.query as Record<string, string | undefined>;
+  // The query validator has already coerced these, so they arrive typed.
+  const { page, limit, farmId, ownerId, isActive, hasBoundary, search } =
+    req.query as unknown as {
+      page?: number;
+      limit?: number;
+      farmId?: string;
+      ownerId?: string;
+      isActive?: boolean;
+      hasBoundary?: boolean;
+      search?: string;
+    };
   const result = await getFields({
-    page: page ? Number(page) : 1,
-    limit: limit ? Number(limit) : 20,
+    page: page ?? 1,
+    limit: limit ?? 20,
     farmId: farmId || undefined,
     ownerId: ownerId || undefined,
-    isActive:
-      isActive === "true" ? true : isActive === "false" ? false : undefined,
+    isActive,
+    hasBoundary,
     search: search || undefined,
   });
   ApiResponse.send(res, 200, "Fields retrieved successfully.", result, result.meta);
@@ -111,6 +121,13 @@ export const resetMyField = asyncHandler(async (req: Request, res: Response) => 
   const field = await resetMyFarmField(req.params.farmId, req.params.id, userId);
   ApiResponse.send(res, 200, "Field reset successfully.", { field });
 });
+
+export const updateFieldBoundaryForStaff = asyncHandler(
+  async (req: Request, res: Response) => {
+    const field = await saveFieldBoundary(req.params.id, req.body.boundary);
+    ApiResponse.send(res, 200, "Field boundary saved successfully.", { field });
+  }
+);
 
 export const updateMyFieldBoundary = asyncHandler(
   async (req: Request, res: Response) => {

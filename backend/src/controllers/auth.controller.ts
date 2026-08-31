@@ -44,6 +44,12 @@ export const checkEmail = asyncHandler(async (req, res) => {
   );
 });
 
+export const enrollmentIdLookup = asyncHandler(async (req, res) => {
+  const { enrollmentId } = req.body as { enrollmentId: string };
+  const result = await authService.lookupEnrollmentId(enrollmentId);
+  return ApiResponse.send(res, 200, "Enrollment ID found.", result);
+});
+
 export const register = asyncHandler(async (req, res) => {
   const { fullName, email, phone, password, enrollmentId } =
     req.body as RegisterBody;

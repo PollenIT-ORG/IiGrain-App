@@ -170,8 +170,6 @@ export default function EnrolledFarmers() {
                     <EnrollmentRow
                       key={e.id}
                       programId={id}
-                      programName={program?.name ?? ""}
-                      programStart={program?.start_date ?? null}
                       enrollment={e}
                       assessorOptions={assessorOptions}
                       confirm={confirm}
@@ -222,17 +220,7 @@ export default function EnrolledFarmers() {
  * every field of every farm would be a lot to hold open on a list screen that
  * mostly nobody exports from.
  */
-function FarmWorkbookButton({
-  programId,
-  programName,
-  programStart,
-  enrollment: e,
-}: {
-  programId: string;
-  programName: string;
-  programStart: string | null;
-  enrollment: ProgramEnrollment;
-}) {
+function FarmWorkbookButton({ enrollment: e }: { enrollment: ProgramEnrollment }) {
   const [busy, setBusy] = useState(false);
   const [fetchRecords] = useLazyListModuleRecordsQuery();
   const [fetchDocs] = useLazyListModuleDocumentsQuery();
@@ -254,17 +242,14 @@ function FarmWorkbookButton({
       for (const f of e.fields) {
         for (const def of MODULES) {
           const res = await fetchRecords(
-            { programId, fieldId: f.field_id, module: def.key },
+            { fieldId: f.field_id, module: def.key },
             true
           ).unwrap();
           byModule[def.key].push(
             ...res.records.map((r) => ({ ...r, fieldName: f.field_name }))
           );
         }
-        const docs = await fetchDocs(
-          { programId, fieldId: f.field_id },
-          true
-        ).unwrap();
+        const docs = await fetchDocs({ fieldId: f.field_id }, true).unwrap();
         documents.push(...docs);
       }
 
@@ -272,9 +257,6 @@ function FarmWorkbookButton({
         // Every field of one enrolment sits on the same farm in practice; the
         // first one names it.
         farmName: e.fields[0].farm_name ?? "Farm",
-        programName,
-        // Their template calls the program year simply "Year".
-        year: (programStart ?? new Date().toISOString()).slice(0, 4),
         fields: e.fields.map((f) => ({
           fieldId: f.field_id,
           fieldName: f.field_name,
@@ -312,15 +294,11 @@ function FarmWorkbookButton({
 
 function EnrollmentRow({
   programId,
-  programName,
-  programStart,
   enrollment: e,
   assessorOptions,
   confirm,
 }: {
   programId: string;
-  programName: string;
-  programStart: string | null;
   enrollment: ProgramEnrollment;
   assessorOptions: { value: string; label: string }[];
   confirm: ReturnType<typeof useDialog>["confirm"];
@@ -390,7 +368,7 @@ function EnrollmentRow({
                   key={f.id}
                   type="button"
                   onClick={() =>
-                    navigate(`/programs/${programId}/fields/${f.field_id}/monitoring`)
+                    navigate(`/fields/${f.field_id}/monitoring`)
                   }
                   className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-primary/10 hover:text-primary"
                   title={`Open monitoring records${f.farm_name ? ` - ${f.farm_name}` : ""}`}
@@ -420,12 +398,7 @@ function EnrollmentRow({
         </td>
         <td className="px-5 py-3.5 align-middle">
           <div className="flex items-center justify-end gap-1">
-            <FarmWorkbookButton
-              programId={programId}
-              programName={programName}
-              programStart={programStart}
-              enrollment={e}
-            />
+            <FarmWorkbookButton enrollment={e} />
             <button
               onClick={() => setExpanded((v) => !v)}
               className={`grid h-8 w-8 place-items-center rounded-lg hover:bg-gray-100 hover:text-primary ${

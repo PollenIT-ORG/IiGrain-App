@@ -48,13 +48,11 @@ function initialValues(
  */
 export default function ModuleFormModal({
   module,
-  programId,
   fieldId,
   record,
   onClose,
 }: {
   module: ModuleKey;
-  programId: string;
   fieldId: string;
   /** Null when adding. */
   record: ModuleRecord | null;
@@ -147,7 +145,6 @@ export default function ModuleFormModal({
     try {
       if (record) {
         await update({
-          programId,
           fieldId,
           module,
           id: record.id,
@@ -155,7 +152,7 @@ export default function ModuleFormModal({
         }).unwrap();
         showSuccess(`${def.singular} updated.`);
       } else {
-        await create({ programId, fieldId, module, body: payload() }).unwrap();
+        await create({ fieldId, module, body: payload() }).unwrap();
         showSuccess(`${def.singular} added.`);
       }
       onClose();

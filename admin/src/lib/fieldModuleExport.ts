@@ -4,8 +4,11 @@ import {
   type Sheet,
   type Column,
   type ColumnGroup,
+  type CellValue,
 } from "./workbook";
 import { MODULES, MODULE_BY_KEY, allFields, STATUS_LABEL } from "./fieldModules";
+import { yearOfRecord } from "./monitoringYear";
+import { practiceRollup, practiceCells } from "./practiceRollup";
 import type {
   ModuleKey,
   ModuleRecord,
@@ -98,11 +101,22 @@ export function moduleSheetColumns(module: ModuleKey): Column[] {
   ];
 }
 
+/**
+ * The attachments cell. Excel allows one link per cell, so the first file is
+ * the link and the rest are counted; the Attachments sheet lists them all.
+ */
+export function attachmentCell(files: ModuleDocument[]): CellValue {
+  if (!files.length) return "";
+  const first = files[0];
+  const text = files.length === 1 ? first.name : `${first.name} (+${files.length - 1} more)`;
+  return first.url ? { text, hyperlink: first.url } : text;
+}
+
 /** One record as the cells for those columns. */
 export function moduleSheetRow(
   record: ModuleRecord,
   fields: readonly { key: string; type: string }[],
-  fileNames: string[]
+  files: ModuleDocument[]
 ) {
   return [
     ...fields.map((f) => {
@@ -114,8 +128,52 @@ export function moduleSheetRow(
     }),
     STATUS_LABEL[record.status] ?? record.status,
     record.notes ?? "",
-    fileNames.join(", "),
+    attachmentCell(files),
   ];
+}
+
+export interface AttachmentContext {
+  /** Keyed by record id, for files pinned to one row. */
+  records: Map<string, { year: string; fieldName: string; label: string }>;
+  /** Keyed by field id, so a loose file still names its field. */
+  fieldNames: Map<string, string>;
+}
+
+/** Every file in a workbook on one sheet, each with a link that opens it. */
+export function attachmentsSheet(input: {
+  documents: ModuleDocument[];
+  context: AttachmentContext;
+}): Sheet {
+  const rows = input.documents.map((d) => {
+    const meta = d.record_id ? input.context.records.get(d.record_id) : undefined;
+    return [
+      meta?.year ?? "",
+      meta?.fieldName ?? input.context.fieldNames.get(d.field_id) ?? "",
+      MODULE_BY_KEY[d.module as ModuleKey]?.label ?? d.module,
+      meta?.label ?? "",
+      d.name,
+      d.mime_type ?? "",
+      d.size_bytes ? Math.round(d.size_bytes / 1024) : "",
+      d.url ? { text: "Open", hyperlink: d.url } : "",
+    ] as CellValue[];
+  });
+
+  return {
+    name: "Attachments",
+    title: "Attachments",
+    notes: [["Files", String(input.documents.length)]],
+    columns: [
+      { header: "Year", width: 10, type: "text" },
+      { header: "Field Name", width: 24, type: "text" },
+      { header: "Module", width: 22, type: "text" },
+      { header: "Record", width: 28, type: "text" },
+      { header: "File Name", width: 46, type: "text" },
+      { header: "Type", width: 18, type: "text" },
+      { header: "Size (KB)", width: 12, type: "number" },
+      { header: "Link", width: 12, type: "text" },
+    ],
+    rows,
+  };
 }
 
 /**
@@ -131,11 +189,11 @@ export function moduleSheet(input: {
   const def = MODULE_BY_KEY[input.module];
   const fields = allFields(input.module);
 
-  const filesByRecord = new Map<string, string[]>();
+  const filesByRecord = new Map<string, ModuleDocument[]>();
   for (const doc of input.documents) {
     if (!doc.record_id) continue;
     const list = filesByRecord.get(doc.record_id) ?? [];
-    list.push(doc.name);
+    list.push(doc);
     filesByRecord.set(doc.record_id, list);
   }
 
@@ -155,13 +213,12 @@ export function moduleSheet(input: {
       ? [...groups, { label: "", span: columns.length - fields.length }]
       : undefined,
     title: `${def.label} - ${input.context.fieldName}`,
-    subtitle: `${input.context.farmName} | ${input.context.programName}`,
+    subtitle: input.context.farmName,
     // The same header block the client sees at the top of the screen, so a
     // printed sheet stands on its own away from the app.
     notes: [
       ["Farm", input.context.farmName],
       ["Field", input.context.fieldName],
-      ["Program", input.context.programName],
       ["Records", String(input.records.length)],
     ],
     columns,
@@ -175,6 +232,43 @@ function stamped(context: FieldModuleContext, label: string): string {
   return `${clean(context.fieldName)}-${clean(label)}-${fileStamp()}.xlsx`;
 }
 
+/** How a record is named on the attachments sheet: its most telling column. */
+export function recordLabel(module: ModuleKey, record: ModuleRecord): string {
+  const fields = allFields(module);
+  const named = fields.find(
+    (f) =>
+      (f.type === "text" || f.type === "select") &&
+      record[f.key] !== null &&
+      record[f.key] !== undefined &&
+      record[f.key] !== ""
+  );
+  if (named) return String(record[named.key]);
+
+  const dated = fields.find((f) => f.type === "date" && record[f.key]);
+  if (dated) return String(record[dated.key]).slice(0, 10);
+
+  return record.id.slice(0, 8);
+}
+
+/** Where every file sits, for the attachments sheet. */
+export function attachmentIndex(
+  recordsByModule: Partial<Record<ModuleKey, ModuleRecord[]>>,
+  fieldNameOf: (record: ModuleRecord) => string,
+  fieldNames: Map<string, string>
+): AttachmentContext {
+  const records = new Map<string, { year: string; fieldName: string; label: string }>();
+  for (const [key, rows] of Object.entries(recordsByModule)) {
+    for (const r of rows ?? []) {
+      records.set(r.id, {
+        year: yearOfRecord(r),
+        fieldName: fieldNameOf(r),
+        label: recordLabel(key as ModuleKey, r),
+      });
+    }
+  }
+  return { records, fieldNames };
+}
+
 /** The button on a single tab: that module only. */
 export async function exportModule(input: {
   module: ModuleKey;
@@ -183,7 +277,20 @@ export async function exportModule(input: {
   context: FieldModuleContext;
 }): Promise<void> {
   const def = MODULE_BY_KEY[input.module];
-  await downloadWorkbook(stamped(input.context, def.label), [moduleSheet(input)]);
+  const sheets: Sheet[] = [moduleSheet(input)];
+  if (input.documents.length) {
+    sheets.push(
+      attachmentsSheet({
+        documents: input.documents,
+        context: attachmentIndex(
+          { [input.module]: input.records },
+          () => input.context.fieldName,
+          new Map([[input.context.fieldId, input.context.fieldName]])
+        ),
+      })
+    );
+  }
+  await downloadWorkbook(stamped(input.context, def.label), sheets);
 }
 
 /**
@@ -196,13 +303,50 @@ export async function exportAllModules(input: {
   documents: ModuleDocument[];
   context: FieldModuleContext;
 }): Promise<void> {
-  const sheets: Sheet[] = MODULES.map((def) =>
-    moduleSheet({
-      module: def.key,
-      records: input.recordsByModule[def.key] ?? [],
-      documents: input.documents.filter((d) => d.module === def.key),
-      context: input.context,
-    })
-  );
+  const rollup = practiceRollup(input.recordsByModule);
+  const profile: Sheet = {
+    name: "Field Profile",
+    title: `Field Profile - ${input.context.fieldName}`,
+    subtitle: input.context.farmName,
+    notes: [
+      ["Farm", input.context.farmName],
+      ["Field", input.context.fieldName],
+    ],
+    groups: [
+      { label: "", span: 1 },
+      { label: "Tillage", span: 1 },
+      { label: "At least 2 required of the following", span: 5 },
+    ],
+    columns: [
+      { header: "Field Name", width: 24, type: "text" },
+      { header: "Tillage (No Till, Reduced Till, Did Not Meet Requirement)", width: 30, type: "text" },
+      { header: "Organic Amendment", width: 18, type: "text" },
+      { header: "Crop Intensification", width: 20, type: "text" },
+      { header: "Crop Diversification", width: 20, type: "text" },
+      { header: "Synthetic Nutrient Management", width: 26, type: "text" },
+      { header: "Animal Integration", width: 18, type: "text" },
+    ],
+    rows: [[input.context.fieldName, ...practiceCells(rollup)]],
+  };
+
+  const sheets: Sheet[] = [
+    profile,
+    ...MODULES.map((def) =>
+      moduleSheet({
+        module: def.key,
+        records: input.recordsByModule[def.key] ?? [],
+        documents: input.documents.filter((d) => d.module === def.key),
+        context: input.context,
+      })
+    ),
+    attachmentsSheet({
+      documents: input.documents,
+      context: attachmentIndex(
+        input.recordsByModule,
+        () => input.context.fieldName,
+        new Map([[input.context.fieldId, input.context.fieldName]])
+      ),
+    }),
+  ];
   await downloadWorkbook(stamped(input.context, "Field-Monitoring"), sheets);
 }

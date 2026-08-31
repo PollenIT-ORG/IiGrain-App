@@ -3,6 +3,7 @@ import ApiError from "../utils/ApiError.js";
 import { signToken } from "../utils/jwt.js";
 import { generateOtp, otpExpiry } from "../utils/otp.js";
 import { findEnrollmentId } from "../models/enrollmentId.model.js";
+import { maskEmail, maskPhone } from "../utils/mask.js";
 import {
   sendVerifyEmail,
   sendSignInCodeEmail,
@@ -74,7 +75,8 @@ async function buildAuthResult(user: UserWithRole): Promise<AuthResult> {
 
 interface RegisterParams {
   fullName?: string;
-  email: string;
+  /** Left out by builds that rely on the Enrollment ID to name the address. */
+  email?: string;
   phone?: string;
   password: string;
   /** From the acceptance email. Nobody registers without one. */
@@ -113,10 +115,54 @@ export async function checkEmailAvailability(
   };
 }
 
+/**
+ * What the app may show before anyone has proved who they are: enough to
+ * recognise your own details, never the details themselves.
+ */
+export interface EnrollmentLookup {
+  enrollmentId: string;
+  maskedEmail: string;
+  maskedPhone: string | null;
+  programName: string | null;
+}
+
+/** The same "not found" answer for a wrong ID and a well formed guess. */
+export async function lookupEnrollmentId(
+  enrollmentId: string
+): Promise<EnrollmentLookup> {
+  const holder = await findEnrollmentId(enrollmentId);
+  if (!holder) {
+    throw ApiError.notFound(
+      "That Enrollment ID was not found. Please check the ID in your email."
+    );
+  }
+  return {
+    enrollmentId: holder.enrollmentId,
+    maskedEmail: maskEmail(holder.email),
+    maskedPhone: maskPhone(holder.phone),
+    programName: holder.programName,
+  };
+}
+
 export async function register(
   params: RegisterParams
 ): Promise<RegisterResult> {
-  const email = params.email.trim().toLowerCase();
+  // The app no longer sends the address: the Enrollment ID already names it,
+  // and resolving it here means it is never handed out before signup.
+  const holder = await findEnrollmentId(params.enrollmentId);
+  if (!holder) {
+    throw ApiError.badRequest(
+      "That Enrollment ID was not found. Please check the ID in your email."
+    );
+  }
+
+  const typed = params.email?.trim().toLowerCase() ?? null;
+  if (typed && typed !== holder.email) {
+    throw ApiError.badRequest(
+      "That Enrollment ID belongs to a different email address. Register with the address the ID was sent to."
+    );
+  }
+  const email = typed ?? holder.email;
 
   const existing = await findByEmail(email);
   if (existing) {
@@ -130,21 +176,6 @@ export async function register(
     // not need another account, so say so plainly rather than "email taken".
     throw ApiError.conflict(
       "You are already registered. Please log in instead."
-    );
-  }
-
-  // An Enrollment ID is what proves this person completed a survey and was
-  // accepted. It has to exist, and it has to belong to the address they are
-  // registering with, otherwise anyone could sign up with someone else's ID.
-  const holder = await findEnrollmentId(params.enrollmentId);
-  if (!holder) {
-    throw ApiError.badRequest(
-      "That Enrollment ID was not found. Please check the ID in your email."
-    );
-  }
-  if (holder.email !== email) {
-    throw ApiError.badRequest(
-      "That Enrollment ID belongs to a different email address. Register with the address the ID was sent to."
     );
   }
 

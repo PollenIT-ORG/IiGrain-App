@@ -153,6 +153,8 @@ model fields {
   field_visits              field_visits[]
   farms                     farms                       @relation(fields: [farm_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   program_enrollment_fields program_enrollment_fields[]
+  field_crop_intensifications field_crop_intensifications[]
+  field_animal_integrations   field_animal_integrations[]
 }
 
 model login_logs {
@@ -279,6 +281,8 @@ model users {
   @@index([email], map: "idx_users_email")
   @@index([org_id], map: "idx_users_org_id")
   @@index([role_id], map: "idx_users_role_id")
+  field_crop_intensifications field_crop_intensifications[]
+  field_animal_integrations   field_animal_integrations[]
 }
 
 model assessor_assignments {
@@ -382,17 +386,7 @@ model programs {
   deleted_at             DateTime?                @db.Timestamptz(6)
   show_to_farmers        Boolean                  @default(false)
   assessment_responses   assessment_responses[]
-  field_amendments       field_amendments[]
   field_assessments      field_assessments[]
-  field_crop_records     field_crop_records[]
-  field_fertilizers      field_fertilizers[]
-  field_irrigations      field_irrigations[]
-  field_module_documents field_module_documents[]
-  field_nutrient_events  field_nutrient_events[]
-  field_pesticides       field_pesticides[]
-  field_soil_samples     field_soil_samples[]
-  field_tillage_records  field_tillage_records[]
-  field_trainings        field_trainings[]
   field_visits           field_visits[]
   program_admin_surveys  program_admin_surveys[]
   program_enrollments    program_enrollments[]
@@ -783,7 +777,6 @@ model email_settings {
 model field_amendments {
   id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   field_id         String    @db.Uuid
-  program_id       String    @db.Uuid
   status           String    @default("in_progress") @db.VarChar(20)
   application_date DateTime? @db.Date
   amendment_type   String?   @db.VarChar(150)
@@ -801,14 +794,12 @@ model field_amendments {
   deleted_at       DateTime? @db.Timestamptz(6)
   users            users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   fields           fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  programs         programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model field_crop_records {
   id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   field_id          String    @db.Uuid
-  program_id        String    @db.Uuid
   status            String    @default("in_progress") @db.VarChar(20)
   crop_species      String?   @db.VarChar(150)
   crop_type         String?   @db.VarChar(50)
@@ -825,14 +816,12 @@ model field_crop_records {
   deleted_at        DateTime? @db.Timestamptz(6)
   users             users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   fields            fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  programs          programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model field_fertilizers {
   id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   field_id           String    @db.Uuid
-  program_id         String    @db.Uuid
   status             String    @default("in_progress") @db.VarChar(20)
   application_date   DateTime? @db.Date
   fertilizer_type    String?   @db.VarChar(150)
@@ -849,14 +838,12 @@ model field_fertilizers {
   deleted_at         DateTime? @db.Timestamptz(6)
   users              users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   fields             fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  programs           programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model field_irrigations {
   id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   field_id          String    @db.Uuid
-  program_id        String    @db.Uuid
   status            String    @default("in_progress") @db.VarChar(20)
   irrigation_date   DateTime? @db.Date
   irrigation_type   String?   @db.VarChar(100)
@@ -870,14 +857,12 @@ model field_irrigations {
   deleted_at        DateTime? @db.Timestamptz(6)
   users             users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   fields            fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  programs          programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model field_module_documents {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   field_id    String    @db.Uuid
-  program_id  String    @db.Uuid
   module      String    @db.VarChar(40)
   record_id   String?   @db.Uuid
   kind        String    @default("document") @db.VarChar(30)
@@ -890,7 +875,6 @@ model field_module_documents {
   updated_at  DateTime  @default(now()) @db.Timestamptz(6)
   deleted_at  DateTime? @db.Timestamptz(6)
   fields      fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  programs    programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   users       users?    @relation(fields: [uploaded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
@@ -898,7 +882,6 @@ model field_module_documents {
 model field_nutrient_events {
   id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   field_id            String    @db.Uuid
-  program_id          String    @db.Uuid
   status              String    @default("in_progress") @db.VarChar(20)
   event_date          DateTime? @db.Date
   variable_rate       Boolean?
@@ -916,14 +899,12 @@ model field_nutrient_events {
   deleted_at          DateTime? @db.Timestamptz(6)
   users               users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   fields              fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  programs            programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model field_pesticides {
   id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   field_id           String    @db.Uuid
-  program_id         String    @db.Uuid
   status             String    @default("in_progress") @db.VarChar(20)
   application_date   DateTime? @db.Date
   product            String?   @db.VarChar(200)
@@ -938,14 +919,12 @@ model field_pesticides {
   deleted_at         DateTime? @db.Timestamptz(6)
   users              users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   fields             fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  programs           programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model field_soil_samples {
   id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   field_id     String    @db.Uuid
-  program_id   String    @db.Uuid
   status       String    @default("in_progress") @db.VarChar(20)
   point_label  String    @db.VarChar(60)
   latitude     Decimal?  @db.Decimal(9, 6)
@@ -963,14 +942,12 @@ model field_soil_samples {
   deleted_at   DateTime? @db.Timestamptz(6)
   users        users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   fields       fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  programs     programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model field_tillage_records {
   id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   field_id           String    @db.Uuid
-  program_id         String    @db.Uuid
   status             String    @default("in_progress") @db.VarChar(20)
   tillage_date       DateTime? @db.Date
   implement          String?   @db.VarChar(150)
@@ -986,14 +963,12 @@ model field_tillage_records {
   deleted_at         DateTime? @db.Timestamptz(6)
   users              users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   fields             fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  programs           programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model field_trainings {
   id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   field_id      String    @db.Uuid
-  program_id    String    @db.Uuid
   status        String    @default("in_progress") @db.VarChar(20)
   training_date DateTime? @db.Date
   topic         String?   @db.VarChar(200)
@@ -1006,5 +981,40 @@ model field_trainings {
   deleted_at    DateTime? @db.Timestamptz(6)
   users         users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   fields        fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  programs      programs  @relation(fields: [program_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model field_crop_intensifications {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  field_id          String    @db.Uuid
+  status            String    @default("in_progress") @db.VarChar(20)
+  event_date        DateTime? @db.Date
+  zone              String?   @db.VarChar(10)
+  in_use            Boolean?
+  crops_per_period  Decimal?  @db.Decimal(5, 2)
+  period_years      Decimal?  @db.Decimal(5, 2)
+  fallow_eliminated Boolean?
+  notes             String?
+  created_by        String?   @db.Uuid
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at        DateTime? @db.Timestamptz(6)
+  users             users?    @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  fields            fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model field_animal_integrations {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  field_id            String    @db.Uuid
+  status              String    @default("in_progress") @db.VarChar(20)
+  event_date          DateTime? @db.Date
+  animal_breed        String?   @db.VarChar(150)
+  grazing_period      String?   @db.VarChar(100)
+  biomass_foraged_pct Decimal?  @db.Decimal(6, 2)
+  notes               String?
+  created_by          String?   @db.Uuid
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at          DateTime? @db.Timestamptz(6)
+  users               users?    @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  fields              fields    @relation(fields: [field_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }

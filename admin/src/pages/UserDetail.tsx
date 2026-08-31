@@ -13,6 +13,7 @@ import { showSuccess, showError } from "../lib/toast";
 import { useConfirmCascadeDelete } from "../lib/confirmDelete";
 import { fmtDateTime } from "../lib/datetime";
 import { useFarmWorkbook } from "../lib/useFarmWorkbook";
+import { useDialog } from "../components/ui/DialogProvider";
 
 function errMsg(err: unknown): string {
   return (
@@ -75,7 +76,9 @@ export default function UserDetail() {
     { skip: !id || !isFarmer }
   );
   const farms = farmsData?.farms ?? [];
-  const { download, downloadMany, busyFarmId } = useFarmWorkbook();
+  const { download, downloadMany, countExportable, busyFarmId } =
+    useFarmWorkbook();
+  const { confirm } = useDialog();
   const [exportingAll, setExportingAll] = useState(false);
 
   if (isLoading) {
@@ -183,8 +186,30 @@ export default function UserDetail() {
               <button
                 onClick={async () => {
                   setExportingAll(true);
-                  await downloadMany(farms.map((f) => ({ id: f.id, name: f.name })));
-                  setExportingAll(false);
+                  try {
+                    const list = farms.map((f) => ({ id: f.id, name: f.name }));
+                    const ready = await countExportable(list);
+                    if (ready === 0) {
+                      showError(
+                        "None of these farms have fields enrolled in a program yet."
+                      );
+                      return;
+                    }
+                    // Their workbook holds one Farm ID, so each farm is its own
+                    // file. Better said before the downloads start than after.
+                    const yes = await confirm({
+                      title: `Download ${ready} file${ready === 1 ? "" : "s"}?`,
+                      message:
+                        ready === 1
+                          ? "One farm has monitoring data, so one workbook will be downloaded."
+                          : `${ready} farms have monitoring data. The client's workbook covers one farm, so this downloads ${ready} separate files.`,
+                      confirmLabel: "Download",
+                    });
+                    if (!yes) return;
+                    await downloadMany(list);
+                  } finally {
+                    setExportingAll(false);
+                  }
                 }}
                 disabled={exportingAll}
                 className="btn-secondary shrink-0 py-2 text-sm"
@@ -238,7 +263,9 @@ export default function UserDetail() {
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-end gap-3">
                           <button
-                            onClick={() => void download(f.id, f.name)}
+                            onClick={() =>
+                              void download(f.id, { farmName: f.name })
+                            }
                             disabled={busyFarmId === f.id}
                             className="text-sm font-medium text-gray-600 hover:text-primary disabled:opacity-50"
                             title="Download this farm's full workbook"

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   register,
+  enrollmentIdLookup,
   login,
   requestOtp,
   verifyOtp,
@@ -17,12 +18,14 @@ import {
   forgotPasswordLimiter,
   emailCheckLimiter,
   loginLimiter,
+  enrollmentLookupLimiter,
   codeAttemptLimiter,
   requestCodeLimiter,
 } from "../middlewares/rateLimiters.js";
 import { validate } from "../middlewares/validate.js";
 import {
   registerSchema,
+  enrollmentLookupSchema,
   loginSchema,
   requestOtpSchema,
   verifyOtpSchema,
@@ -41,6 +44,15 @@ router.get(
   validate(checkEmailQuerySchema, "query"),
   checkEmail
 );
+// Prefills the sign-up form from the Enrollment ID. Masked on purpose: the ID
+// space is guessable, so a real address is never handed back.
+router.post(
+  "/enrollment-id/lookup",
+  enrollmentLookupLimiter,
+  validate(enrollmentLookupSchema),
+  enrollmentIdLookup
+);
+
 router.post(
   "/register",
   requestCodeLimiter,

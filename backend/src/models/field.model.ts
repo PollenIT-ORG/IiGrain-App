@@ -109,6 +109,7 @@ interface CreateFieldParams {
   sowingDate: string | null;
   expectedHarvest: string | null;
   isActive: boolean;
+  boundary?: GeoJSONPolygon | null;
 }
 
 export async function createField(p: CreateFieldParams): Promise<PublicField> {
@@ -126,6 +127,10 @@ export async function createField(p: CreateFieldParams): Promise<PublicField> {
       sowing_date: toDate(p.sowingDate),
       expected_harvest: toDate(p.expectedHarvest),
       is_active: p.isActive,
+      boundary: p.boundary
+        ? (p.boundary as unknown as Prisma.InputJsonValue)
+        : Prisma.DbNull,
+      boundary_updated_at: p.boundary ? new Date() : null,
     },
     select: PUBLIC_FIELD_SELECT,
   });
@@ -136,6 +141,7 @@ export interface ListFieldsFilters {
   farmId?: string;
   ownerId?: string;
   isActive?: boolean;
+  hasBoundary?: boolean;
   search?: string;
   limit: number;
   offset: number;
@@ -151,6 +157,10 @@ export async function listFields(
     where.farms = { deleted_at: null, owner_id: filters.ownerId };
   }
   if (filters.isActive !== undefined) where.is_active = filters.isActive;
+  // A cleared boundary is SQL NULL, so "not marked" is the null case.
+  if (filters.hasBoundary !== undefined) {
+    where.boundary = filters.hasBoundary ? { not: Prisma.DbNull } : { equals: Prisma.DbNull };
+  }
   if (filters.search) {
     const s = filters.search;
     where.OR = [
@@ -186,6 +196,8 @@ interface UpdateFieldParams {
   sowingDate?: string | null;
   expectedHarvest?: string | null;
   isActive?: boolean;
+  /** Left out keeps the stored boundary; null clears it. */
+  boundary?: GeoJSONPolygon | null;
 }
 
 export async function updateField(
@@ -204,6 +216,15 @@ export async function updateField(
   if (p.sowingDate !== undefined) data.sowing_date = toDate(p.sowingDate);
   if (p.expectedHarvest !== undefined) data.expected_harvest = toDate(p.expectedHarvest);
   if (p.isActive !== undefined) data.is_active = p.isActive;
+
+  // Only stamped when the boundary itself moves, never on an ordinary edit.
+  if (p.boundary !== undefined) {
+    data.boundary =
+      p.boundary === null
+        ? Prisma.DbNull
+        : (p.boundary as unknown as Prisma.InputJsonValue);
+    data.boundary_updated_at = p.boundary === null ? null : new Date();
+  }
 
   if (Object.keys(data).length === 0) return findFieldById(id);
 

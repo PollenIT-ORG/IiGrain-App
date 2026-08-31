@@ -8,27 +8,16 @@ import type {
   ModuleKey,
   DocumentModule,
   DocumentKind,
-  FarmProgram,
+  FarmField,
   FarmModuleRecord,
 } from "../../types";
 
-/**
- * Field monitoring modules.
- *
- * Every call names a program and a field, because a record only means
- * something as a combination of the two. The module is a path segment rather
- * than nine separate endpoints, matching the backend.
- */
+/** Field monitoring modules. A record belongs to a field and nothing else. */
 
-const base = (programId: string, fieldId: string) =>
-  `/field-monitoring/programs/${programId}/fields/${fieldId}`;
+const base = (fieldId: string) => `/field-monitoring/fields/${fieldId}`;
 
-export interface FieldProgram {
-  programId: string;
+export interface ModuleTarget {
   fieldId: string;
-}
-
-export interface ModuleTarget extends FieldProgram {
   module: ModuleKey;
 }
 
@@ -38,74 +27,69 @@ export interface RecordBody {
 
 export const fieldMonitoringApi = apiSlice.injectEndpoints({
   endpoints: (build) => ({
-    /**
-     * Which programs this farm has fields enrolled in. Opening a farm starts
-     * here, because a workbook is one farm inside one program.
-     */
-    getFarmPrograms: build.query<
-      { farmName: string; programs: FarmProgram[] },
-      string
-    >({
+    /** Every field of a farm, which is what a workbook is built from. */
+    getFarmFields: build.query<{ farmName: string; fields: FarmField[] }, string>({
       query: (farmId) => ({
-        url: `/field-monitoring/farms/${farmId}/programs`,
+        url: `/field-monitoring/farms/${farmId}/fields`,
         method: "GET",
       }),
       transformResponse: (
-        res: ApiSuccess<{ farmName: string; programs: FarmProgram[] }>
+        res: ApiSuccess<{ farmName: string; fields: FarmField[] }>
       ) => res.data,
       providesTags: (_r, _e, farmId) => [
         { type: "FieldModules", id: `farm:${farmId}` },
       ],
     }),
 
-    /** The nine modules for a whole farm, for one program. */
+    /** The nine modules for a whole farm. */
     getFarmModules: build.query<
-      { farmName: string; modules: ModuleSummary[] },
-      { farmId: string; programId: string }
+      { farmName: string; years: string[]; modules: ModuleSummary[] },
+      string
     >({
-      query: ({ farmId, programId }) => ({
-        url: `/field-monitoring/farms/${farmId}/programs/${programId}/modules`,
+      query: (farmId) => ({
+        url: `/field-monitoring/farms/${farmId}/modules`,
         method: "GET",
       }),
       transformResponse: (
-        res: ApiSuccess<{ farmName: string; modules: ModuleSummary[] }>
+        res: ApiSuccess<{
+          farmName: string;
+          years: string[];
+          modules: ModuleSummary[];
+        }>
       ) => res.data,
-      providesTags: (_r, _e, { farmId, programId }) => [
-        { type: "FieldModules", id: `farm:${farmId}:${programId}` },
+      providesTags: (_r, _e, farmId) => [
+        { type: "FieldModules", id: `farm:${farmId}:modules` },
       ],
     }),
 
     /** One module across every field of a farm. */
     listFarmRecords: build.query<
       { farmName: string; records: FarmModuleRecord[] },
-      { farmId: string; programId: string; module: ModuleKey }
+      { farmId: string; module: ModuleKey }
     >({
-      query: ({ farmId, programId, module }) => ({
-        url: `/field-monitoring/farms/${farmId}/programs/${programId}/modules/${module}`,
+      query: ({ farmId, module }) => ({
+        url: `/field-monitoring/farms/${farmId}/modules/${module}`,
         method: "GET",
       }),
       transformResponse: (
         res: ApiSuccess<{ farmName: string; records: FarmModuleRecord[] }>
       ) => res.data,
-      providesTags: (_r, _e, { farmId, programId, module }) => [
-        { type: "FieldModuleRecords", id: `farm:${farmId}:${programId}:${module}` },
+      providesTags: (_r, _e, { farmId, module }) => [
+        { type: "FieldModuleRecords", id: `farm:${farmId}:${module}` },
       ],
     }),
 
     /** The nine-module list a field opens with, each with its counts. */
     getFieldModules: build.query<
       { context: FieldModuleContext; modules: ModuleSummary[] },
-      FieldProgram
+      string
     >({
-      query: ({ programId, fieldId }) => ({
-        url: `${base(programId, fieldId)}/modules`,
-        method: "GET",
-      }),
+      query: (fieldId) => ({ url: `${base(fieldId)}/modules`, method: "GET" }),
       transformResponse: (
         res: ApiSuccess<{ context: FieldModuleContext; modules: ModuleSummary[] }>
       ) => res.data,
-      providesTags: (_r, _e, { fieldId, programId }) => [
-        { type: "FieldModules", id: `${programId}:${fieldId}` },
+      providesTags: (_r, _e, fieldId) => [
+        { type: "FieldModules", id: fieldId },
       ],
     }),
 
@@ -113,15 +97,15 @@ export const fieldMonitoringApi = apiSlice.injectEndpoints({
       { context: FieldModuleContext; records: ModuleRecord[] },
       ModuleTarget
     >({
-      query: ({ programId, fieldId, module }) => ({
-        url: `${base(programId, fieldId)}/modules/${module}`,
+      query: ({ fieldId, module }) => ({
+        url: `${base(fieldId)}/modules/${module}`,
         method: "GET",
       }),
       transformResponse: (
         res: ApiSuccess<{ context: FieldModuleContext; records: ModuleRecord[] }>
       ) => res.data,
-      providesTags: (_r, _e, { fieldId, programId, module }) => [
-        { type: "FieldModuleRecords", id: `${programId}:${fieldId}:${module}` },
+      providesTags: (_r, _e, { fieldId, module }) => [
+        { type: "FieldModuleRecords", id: `${fieldId}:${module}` },
       ],
     }),
 
@@ -129,17 +113,17 @@ export const fieldMonitoringApi = apiSlice.injectEndpoints({
       ModuleRecord,
       ModuleTarget & { body: RecordBody }
     >({
-      query: ({ programId, fieldId, module, body }) => ({
-        url: `${base(programId, fieldId)}/modules/${module}`,
+      query: ({ fieldId, module, body }) => ({
+        url: `${base(fieldId)}/modules/${module}`,
         method: "POST",
         data: body,
       }),
       transformResponse: (res: ApiSuccess<{ record: ModuleRecord }>) =>
         res.data.record,
       // The counts on the module list change too, so both are refreshed.
-      invalidatesTags: (_r, _e, { fieldId, programId, module }) => [
-        { type: "FieldModuleRecords", id: `${programId}:${fieldId}:${module}` },
-        { type: "FieldModules", id: `${programId}:${fieldId}` },
+      invalidatesTags: (_r, _e, { fieldId, module }) => [
+        { type: "FieldModuleRecords", id: `${fieldId}:${module}` },
+        { type: "FieldModules", id: fieldId },
       ],
     }),
 
@@ -147,32 +131,31 @@ export const fieldMonitoringApi = apiSlice.injectEndpoints({
       ModuleRecord,
       ModuleTarget & { id: string; body: RecordBody }
     >({
-      query: ({ programId, fieldId, module, id, body }) => ({
-        url: `${base(programId, fieldId)}/modules/${module}/${id}`,
+      query: ({ fieldId, module, id, body }) => ({
+        url: `${base(fieldId)}/modules/${module}/${id}`,
         method: "PATCH",
         data: body,
       }),
       transformResponse: (res: ApiSuccess<{ record: ModuleRecord }>) =>
         res.data.record,
-      invalidatesTags: (_r, _e, { fieldId, programId, module }) => [
-        { type: "FieldModuleRecords", id: `${programId}:${fieldId}:${module}` },
-        { type: "FieldModules", id: `${programId}:${fieldId}` },
+      invalidatesTags: (_r, _e, { fieldId, module }) => [
+        { type: "FieldModuleRecords", id: `${fieldId}:${module}` },
+        { type: "FieldModules", id: fieldId },
       ],
     }),
 
     deleteModuleRecord: build.mutation<void, ModuleTarget & { id: string }>({
-      query: ({ programId, fieldId, module, id }) => ({
-        url: `${base(programId, fieldId)}/modules/${module}/${id}`,
+      query: ({ fieldId, module, id }) => ({
+        url: `${base(fieldId)}/modules/${module}/${id}`,
         method: "DELETE",
       }),
-      // The row leaves the table at once and comes back if the server refuses.
-      // Without this it sits there for the several seconds the refetch takes,
-      // which reads as though the delete did nothing.
+      // The row leaves the table at once and comes back if the server refuses,
+      // otherwise it sits there for the seconds the refetch takes.
       async onQueryStarted(arg, { dispatch, queryFulfilled }) {
         const undo = dispatch(
           fieldMonitoringApi.util.updateQueryData(
             "listModuleRecords",
-            { programId: arg.programId, fieldId: arg.fieldId, module: arg.module },
+            { fieldId: arg.fieldId, module: arg.module },
             (draft) => {
               draft.records = draft.records.filter((r) => r.id !== arg.id);
             }
@@ -185,26 +168,26 @@ export const fieldMonitoringApi = apiSlice.injectEndpoints({
         }
       },
       // Deleting a record takes its files with it, so documents refresh too.
-      invalidatesTags: (_r, _e, { fieldId, programId, module }) => [
-        { type: "FieldModuleRecords", id: `${programId}:${fieldId}:${module}` },
-        { type: "FieldModules", id: `${programId}:${fieldId}` },
-        { type: "FieldModuleDocuments", id: `${programId}:${fieldId}` },
+      invalidatesTags: (_r, _e, { fieldId, module }) => [
+        { type: "FieldModuleRecords", id: `${fieldId}:${module}` },
+        { type: "FieldModules", id: fieldId },
+        { type: "FieldModuleDocuments", id: fieldId },
       ],
     }),
 
     listModuleDocuments: build.query<
       ModuleDocument[],
-      FieldProgram & { module?: DocumentModule; recordId?: string }
+      { fieldId: string; module?: DocumentModule; recordId?: string }
     >({
-      query: ({ programId, fieldId, module, recordId }) => ({
-        url: `${base(programId, fieldId)}/documents`,
+      query: ({ fieldId, module, recordId }) => ({
+        url: `${base(fieldId)}/documents`,
         method: "GET",
         params: { module, recordId },
       }),
       transformResponse: (res: ApiSuccess<{ documents: ModuleDocument[] }>) =>
         res.data.documents,
-      providesTags: (_r, _e, { fieldId, programId }) => [
-        { type: "FieldModuleDocuments", id: `${programId}:${fieldId}` },
+      providesTags: (_r, _e, { fieldId }) => [
+        { type: "FieldModuleDocuments", id: fieldId },
       ],
     }),
 
@@ -214,60 +197,55 @@ export const fieldMonitoringApi = apiSlice.injectEndpoints({
      */
     uploadModuleDocument: build.mutation<
       ModuleDocument,
-      FieldProgram & {
+      {
+        fieldId: string;
         module: DocumentModule;
         recordId?: string | null;
         kind?: DocumentKind;
         file: File;
       }
     >({
-      query: ({ programId, fieldId, module, recordId, kind, file }) => {
+      query: ({ fieldId, module, recordId, kind, file }) => {
         const form = new FormData();
         form.append("module", module);
         if (recordId) form.append("recordId", recordId);
         if (kind) form.append("kind", kind);
         form.append("file", file);
         return {
-          url: `${base(programId, fieldId)}/documents/upload`,
+          url: `${base(fieldId)}/documents/upload`,
           method: "POST",
           data: form,
         };
       },
       transformResponse: (res: ApiSuccess<{ document: ModuleDocument }>) =>
         res.data.document,
-      invalidatesTags: (_r, _e, { fieldId, programId, module }) => [
-        { type: "FieldModuleDocuments", id: `${programId}:${fieldId}` },
-        { type: "FieldModules", id: `${programId}:${fieldId}` },
-        {
-          type: "FieldModuleRecords",
-          id: `${programId}:${fieldId}:${module}`,
-        },
+      invalidatesTags: (_r, _e, { fieldId, module }) => [
+        { type: "FieldModuleDocuments", id: fieldId },
+        { type: "FieldModules", id: fieldId },
+        { type: "FieldModuleRecords", id: `${fieldId}:${module}` },
       ],
     }),
 
     deleteModuleDocument: build.mutation<
       void,
-      FieldProgram & { documentId: string; module: DocumentModule }
+      { fieldId: string; documentId: string; module: DocumentModule }
     >({
-      query: ({ programId, fieldId, documentId }) => ({
-        url: `${base(programId, fieldId)}/documents/${documentId}`,
+      query: ({ fieldId, documentId }) => ({
+        url: `${base(fieldId)}/documents/${documentId}`,
         method: "DELETE",
       }),
-      invalidatesTags: (_r, _e, { fieldId, programId, module }) => [
-        { type: "FieldModuleDocuments", id: `${programId}:${fieldId}` },
-        { type: "FieldModules", id: `${programId}:${fieldId}` },
-        {
-          type: "FieldModuleRecords",
-          id: `${programId}:${fieldId}:${module}`,
-        },
+      invalidatesTags: (_r, _e, { fieldId, module }) => [
+        { type: "FieldModuleDocuments", id: fieldId },
+        { type: "FieldModules", id: fieldId },
+        { type: "FieldModuleRecords", id: `${fieldId}:${module}` },
       ],
     }),
   }),
 });
 
 export const {
-  useGetFarmProgramsQuery,
-  useLazyGetFarmProgramsQuery,
+  useGetFarmFieldsQuery,
+  useLazyGetFarmFieldsQuery,
   useGetFarmModulesQuery,
   useListFarmRecordsQuery,
   useLazyListFarmRecordsQuery,

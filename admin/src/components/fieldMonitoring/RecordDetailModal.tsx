@@ -56,7 +56,6 @@ function shown(record: ModuleRecord, key: string, type: string): string {
  */
 export default function RecordDetailModal({
   module,
-  programId,
   fieldId,
   record,
   canEdit,
@@ -64,7 +63,6 @@ export default function RecordDetailModal({
   onClose,
 }: {
   module: ModuleKey;
-  programId: string;
   fieldId: string;
   record: ModuleRecord;
   canEdit: boolean;
@@ -79,7 +77,6 @@ export default function RecordDetailModal({
 
   // Only this record's files, asked for by id rather than filtered on screen.
   const { data: files = [], isLoading } = useListModuleDocumentsQuery({
-    programId,
     fieldId,
     module,
     recordId: record.id,
@@ -100,7 +97,6 @@ export default function RecordDetailModal({
       }
       try {
         await upload({
-          programId,
           fieldId,
           module,
           recordId: record.id,
@@ -124,7 +120,7 @@ export default function RecordDetailModal({
     });
     if (!yes) return;
     try {
-      await remove({ programId, fieldId, documentId: doc.id, module }).unwrap();
+      await remove({ fieldId, documentId: doc.id, module }).unwrap();
       showSuccess("File removed.");
     } catch (err) {
       showError(errMsg(err));

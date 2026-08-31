@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Loader from "../Loader";
 import Select from "../ui/Select";
@@ -12,9 +12,10 @@ import {
   STATUS_LABEL,
 } from "../../lib/fieldModules";
 import { moduleSheetColumns, moduleSheetRow } from "../../lib/fieldModuleExport";
+import { yearOfRecord } from "../../lib/monitoringYear";
 import { downloadWorkbook, fileStamp } from "../../lib/workbook";
 import {
-  useGetFarmProgramsQuery,
+  useGetFarmFieldsQuery,
   useGetFarmModulesQuery,
   useListFarmRecordsQuery,
 } from "../../store/endpoints/fieldMonitoringApi";
@@ -45,48 +46,27 @@ function cellText(record: ModuleRecord, key: string, type: string): string {
 }
 
 /**
- * The farm's monitoring record, on the farm itself.
- *
- * The same nine tabs the client's workbook has, but covering the whole farm at
- * once rather than one field. Every row names its field, which is the only real
- * difference from the per-field screen.
- *
- * Reading here, writing on the field. A record belongs to one field, so adding
- * and editing stay where that is unambiguous; the field name in each row is a
- * link through to it.
+ * The farm's monitoring record, covering every field of it at once. Reading
+ * happens here, writing on the field, so each row links through to its field.
  */
 export default function FarmMonitoringCard({ farmId }: { farmId: string }) {
   const navigate = useNavigate();
   const [module, setModule] = useState<ModuleKey>(MODULES[0].key);
-  const [programId, setProgramId] = useState("");
   const [exportingTab, setExportingTab] = useState(false);
+  const [year, setYear] = useState("");
   const { download, busyFarmId } = useFarmWorkbook();
 
-  const { data: farmPrograms, isLoading: loadingPrograms } =
-    useGetFarmProgramsQuery(farmId, { skip: !farmId });
+  const { data: farm, isLoading: loadingFields } = useGetFarmFieldsQuery(farmId, {
+    skip: !farmId,
+  });
 
-  const programs = useMemo(() => farmPrograms?.programs ?? [], [farmPrograms]);
-
-  // The newest program is the one most likely being worked on.
-  useEffect(() => {
-    if (!programId && programs.length) setProgramId(programs[0].programId);
-  }, [programs, programId]);
-
-  const program = programs.find((p) => p.programId === programId);
-
-  const { data: summary } = useGetFarmModulesQuery(
-    { farmId, programId },
-    { skip: !farmId || !programId }
-  );
+  const { data: summary } = useGetFarmModulesQuery(farmId, { skip: !farmId });
 
   const {
     data: recordData,
     isLoading: firstLoad,
     isFetching: refreshing,
-  } = useListFarmRecordsQuery(
-    { farmId, programId, module },
-    { skip: !farmId || !programId }
-  );
+  } = useListFarmRecordsQuery({ farmId, module }, { skip: !farmId });
 
   const fields = useMemo(() => tableFields(module), [module]);
   const records = recordData?.records ?? [];
@@ -94,29 +74,29 @@ export default function FarmMonitoringCard({ farmId }: { farmId: string }) {
 
   /** This tab only, for this farm, as its own sheet. */
   async function exportTab() {
-    if (!program || !farmPrograms) return;
+    if (!farm) return;
     setExportingTab(true);
     try {
       const all = MODULE_BY_KEY[module].fields;
       const clean = (s: string) =>
         s.replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-");
       await downloadWorkbook(
-        `${clean(farmPrograms.farmName)}-${clean(def.label)}-${fileStamp()}.xlsx`,
+        `${clean(farm.farmName)}-${clean(def.label)}-${fileStamp()}.xlsx`,
         [
           {
             name: def.sheetName.slice(0, 31),
-            title: `${def.label} - ${farmPrograms.farmName}`,
-            subtitle: program.programName,
+            title: `${def.label} - ${farm.farmName}`,
             notes: [
-              ["Farm ID", farmPrograms.farmName],
-              ["Program", program.programName],
+              ["Farm ID", farm.farmName],
               ["Records", String(records.length)],
             ],
             columns: [
+              { header: "Year", width: 10, type: "text" },
               { header: "Field Name", width: 24, type: "text" },
               ...moduleSheetColumns(module),
             ],
             rows: records.map((r) => [
+              yearOfRecord(r),
               r.field_name,
               ...moduleSheetRow(r, all, []),
             ]),
@@ -130,9 +110,9 @@ export default function FarmMonitoringCard({ farmId }: { farmId: string }) {
     }
   }
 
-  if (loadingPrograms) return null;
+  if (loadingFields) return null;
 
-  if (!programs.length) {
+  if (!farm?.fields.length) {
     return (
       <div className="card overflow-hidden">
         <div className="border-b border-gray-300 px-5 py-4">
@@ -141,7 +121,7 @@ export default function FarmMonitoringCard({ farmId }: { farmId: string }) {
           </h2>
         </div>
         <div className="px-5 py-10 text-center text-sm text-gray-500">
-          None of this farm's fields are enrolled in a program yet.
+          This farm has no fields yet.
         </div>
       </div>
     );
@@ -154,24 +134,21 @@ export default function FarmMonitoringCard({ farmId }: { farmId: string }) {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
             Field Monitoring
           </h2>
-          {program && (
-            <p className="mt-0.5 text-xs text-gray-500">
-              {program.fields.length} field
-              {program.fields.length === 1 ? "" : "s"} enrolled
-            </p>
-          )}
+          <p className="mt-0.5 text-xs text-gray-500">
+            {farm.fields.length} field{farm.fields.length === 1 ? "" : "s"}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {/* Only shown when there is a choice to make. */}
-          {programs.length > 1 && (
+          {/* Only offered when there is more than one year to choose between. */}
+          {(summary?.years.length ?? 0) > 1 && (
             <Select
-              value={programId}
-              onChange={setProgramId}
-              options={programs.map((p) => ({
-                value: p.programId,
-                label: p.programName,
-              }))}
-              className="w-56"
+              value={year}
+              onChange={setYear}
+              options={[
+                { value: "", label: "All years" },
+                ...(summary?.years ?? []).map((y) => ({ value: y, label: y })),
+              ]}
+              className="w-36"
             />
           )}
           <button
@@ -182,7 +159,12 @@ export default function FarmMonitoringCard({ farmId }: { farmId: string }) {
             {exportingTab ? "Preparing..." : `Export ${def.label}`}
           </button>
           <button
-            onClick={() => void download(farmId)}
+            onClick={() =>
+              void download(farmId, {
+                farmName: farm.farmName,
+                year: year || undefined,
+              })
+            }
             disabled={busyFarmId === farmId}
             className="btn-primary py-2 text-sm"
           >
@@ -191,7 +173,7 @@ export default function FarmMonitoringCard({ farmId }: { farmId: string }) {
         </div>
       </div>
 
-      {/* The nine tabs, mirroring the sheets in the client's workbook. */}
+      {/* The nine tabs, mirroring the sheets in the workbook. */}
       <DragScroll className="overflow-x-auto border-b border-gray-300">
         <div className="flex min-w-max">
           {MODULES.map((m) => {
@@ -252,9 +234,7 @@ export default function FarmMonitoringCard({ farmId }: { farmId: string }) {
                   <td className="whitespace-nowrap px-4 py-3">
                     <button
                       onClick={() =>
-                        navigate(
-                          `/programs/${programId}/fields/${r.field_id}/monitoring?tab=${module}`
-                        )
+                        navigate(`/fields/${r.field_id}/monitoring?tab=${module}`)
                       }
                       className="font-medium text-primary hover:underline"
                       title="Open this field's records"

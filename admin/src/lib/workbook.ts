@@ -19,7 +19,22 @@ const BORDER = "E4E8EA";
 const TEXT = "212829";
 const MUTED = "6B7477";
 
-export type CellValue = string | number | Date | null | undefined;
+/** A cell that opens a URL. The text is what the reader sees. */
+export interface CellLink {
+  text: string;
+  hyperlink: string;
+}
+
+export type CellValue = string | number | Date | CellLink | null | undefined;
+
+export function isCellLink(value: unknown): value is CellLink {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as CellLink).hyperlink === "string" &&
+    typeof (value as CellLink).text === "string"
+  );
+}
 
 export interface Column {
   header: string;
@@ -243,15 +258,20 @@ function writeSheet(
       // it never turns into 9.17729E+11. Nothing at all is left blank rather
       // than filled with an empty string.
       const empty = raw === null || raw === undefined || raw === "";
+      const link = isCellLink(raw);
       cell.value = empty
         ? null
-        : col.type === "text"
-          ? String(raw)
-          : (raw as string | number | Date);
+        : link
+          ? { text: (raw as CellLink).text, hyperlink: (raw as CellLink).hyperlink }
+          : col.type === "text"
+            ? String(raw)
+            : (raw as string | number | Date);
 
-      const format = numberFormat(col.type, raw);
+      const format = link ? null : numberFormat(col.type, raw);
       if (format) cell.numFmt = format;
-      cell.font = { size: 10, color: { argb: `FF${TEXT}` } };
+      cell.font = link
+        ? { size: 10, color: { argb: `FF${BRAND}` }, underline: true }
+        : { size: 10, color: { argb: `FF${TEXT}` } };
       cell.alignment = {
         vertical: "middle",
         horizontal: alignment(col),

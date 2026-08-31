@@ -31,13 +31,11 @@ function readableSize(bytes: number | null): string {
  * row; a file attached to a row is shown on the row itself.
  */
 export default function ModuleDocuments({
-  programId,
   fieldId,
   module,
   documents,
   canEdit,
 }: {
-  programId: string;
   fieldId: string;
   module: DocumentModule;
   /** Already filtered to this module by the page. */
@@ -63,7 +61,7 @@ export default function ModuleDocuments({
         continue;
       }
       try {
-        await upload({ programId, fieldId, module, file }).unwrap();
+        await upload({ fieldId, module, file }).unwrap();
         showSuccess(`${file.name} uploaded.`);
       } catch (err) {
         showError(errMsg(err));
@@ -87,7 +85,7 @@ export default function ModuleDocuments({
     });
     if (!yes) return;
     try {
-      await remove({ programId, fieldId, documentId: doc.id, module }).unwrap();
+      await remove({ fieldId, documentId: doc.id, module }).unwrap();
       showSuccess("File removed.");
     } catch (err) {
       showError(errMsg(err));
@@ -196,7 +194,7 @@ export default function ModuleDocuments({
       )}
 
       <p className="mt-2 text-xs text-gray-500">
-        All uploads are stored securely and linked to this field and program year.
+        All uploads are stored securely and linked to this field.
       </p>
     </div>
   );

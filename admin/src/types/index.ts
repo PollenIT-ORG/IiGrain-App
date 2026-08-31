@@ -1,3 +1,7 @@
+import type { GeoJSONPolygon } from "../lib/geo";
+
+export type { GeoJSONPolygon };
+
 export interface AuthUser {
   id: string;
   fullName: string | null;
@@ -289,6 +293,8 @@ export interface Field {
   longitude: number | null;
   sowing_date: string | null;
   expected_harvest: string | null;
+  boundary: GeoJSONPolygon | null;
+  boundary_updated_at: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -349,7 +355,7 @@ export interface Assignment {
 // Field monitoring modules
 // ---------------------------------------------------------------------------
 
-/** The nine modules a field carries for one program. */
+/** The nine monitoring modules a field carries. */
 export type ModuleKey =
   | "training"
   | "soil_samples"
@@ -359,7 +365,9 @@ export type ModuleKey =
   | "tillage"
   | "amendment"
   | "crop"
-  | "nutrient";
+  | "nutrient"
+  | "crop_intensification"
+  | "animal_integration";
 
 export type ModuleStatus = "in_progress" | "completed";
 
@@ -373,8 +381,6 @@ export interface FieldModuleContext {
   fieldName: string;
   farmName: string;
   ownerId: string;
-  programId: string;
-  programName: string;
 }
 
 /** A record from any field of a farm, carrying which field it came from. */
@@ -382,12 +388,11 @@ export interface FarmModuleRecord extends ModuleRecord {
   field_name: string;
 }
 
-/** A program one farm has fields enrolled in, with those fields. */
-export interface FarmProgram {
-  programId: string;
-  programName: string;
-  startDate: string | null;
-  fields: Array<{ fieldId: string; fieldName: string; areaAcres: number | null }>;
+/** One field of a farm, as the workbook lists it. */
+export interface FarmField {
+  fieldId: string;
+  fieldName: string;
+  areaAcres: number | null;
 }
 
 export interface ModuleSummary {
@@ -405,7 +410,6 @@ export interface ModuleSummary {
 export interface ModuleRecord {
   id: string;
   field_id: string;
-  program_id: string;
   status: ModuleStatus;
   notes: string | null;
   created_by: string | null;
@@ -419,7 +423,6 @@ export interface ModuleRecord {
 export interface ModuleDocument {
   id: string;
   field_id: string;
-  program_id: string;
   module: DocumentModule;
   record_id: string | null;
   kind: DocumentKind;

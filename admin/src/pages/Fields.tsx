@@ -31,6 +31,12 @@ function errMsg(err: unknown): string {
 
 const PAGE_SIZE = 10;
 
+const BOUNDARY_OPTIONS = [
+  { value: "", label: "Any boundary" },
+  { value: "true", label: "Boundary marked" },
+  { value: "false", label: "Not marked" },
+];
+
 const ACTIVE_OPTIONS = [
   { value: "", label: "Active / inactive" },
   { value: "true", label: "Active only" },
@@ -51,6 +57,7 @@ export default function Fields() {
   const [search, setSearch] = useState("");
   const [farmId, setFarmId] = useState("");
   const [isActive, setIsActive] = useState("");
+  const [hasBoundary, setHasBoundary] = useState("");
   useUrlSearchSync(setSearchInput);
 
   const { data, isLoading, isFetching, isError, error, refetch } = useListFieldsQuery({
@@ -59,6 +66,8 @@ export default function Fields() {
     farmId: farmId || undefined,
     isActive:
       isActive === "true" ? true : isActive === "false" ? false : undefined,
+    hasBoundary:
+      hasBoundary === "true" ? true : hasBoundary === "false" ? false : undefined,
     search: search || undefined,
   });
   useLiveData(["fields"], refetch);
@@ -79,7 +88,7 @@ export default function Fields() {
 
   useEffect(() => {
     setPage(1);
-  }, [farmId, isActive, search]);
+  }, [farmId, isActive, hasBoundary, search]);
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim()), 400);
@@ -150,6 +159,12 @@ export default function Fields() {
           options={ACTIVE_OPTIONS}
           className="sm:w-40"
         />
+        <Select
+          value={hasBoundary}
+          onChange={setHasBoundary}
+          options={BOUNDARY_OPTIONS}
+          className="sm:w-44"
+        />
       </div>
 
       <div className="card overflow-hidden">
@@ -173,6 +188,7 @@ export default function Fields() {
                     <th className="px-5 py-3 font-semibold">Farm</th>
                     <th className="px-5 py-3 font-semibold">Crop / Season</th>
                     <th className="px-5 py-3 font-semibold">Area</th>
+                    <th className="px-5 py-3 font-semibold">Boundary</th>
                     <th className="px-5 py-3 font-semibold">Active</th>
                     <th className="px-5 py-3 text-right font-semibold">
                       Actions
@@ -207,6 +223,18 @@ export default function Fields() {
                       </td>
                       <td className="px-5 py-3.5 whitespace-nowrap text-gray-700">
                         {formatArea(f.area_acres)}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {f.boundary ? (
+                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                            Marked
+                          </span>
+                        ) : (
+                          <span className="whitespace-nowrap text-xs text-gray-500">
+                            Not marked
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-3.5">
                         {f.is_active ? (

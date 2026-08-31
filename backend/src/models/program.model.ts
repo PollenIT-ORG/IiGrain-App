@@ -565,6 +565,8 @@ export interface AvailableProgram {
   enrolled_count: number;
   is_full: boolean;
   already_enrolled: boolean;
+  /** Acres the farmer entered on this program's survey, before any field exists. */
+  survey_acres: number | null;
   fields: AvailableProgramField[];
 }
 
@@ -616,6 +618,7 @@ export async function listAvailableProgramsForFarmer(
       survey_token: string | null;
       can_enroll: boolean;
       show_to_farmers: boolean;
+      survey_acres: unknown;
     }>
   >(Prisma.sql`
     SELECT * FROM (
@@ -652,7 +655,8 @@ export async function listAvailableProgramsForFarmer(
                   AND pe3.enrollment_id IS NOT NULL
                   AND pe3.farmer_id = ${farmerId}::uuid
                   AND pe3.program_id = p.id
-             ) AS can_enroll
+             ) AS can_enroll,
+             sacres.total_acres AS survey_acres
         FROM programs p
         LEFT JOIN LATERAL (
           SELECT COUNT(*)::int AS c
@@ -666,6 +670,20 @@ export async function listAvailableProgramsForFarmer(
            ORDER BY s.created_at DESC
            LIMIT 1
         ) srv ON true
+        LEFT JOIN LATERAL (
+          SELECT sub.total_acres
+            FROM program_admin_survey_submissions sub
+            JOIN website_users wu ON wu.id = sub.website_user_id
+            JOIN users usr
+              ON lower(usr.email) = lower(wu.email) AND usr.deleted_at IS NULL
+            JOIN program_admin_surveys psv
+              ON psv.id = sub.survey_id AND psv.deleted_at IS NULL
+           WHERE sub.deleted_at IS NULL
+             AND usr.id = ${farmerId}::uuid
+             AND psv.program_id = p.id
+           ORDER BY sub.created_at DESC
+           LIMIT 1
+        ) sacres ON true
        WHERE p.deleted_at IS NULL
          AND p.is_active = true
          AND (p.start_date IS NULL OR p.start_date <= org_today())
@@ -723,6 +741,7 @@ export async function listAvailableProgramsForFarmer(
       enrolled_count: r.enrolled_count,
       is_full: r.user_limit !== null && r.enrolled_count >= r.user_limit,
       already_enrolled: r.already_enrolled,
+      survey_acres: r.survey_acres === null ? null : Number(r.survey_acres),
       fields: fields.map((f) => ({
         id: f.id,
         name: f.name,

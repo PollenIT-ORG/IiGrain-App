@@ -17,7 +17,6 @@ export type DocumentKind = "document" | "photo" | "lab_report" | "certificate";
 export interface PublicModuleDocument {
   id: string;
   field_id: string;
-  program_id: string;
   module: DocumentModule;
   record_id: string | null;
   kind: DocumentKind;
@@ -32,7 +31,6 @@ export interface PublicModuleDocument {
 type Row = {
   id: string;
   field_id: string;
-  program_id: string;
   module: string;
   record_id: string | null;
   kind: string;
@@ -49,7 +47,6 @@ function toPublic(r: Row): PublicModuleDocument {
   return {
     id: r.id,
     field_id: r.field_id,
-    program_id: r.program_id,
     module: r.module as DocumentModule,
     record_id: r.record_id,
     kind: r.kind as DocumentKind,
@@ -65,7 +62,6 @@ function toPublic(r: Row): PublicModuleDocument {
 const SELECT = {
   id: true,
   field_id: true,
-  program_id: true,
   module: true,
   record_id: true,
   kind: true,
@@ -79,14 +75,12 @@ const SELECT = {
 
 export async function listDocuments(input: {
   fieldId: string;
-  programId: string;
   module?: DocumentModule;
   recordId?: string;
 }): Promise<PublicModuleDocument[]> {
   const rows = await prisma.field_module_documents.findMany({
     where: {
       field_id: input.fieldId,
-      program_id: input.programId,
       deleted_at: null,
       ...(input.module ? { module: input.module } : {}),
       ...(input.recordId ? { record_id: input.recordId } : {}),
@@ -109,7 +103,6 @@ export async function findDocument(
 
 export async function createDocument(input: {
   fieldId: string;
-  programId: string;
   module: DocumentModule;
   recordId: string | null;
   kind: DocumentKind;
@@ -122,7 +115,6 @@ export async function createDocument(input: {
   const row = await prisma.field_module_documents.create({
     data: {
       field_id: input.fieldId,
-      program_id: input.programId,
       module: input.module,
       record_id: input.recordId,
       kind: input.kind,
@@ -150,14 +142,12 @@ export async function softDeleteDocument(id: string): Promise<void> {
  */
 export async function documentCountsByRecord(input: {
   fieldId: string;
-  programId: string;
   module: DocumentModule;
 }): Promise<Map<string, number>> {
   const rows = await prisma.field_module_documents.groupBy({
     by: ["record_id"],
     where: {
       field_id: input.fieldId,
-      program_id: input.programId,
       module: input.module,
       deleted_at: null,
       record_id: { not: null },

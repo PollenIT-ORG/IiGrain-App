@@ -6,9 +6,8 @@ import { documentUpload } from "../config/multer.js";
 import {
   moduleParamsSchema,
   moduleRecordParamsSchema,
-  fieldProgramParamsSchema,
+  fieldParamsSchema,
   farmParamsSchema,
-  farmProgramParamsSchema,
   farmModuleParamsSchema,
   documentParamsSchema,
   createDocumentSchema,
@@ -18,7 +17,7 @@ import {
 } from "../validators/fieldModule.schema.js";
 import {
   getModules,
-  getFarmPrograms,
+  getFarmFields,
   getFarmModules,
   listFarmModuleRecords,
   listModuleRecords,
@@ -35,16 +34,13 @@ import {
 const router = Router();
 
 /**
- * Field monitoring modules.
+ * Field monitoring modules, mounted under /field-monitoring. A record belongs
+ * to a field and nothing else.
  *
- * Mounted under /field-monitoring, and every path names its program and field
- * because a record only means something as a combination of the two.
- *
- * Who may call these: the farmer who owns the field, and your team. The route
- * lets both in and the service then decides, because a farmer must be held to
- * their own fields while staff see everything. Assessors are deliberately not
- * on this list yet: they would need to be limited to the farmers assigned to
- * them, and that rule does not exist here.
+ * Who may call these: the farmer who owns the field, and staff. The route lets
+ * both in and the service then decides, because a farmer must be held to their
+ * own fields while staff see everything. Assessors are deliberately left off:
+ * they would need limiting to the farmers assigned to them.
  */
 const canRecord = authorize(
   "farmer",
@@ -53,27 +49,23 @@ const canRecord = authorize(
   "program_administrator"
 );
 
-// Opening a farm: which programs its fields are enrolled in, and which fields
-// belong to each. This is what lets a workbook be downloaded from the farm.
+// The farm as a whole: its fields, and the nine modules across all of them.
 router.get(
-  "/farms/:farmId/programs",
+  "/farms/:farmId/fields",
   authenticate,
   canRecord,
   validate(farmParamsSchema, "params"),
-  getFarmPrograms
+  getFarmFields
 );
-
-// The same nine modules, but for a whole farm at once. This is what the farm
-// screen shows: one table per module covering every field of the farm.
 router.get(
-  "/farms/:farmId/programs/:programId/modules",
+  "/farms/:farmId/modules",
   authenticate,
   canRecord,
-  validate(farmProgramParamsSchema, "params"),
+  validate(farmParamsSchema, "params"),
   getFarmModules
 );
 router.get(
-  "/farms/:farmId/programs/:programId/modules/:module",
+  "/farms/:farmId/modules/:module",
   authenticate,
   canRecord,
   validate(farmModuleParamsSchema, "params"),
@@ -82,17 +74,17 @@ router.get(
 
 // The nine-module list a field opens with, each with its counts.
 router.get(
-  "/programs/:programId/fields/:fieldId/modules",
+  "/fields/:fieldId/modules",
   authenticate,
   canRecord,
-  validate(fieldProgramParamsSchema, "params"),
+  validate(fieldParamsSchema, "params"),
   getModules
 );
 
 // Records inside one module. The body schema is picked from :module, since
 // every module carries its own columns.
 router
-  .route("/programs/:programId/fields/:fieldId/modules/:module")
+  .route("/fields/:fieldId/modules/:module")
   .get(
     authenticate,
     canRecord,
@@ -108,7 +100,7 @@ router
   );
 
 router
-  .route("/programs/:programId/fields/:fieldId/modules/:module/:id")
+  .route("/fields/:fieldId/modules/:module/:id")
   .get(
     authenticate,
     canRecord,
@@ -133,18 +125,18 @@ router
 // Attachments: lab reports, certificates, photos, and the loose files the
 // admin panel uploads against a module rather than a row.
 router
-  .route("/programs/:programId/fields/:fieldId/documents")
+  .route("/fields/:fieldId/documents")
   .get(
     authenticate,
     canRecord,
-    validate(fieldProgramParamsSchema, "params"),
+    validate(fieldParamsSchema, "params"),
     validate(listDocumentsQuerySchema, "query"),
     listModuleDocuments
   )
   .post(
     authenticate,
     canRecord,
-    validate(fieldProgramParamsSchema, "params"),
+    validate(fieldParamsSchema, "params"),
     validate(createDocumentSchema),
     createModuleDocument
   );
@@ -152,17 +144,17 @@ router
 // The drag and drop box. PDF, image or Word, up to 10 MB, enforced by the
 // uploader before the request body is even read.
 router.post(
-  "/programs/:programId/fields/:fieldId/documents/upload",
+  "/fields/:fieldId/documents/upload",
   authenticate,
   canRecord,
-  validate(fieldProgramParamsSchema, "params"),
+  validate(fieldParamsSchema, "params"),
   handleUpload(documentUpload.single("file")),
   validate(uploadDocumentSchema),
   uploadModuleDocument
 );
 
 router.delete(
-  "/programs/:programId/fields/:fieldId/documents/:documentId",
+  "/fields/:fieldId/documents/:documentId",
   authenticate,
   canRecord,
   validate(documentParamsSchema, "params"),

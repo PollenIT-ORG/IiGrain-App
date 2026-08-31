@@ -32,6 +32,15 @@ export const loginLimiter = makeLimiter(
   { skipSuccessfulRequests: true }
 );
 
+// The Enrollment ID lookup answers a question about somebody else's account, so
+// it is the tightest limit here. Successful calls count too: a caller working
+// through IDs would otherwise get a free pass every time one happened to exist.
+export const enrollmentLookupLimiter = makeLimiter(
+  15 * 60 * 1000,
+  8,
+  "Too many Enrollment ID checks. Please wait a few minutes and try again."
+);
+
 // Guards the 6-digit codes (verify-otp, reset-password) against guessing. Only
 // failed attempts count.
 export const codeAttemptLimiter = makeLimiter(

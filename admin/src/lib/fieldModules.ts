@@ -221,6 +221,32 @@ export const MODULES: readonly ModuleDef[] = [
       { key: "rate_lbs_acre", label: "Bulk (lbs/acre)", type: "number", inTable: true, min: 0, max: 999999, step: "0.01", width: 15 },
     ],
   },
+  {
+    key: "crop_intensification",
+    label: "Crop Intensification",
+    singular: "Intensification Record",
+    sheetName: "Crop Intensification",
+    fields: [
+      { key: "event_date", label: "Date", type: "date", inTable: true, width: 14 },
+      { key: "zone", label: "Zone # (1, 2 or 3)", type: "select", inTable: true, options: ["1", "2", "3"], hint: "The zone the county falls in on the worksheet's lookup.", width: 16 },
+      { key: "in_use", label: "Practice in use", type: "boolean", inTable: true, width: 14 },
+      { key: "crops_per_period", label: "Number of crops", type: "number", inTable: true, min: 0, max: 99, step: "0.01", width: 16 },
+      { key: "period_years", label: "Over years", type: "number", inTable: true, min: 1, max: 10, step: "0.01", width: 12 },
+      { key: "fallow_eliminated", label: "Fallow eliminated", type: "boolean", inTable: true, width: 16 },
+    ],
+  },
+  {
+    key: "animal_integration",
+    label: "Animal Integration",
+    singular: "Animal Integration Record",
+    sheetName: "Animal Integration",
+    fields: [
+      { key: "event_date", label: "Date", type: "date", inTable: true, width: 14 },
+      { key: "animal_breed", label: "Animal Breed", type: "text", inTable: true, maxLength: 150, placeholder: "Angus", width: 20 },
+      { key: "grazing_period", label: "Grazing Period", type: "text", inTable: true, maxLength: 100, placeholder: "Nov to Feb", width: 20 },
+      { key: "biomass_foraged_pct", label: "% biomass foraged", type: "number", inTable: true, min: 0, max: 100, step: "0.01", width: 18 },
+    ],
+  },
 ] as const;
 
 export const MODULE_BY_KEY: Record<ModuleKey, ModuleDef> = MODULES.reduce(

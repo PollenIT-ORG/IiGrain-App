@@ -419,6 +419,22 @@ async function cascadeFields(
     where: { field_id: { in: fieldIds }, ...ALIVE },
     data: { ...stamp(now), updated_at: now },
   });
+
+  // Monitoring records and their attachments belong to the field, so they go
+  // with it rather than being left behind unreachable.
+  const where = { field_id: { in: fieldIds }, ...ALIVE };
+  const data = { ...stamp(now), updated_at: now };
+  await tx.field_trainings.updateMany({ where, data });
+  await tx.field_soil_samples.updateMany({ where, data });
+  await tx.field_irrigations.updateMany({ where, data });
+  await tx.field_pesticides.updateMany({ where, data });
+  await tx.field_fertilizers.updateMany({ where, data });
+  await tx.field_tillage_records.updateMany({ where, data });
+  await tx.field_amendments.updateMany({ where, data });
+  await tx.field_crop_records.updateMany({ where, data });
+  await tx.field_nutrient_events.updateMany({ where, data });
+  await tx.field_module_documents.updateMany({ where, data });
+
   // A field enrolled in a program stops being enrolled, and its assessments
   // and visits go: both count towards a program's progress.
   await tx.program_enrollment_fields.updateMany({

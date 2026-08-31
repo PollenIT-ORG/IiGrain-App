@@ -5,7 +5,7 @@ import prisma from "../db/prisma.js";
  * Field monitoring modules.
  *
  * Nine modules, one table each, all the same shape: a record belongs to one
- * field and one program, carries a status, and holds a handful of its own
+ * field, carries a status, and holds a handful of its own
  * columns. Rather than nine copies of the same CRUD, the table and the columns
  * each module owns are declared once in the registry below and the operations
  * are written once against that.
@@ -24,14 +24,15 @@ export type ModuleKey =
   | "tillage"
   | "amendment"
   | "crop"
-  | "nutrient";
+  | "nutrient"
+  | "crop_intensification"
+  | "animal_integration";
 
 export type ModuleStatus = "in_progress" | "completed";
 
 export interface ModuleRecord {
   id: string;
   field_id: string;
-  program_id: string;
   status: ModuleStatus;
   notes: string | null;
   created_by: string | null;
@@ -163,9 +164,36 @@ const MODULES: Record<ModuleKey, ModuleDef> = {
     booleans: ["variable_rate", "split_rate", "enhanced_efficiency"],
     sortBy: "event_date",
   },
+  crop_intensification: {
+    table: "field_crop_intensifications",
+    delegate: () => prisma.field_crop_intensifications as unknown as Delegate,
+    columns: [
+      "event_date", "zone", "in_use", "crops_per_period", "period_years",
+      "fallow_eliminated",
+    ],
+    dates: ["event_date"],
+    booleans: ["in_use", "fallow_eliminated"],
+    sortBy: "event_date",
+  },
+  animal_integration: {
+    table: "field_animal_integrations",
+    delegate: () => prisma.field_animal_integrations as unknown as Delegate,
+    columns: [
+      "event_date", "animal_breed", "grazing_period", "biomass_foraged_pct",
+    ],
+    dates: ["event_date"],
+    booleans: [],
+    sortBy: "event_date",
+  },
 };
 
 export const MODULE_KEYS = Object.keys(MODULES) as ModuleKey[];
+
+/** The columns a module owns, so a caller can be told an empty row is empty. */
+export const MODULE_COLUMNS: Record<ModuleKey, readonly string[]> =
+  Object.fromEntries(
+    MODULE_KEYS.map((key) => [key, MODULES[key].columns])
+  ) as Record<ModuleKey, readonly string[]>;
 
 export function isModuleKey(value: string): value is ModuleKey {
   return Object.prototype.hasOwnProperty.call(MODULES, value);
@@ -204,12 +232,11 @@ function shapeData(
 
 export async function listRecords(
   key: ModuleKey,
-  fieldId: string,
-  programId: string
+  fieldId: string
 ): Promise<ModuleRecord[]> {
   const def = MODULES[key];
   const rows = await def.delegate().findMany({
-    where: { field_id: fieldId, program_id: programId, deleted_at: null },
+    where: { field_id: fieldId, deleted_at: null },
     // Newest first by the date that matters to the module, and created_at
     // breaks the tie so rows with no date yet still sit in a stable order.
     orderBy: [{ [def.sortBy]: "desc" }, { created_at: "desc" }],
@@ -231,7 +258,6 @@ export async function createRecord(
   key: ModuleKey,
   input: {
     fieldId: string;
-    programId: string;
     createdBy: string | null;
     data: Record<string, unknown>;
   }
@@ -239,7 +265,6 @@ export async function createRecord(
   const row = await MODULES[key].delegate().create({
     data: {
       field_id: input.fieldId,
-      program_id: input.programId,
       created_by: input.createdBy,
       ...shapeData(key, input.data),
     },
@@ -273,17 +298,10 @@ export interface FarmModuleRecord extends ModuleRecord {
   field_name: string;
 }
 
-/**
- * One module across every field of a farm, for one program.
- *
- * The farm screen shows a table per module covering the whole farm, so asking
- * field by field would be one query per field per module. This asks once and
- * carries the field name on each row, which is what the table needs anyway.
- */
+/** One module across every field of a farm, with the field name on each row. */
 export async function listFarmRecords(
   key: ModuleKey,
-  farmId: string,
-  programId: string
+  farmId: string
 ): Promise<FarmModuleRecord[]> {
   const def = MODULES[key];
   return prisma.$queryRaw<FarmModuleRecord[]>(Prisma.sql`
@@ -291,16 +309,12 @@ export async function listFarmRecords(
       FROM ${Prisma.raw(def.table)} m
       JOIN fields f ON f.id = m.field_id AND f.deleted_at IS NULL
      WHERE f.farm_id = ${farmId}::uuid
-       AND m.program_id = ${programId}::uuid
        AND m.deleted_at IS NULL
      ORDER BY f.name ASC, m.created_at DESC`);
 }
 
 /** The same counts as a field's module list, but for the whole farm. */
-export async function farmModuleCounts(
-  farmId: string,
-  programId: string
-): Promise<ModuleCount[]> {
+export async function farmModuleCounts(farmId: string): Promise<ModuleCount[]> {
   const parts = MODULE_KEYS.map(
     (key) => Prisma.sql`
       SELECT ${key}::text AS module,
@@ -309,7 +323,6 @@ export async function farmModuleCounts(
         FROM ${Prisma.raw(MODULES[key].table)} m
         JOIN fields f ON f.id = m.field_id AND f.deleted_at IS NULL
        WHERE f.farm_id = ${farmId}::uuid
-         AND m.program_id = ${programId}::uuid
          AND m.deleted_at IS NULL`
   );
 
@@ -325,72 +338,56 @@ export async function farmModuleCounts(
   }));
 }
 
-/** A program one farm has fields enrolled in, with those fields. */
-export interface FarmProgram {
-  programId: string;
-  programName: string;
-  startDate: string | null;
-  fields: Array<{ fieldId: string; fieldName: string; areaAcres: number | null }>;
+/** The date each module is filed under, for grouping records into years. */
+const YEAR_COLUMN: Record<ModuleKey, string> = {
+  training: "training_date",
+  soil_samples: "sample_date",
+  irrigation: "irrigation_date",
+  pesticide: "application_date",
+  fertilizer: "application_date",
+  tillage: "tillage_date",
+  amendment: "application_date",
+  crop: "planting_date",
+  nutrient: "event_date",
+  crop_intensification: "event_date",
+  animal_integration: "event_date",
+};
+
+/** Every year a farm has monitoring records in, newest first. */
+export async function farmYears(farmId: string): Promise<string[]> {
+  const parts = MODULE_KEYS.map(
+    (key) => Prisma.sql`
+      SELECT to_char(COALESCE(m.${Prisma.raw(YEAR_COLUMN[key])}, m.created_at), 'YYYY') AS yr
+        FROM ${Prisma.raw(MODULES[key].table)} m
+        JOIN fields f ON f.id = m.field_id AND f.deleted_at IS NULL
+       WHERE f.farm_id = ${farmId}::uuid AND m.deleted_at IS NULL`
+  );
+  const rows = await prisma.$queryRaw<Array<{ yr: string }>>(
+    Prisma.sql`SELECT DISTINCT yr FROM (${Prisma.join(parts, " UNION ALL ")}) y
+                WHERE yr IS NOT NULL ORDER BY yr DESC`
+  );
+  return rows.map((r) => r.yr);
 }
 
-/**
- * Which programs a farm's fields are enrolled in.
- *
- * A monitoring workbook is one farm inside one program, so opening a farm has
- * to start by asking which programs it is actually in. A farm can be in
- * several, and different fields of it can be in different ones.
- */
-export async function programsForFarm(farmId: string): Promise<FarmProgram[]> {
-  const rows = await prisma.$queryRaw<
-    Array<{
-      program_id: string;
-      program_name: string;
-      start_date: Date | null;
-      field_id: string;
-      field_name: string;
-      area_acres: unknown;
-    }>
-  >(Prisma.sql`
-    SELECT p.id   AS program_id,
-           p.name AS program_name,
-           p.start_date,
-           f.id   AS field_id,
-           f.name AS field_name,
-           f.area_acres
-      FROM program_enrollment_fields pef
-      JOIN program_enrollments pe
-        ON pe.id = pef.enrollment_id AND pe.deleted_at IS NULL
-      JOIN programs p
-        ON p.id = pe.program_id AND p.deleted_at IS NULL
-      JOIN fields f
-        ON f.id = pef.field_id AND f.deleted_at IS NULL
-     WHERE pef.deleted_at IS NULL
-       AND f.farm_id = ${farmId}::uuid
-     ORDER BY p.created_at DESC, f.name ASC`);
+/** One field of a farm, as the workbook lists it. */
+export interface FarmField {
+  fieldId: string;
+  fieldName: string;
+  areaAcres: number | null;
+}
 
-  const byProgram = new Map<string, FarmProgram>();
-  for (const r of rows) {
-    let entry = byProgram.get(r.program_id);
-    if (!entry) {
-      entry = {
-        programId: r.program_id,
-        programName: r.program_name,
-        startDate: r.start_date ? r.start_date.toISOString().slice(0, 10) : null,
-        fields: [],
-      };
-      byProgram.set(r.program_id, entry);
-    }
-    // A field enrolled twice in the same program would otherwise be listed
-    // twice in the workbook.
-    if (!entry.fields.some((f) => f.fieldId === r.field_id)) {
-      entry.fields.push({
-        fieldId: r.field_id,
-        fieldName: r.field_name,
-        areaAcres: r.area_acres === null ? null : Number(r.area_acres),
-      });
-    }
-  }
-  return [...byProgram.values()];
+/** Every live field of a farm, for the farm-wide monitoring screens. */
+export async function fieldsForFarm(farmId: string): Promise<FarmField[]> {
+  const rows = await prisma.fields.findMany({
+    where: { farm_id: farmId, deleted_at: null },
+    select: { id: true, name: true, area_acres: true },
+    orderBy: { name: "asc" },
+  });
+  return rows.map((r) => ({
+    fieldId: r.id,
+    fieldName: r.name,
+    areaAcres: r.area_acres === null ? null : Number(r.area_acres),
+  }));
 }
 
 export interface ModuleCount {
@@ -404,10 +401,7 @@ export interface ModuleCount {
  * across all nine tables rather than nine round trips, because this runs every
  * time a farmer opens a field.
  */
-export async function moduleCounts(
-  fieldId: string,
-  programId: string
-): Promise<ModuleCount[]> {
+export async function moduleCounts(fieldId: string): Promise<ModuleCount[]> {
   const parts = MODULE_KEYS.map(
     (key) => Prisma.sql`
       SELECT ${key}::text AS module,
@@ -415,7 +409,6 @@ export async function moduleCounts(
              COUNT(*) FILTER (WHERE status = 'completed')::int AS completed
         FROM ${Prisma.raw(MODULES[key].table)}
        WHERE field_id = ${fieldId}::uuid
-         AND program_id = ${programId}::uuid
          AND deleted_at IS NULL`
   );
 

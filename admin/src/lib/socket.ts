@@ -13,20 +13,10 @@ function socketOrigin(): string {
 let socket: Socket | null = null;
 
 /**
- * Visit rooms this tab wants to be in.
- *
- * Server-side rooms belong to a socket CONNECTION, not to a user: when the
- * socket drops and reconnects it comes back in no rooms at all. The board used
- * to track "already joined" in a component ref, so after any reconnect — a wifi
- * blip, a laptop waking, a backend deploy — it saw the ids as already joined and
- * never re-emitted. `data:changed` kept working (the server re-joins admins to
- * the "admins" room on every connection), so the list still refreshed when a
- * visit started or ended, but `visit:location` never arrived again: the dots
- * froze for the rest of the session while everything else looked healthy.
- *
- * Keeping the set here, next to the socket it describes, means the reconnect
- * handler can put us back in every room.
+ * Visit rooms this tab wants to be in. Rooms are per socket connection, so
+ * they must be re-joined after every reconnect.
  */
+
 const rooms = new Set<string>();
 
 function attachLifecycle(s: Socket): void {
