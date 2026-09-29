@@ -4,9 +4,56 @@ import * as fieldApi from '../../api/FieldApi';
 import type { CreateFarmInput, PagedFarms, UpdateFarmInput } from '../../api/FarmApi';
 import type { Farm } from '../../types/farm';
 import type { PageQuery } from '../../types/pagination';
-import { handleApiError, StandardizedError } from '../../utils/handleApiError';
+import {
+  handleApiError,
+  isTimeoutError,
+  StandardizedError,
+} from '../../utils/handleApiError';
+import { asOwnerUserId, isDatabaseReady } from '../../services/db';
+import type { OwnerUserId } from '../../services/db/types';
+import {
+  cacheFarmList,
+  farmFromRow,
+  readCachedFarm,
+  readCachedFarmList,
+} from '../../services/sync/farmCache';
+import { createFarmOffline } from '../../services/sync';
 
 type ThunkConfig = { rejectValue: StandardizedError };
+
+interface AuthStateSlice {
+  auth?: { user?: { id?: string } | null } | null;
+}
+
+const ownerFrom = (getState: () => unknown): OwnerUserId | null => {
+  if (!isDatabaseReady()) {
+    return null;
+  }
+  const userId = (getState() as AuthStateSlice).auth?.user?.id;
+  return userId ? asOwnerUserId(userId) : null;
+};
+
+const loadFarms = async (
+  query: FarmListArgs,
+  getState: () => unknown,
+): Promise<PagedFarms> => {
+  const owner = ownerFrom(getState);
+  try {
+    const page = await farmApi.getMyFarms(query);
+    if (owner) {
+      await cacheFarmList(owner, page.farms).catch(() => undefined);
+    }
+    return page;
+  } catch (error) {
+    if (owner && handleApiError(error).kind === 'offline') {
+      const cached = await readCachedFarmList(owner, query).catch(() => null);
+      if (cached) {
+        return cached;
+      }
+    }
+    throw error;
+  }
+};
 
 export interface UpdateFarmArgs {
   farmId: string;
@@ -17,9 +64,9 @@ export type FarmListArgs = PageQuery | undefined;
 
 export const fetchFarmsThunk = createAsyncThunk<PagedFarms, FarmListArgs, ThunkConfig>(
   'farm/fetchFarms',
-  async (query, { rejectWithValue }) => {
+  async (query, { getState, rejectWithValue }) => {
     try {
-      return await farmApi.getMyFarms(query);
+      return await loadFarms(query, getState);
     } catch (error) {
       return rejectWithValue(handleApiError(error));
     }
@@ -28,9 +75,9 @@ export const fetchFarmsThunk = createAsyncThunk<PagedFarms, FarmListArgs, ThunkC
 
 export const refreshFarmsThunk = createAsyncThunk<PagedFarms, FarmListArgs, ThunkConfig>(
   'farm/refreshFarms',
-  async (query, { rejectWithValue }) => {
+  async (query, { getState, rejectWithValue }) => {
     try {
-      return await farmApi.getMyFarms({ ...query, page: 1 });
+      return await loadFarms({ ...query, page: 1 }, getState);
     } catch (error) {
       return rejectWithValue(handleApiError(error));
     }
@@ -72,11 +119,33 @@ export const fetchFarmFieldCountsThunk = createAsyncThunk<
   }
 });
 
+const loadFarmDetail = async (
+  farmId: string,
+  getState: () => unknown,
+): Promise<Farm> => {
+  const owner = ownerFrom(getState);
+  try {
+    const farm = await farmApi.getFarmDetails(farmId);
+    if (owner) {
+      await cacheFarmList(owner, [farm]).catch(() => undefined);
+    }
+    return farm;
+  } catch (error) {
+    if (owner && handleApiError(error).kind === 'offline') {
+      const cached = await readCachedFarm(owner, farmId).catch(() => null);
+      if (cached) {
+        return cached;
+      }
+    }
+    throw error;
+  }
+};
+
 export const fetchFarmDetailThunk = createAsyncThunk<Farm, string, ThunkConfig>(
   'farm/fetchFarmDetail',
-  async (farmId, { rejectWithValue }) => {
+  async (farmId, { getState, rejectWithValue }) => {
     try {
-      return await farmApi.getFarmDetails(farmId);
+      return await loadFarmDetail(farmId, getState);
     } catch (error) {
       return rejectWithValue(handleApiError(error));
     }
@@ -85,9 +154,9 @@ export const fetchFarmDetailThunk = createAsyncThunk<Farm, string, ThunkConfig>(
 
 export const refreshFarmDetailThunk = createAsyncThunk<Farm, string, ThunkConfig>(
   'farm/refreshFarmDetail',
-  async (farmId, { rejectWithValue }) => {
+  async (farmId, { getState, rejectWithValue }) => {
     try {
-      return await farmApi.getFarmDetails(farmId);
+      return await loadFarmDetail(farmId, getState);
     } catch (error) {
       return rejectWithValue(handleApiError(error));
     }
@@ -96,11 +165,37 @@ export const refreshFarmDetailThunk = createAsyncThunk<Farm, string, ThunkConfig
 
 export const createFarmThunk = createAsyncThunk<Farm, CreateFarmInput, ThunkConfig>(
   'farm/createFarm',
-  async (input, { rejectWithValue }) => {
+  async (input, { getState, rejectWithValue }) => {
+    const owner = ownerFrom(getState);
     try {
-      return await farmApi.createMyFarm(input);
+      const created = await farmApi.createMyFarm(input);
+      if (owner) {
+        await cacheFarmList(owner, [created]).catch(() => undefined);
+      }
+      return created;
     } catch (error) {
-      return rejectWithValue(handleApiError(error));
+      const standardized = handleApiError(error);
+      if (owner && standardized.kind === 'offline') {
+        try {
+          const row = await createFarmOffline(
+            owner,
+            {
+              name: input.name,
+              business_entity: input.businessEntity ?? null,
+              area_acres: input.areaAcres ?? null,
+              location: input.location ?? null,
+              latitude: input.latitude ?? null,
+              longitude: input.longitude ?? null,
+              status: 'active',
+            },
+            { outcomeUncertain: isTimeoutError(error) },
+          );
+          return farmFromRow(row);
+        } catch {
+          return rejectWithValue(standardized);
+        }
+      }
+      return rejectWithValue(standardized);
     }
   },
 );

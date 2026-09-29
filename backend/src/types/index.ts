@@ -106,6 +106,8 @@ export interface User {
   password_hash: string | null;
   is_active: boolean;
   is_email_verified: boolean;
+  /** True while a temporary password set by somebody else is still in place. */
+  must_change_password: boolean;
   last_login_at: Date | null;
   created_at: Date;
   updated_at: Date;

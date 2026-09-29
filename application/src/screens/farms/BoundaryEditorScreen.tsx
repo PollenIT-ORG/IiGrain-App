@@ -10,9 +10,15 @@ import {
   ensureLocationPermission,
   getCurrentLocation,
 } from '../../services/currentLocation';
-import { useAppSelector } from '../../redux/hooks';
+import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import { selectFields } from '../../redux/slices/fieldSlice';
+import { getFarmField } from '../../api/FieldApi';
+import type { Field } from '../../types/farm';
 import { selectSelectedFarm } from '../../redux/slices/farmSlice';
+import {
+  markDrawTutorialSeen,
+  selectDrawTutorialSeen,
+} from '../../redux/slices/boundarySlice';
 import type { AppScreenProps } from '../../navigation/navigationTypes';
 import {
   AppMapView,
@@ -20,12 +26,16 @@ import {
   MapPlaceSearch,
   MapPolyline,
   MAP_ZOOM,
+  DEFAULT_MAP_REGION,
+  regionFromZoom,
   useMapCamera,
   type LatLng,
   type MapKind,
   type MapRegion,
 } from '../../maps';
 import {
+  BoundaryDrawTutorial,
+  BoundaryHandleLayer,
   BoundaryPointsPanel,
   BoundaryPolygon,
   BoundaryToolbar,
@@ -37,42 +47,108 @@ import {
   useBoundaryPersistence,
   BOUNDARY_HINTS,
   MIN_VERTICES,
+  USE_OVERLAY_HANDLES,
+  type BoundaryHandleLayerHandle,
   type BoundaryStatusTone,
+  type BoundaryVertex,
 } from '../../maps/boundary';
-import { type AreaUnit } from '../../maps/utils/geo';
+import { convertArea, type AreaUnit } from '../../maps/utils/geo';
+import { formatAcres, roundAcres } from '../../maps/utils/fieldAcres';
+import { resolveFieldCenter } from '../../maps/utils/fieldCenter';
 import type { Place } from '../../services/geocoding';
 import { styles } from './BoundaryEditorScreenStyle';
 
 const SEARCH_ROW_H = scale(54);
 const TITLE_ROW_H = scale(52);
 
+const NO_VERTICES: readonly BoundaryVertex[] = [];
+
+const sameRing = (a: readonly LatLng[] | null, b: readonly LatLng[] | null): boolean => {
+  if (a === b) {
+    return true;
+  }
+  if (!a || !b || a.length !== b.length) {
+    return false;
+  }
+  return a.every(
+    (point, i) => point.latitude === b[i].latitude && point.longitude === b[i].longitude,
+  );
+};
+
 const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
   route,
   navigation,
 }) => {
   const insets = useSafeAreaInsets();
-  const { farmId, fieldId, fieldName } = route.params;
+  const { farmId, fieldId, fieldName, latitude, longitude, initialRing, maxAcres, onSave } =
+    route.params;
+  const isDraft = !fieldId;
 
+  const dispatch = useAppDispatch();
   const fields = useAppSelector(selectFields);
   const selectedFarm = useAppSelector(selectSelectedFarm);
-  const field = useMemo(() => fields.find(f => f.id === fieldId) ?? null, [fields, fieldId]);
+  const drawTutorialSeen = useAppSelector(selectDrawTutorialSeen);
+  const [remoteField, setRemoteField] = useState<Field | null>(null);
+  const field = useMemo(
+    () => fields.find(f => f.id === fieldId) ?? remoteField,
+    [fields, fieldId, remoteField],
+  );
+
+  const routeCenter = useMemo<LatLng | null>(
+    () => resolveFieldCenter({ latitude, longitude }),
+    [latitude, longitude],
+  );
+
+  const askedRef = useRef(false);
+  const [locatingField, setLocatingField] = useState(!!fieldId && !routeCenter && !field);
+  useEffect(() => {
+    if (routeCenter || field || askedRef.current || !farmId || !fieldId) {
+      setLocatingField(false);
+      return;
+    }
+    askedRef.current = true;
+    let alive = true;
+    getFarmField(farmId, fieldId)
+      .then(found => {
+        if (alive && found) {
+          setRemoteField(found);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (alive) {
+          setLocatingField(false);
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, [routeCenter, field, farmId, fieldId]);
   const orgId = selectedFarm?.id === farmId ? selectedFarm.orgId ?? null : null;
 
   const { mapRef, onMapReady, isReady, camera } = useMapCamera();
   const editor = useBoundaryEditor({ camera });
   const { draft, scale: mapScale } = editor;
-  const persistence = useBoundaryPersistence({ fieldId, farmId, orgId });
+  const persistence = useBoundaryPersistence({ fieldId: fieldId ?? '', farmId, orgId });
+  const committedRing = isDraft ? (initialRing ?? null) : (persistence.saved?.ring ?? null);
 
   const [mapKind, setMapKind] = useState<MapKind>('satellite');
   const [unit, setUnit] = useState<AreaUnit>('acre');
   const [locating, setLocating] = useState(false);
 
+  // Handle overlay (iOS): it owns the live region so a pan re-renders only the
+  // handles, and it freezes map gestures while a handle is under the finger.
+  const handleLayerRef = useRef<BoundaryHandleLayerHandle | null>(null);
+  const [handleDragging, setHandleDragging] = useState(false);
+
   const fieldCenter = useMemo<LatLng | null>(
     () =>
-      field?.latitude != null && field?.longitude != null
-        ? { latitude: field.latitude, longitude: field.longitude }
-        : null,
-    [field],
+      resolveFieldCenter(
+        routeCenter,
+        field,
+        selectedFarm?.id === farmId ? selectedFarm : null,
+      ),
+    [routeCenter, field, selectedFarm, farmId],
   );
 
   const loadedRef = useRef(false);
@@ -80,36 +156,83 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
     if (loadedRef.current || !isReady || persistence.hydrating) {
       return;
     }
-    loadedRef.current = true;
-    if (persistence.saved) {
-      draft.load(persistence.saved.ring);
-      camera.fitToCoordinates(persistence.saved.ring);
-    } else if (fieldCenter) {
-      camera.animateToCoordinate(fieldCenter, 18);
+    if (committedRing) {
+      loadedRef.current = true;
+      draft.load(committedRing);
+      camera.fitToCoordinates(committedRing);
+      return;
     }
-  }, [isReady, persistence.hydrating, persistence.saved, fieldCenter, draft, camera]);
+    if (fieldCenter) {
+      loadedRef.current = true;
+      camera.setCoordinate(fieldCenter, 18);
+    }
+  }, [isReady, persistence.hydrating, committedRing, fieldCenter, draft, camera]);
 
+  const { rejection, clearRejection } = draft;
   const rejectionSeqRef = useRef(0);
   useEffect(() => {
-    const rejection = draft.rejection;
     if (!rejection || rejection.seq === rejectionSeqRef.current) {
       return;
     }
     rejectionSeqRef.current = rejection.seq;
-    showToast(rejection.message, { type: 'warning' });
-    draft.clearRejection();
-  }, [draft.rejection, draft.clearRejection]);
+    showToast(rejection.message, { type: 'info' });
+    clearRejection();
+  }, [rejection, clearRejection]);
 
   const onRegionChange = useCallback(
-    (region: MapRegion) => mapScale.onRegionChange(region),
+    (region: MapRegion) => {
+      mapScale.onRegionChange(region);
+      handleLayerRef.current?.setRegion(region);
+    },
     [mapScale],
   );
+
+  // onRegionChange is not guaranteed to fire before the first gesture; the
+  // settle callback always does, so the overlay is never left on a stale frame.
+  const onCenterChange = useCallback((_center: LatLng, region: MapRegion) => {
+    handleLayerRef.current?.setRegion(region);
+  }, []);
+
+  // First time a device draws, the map alone gives no clue what to do —
+  // there's nothing on a farm field to indicate "tap here". The coach mark
+  // demos the exact gesture once; after that the same status-bar hints do
+  // the job, same as they always have.
+  const [tutorialVisible, setTutorialVisible] = useState(false);
 
   const startDraw = useCallback(() => {
     draft.reset();
     editor.setMode('draw');
+    if (drawTutorialSeen) {
+      showToast(BOUNDARY_HINTS.drawEmpty, { type: 'info' });
+    } else {
+      setTutorialVisible(true);
+    }
+  }, [draft, editor, drawTutorialSeen]);
+
+  const dismissTutorial = useCallback(() => {
+    setTutorialVisible(false);
+    dispatch(markDrawTutorialSeen());
     showToast(BOUNDARY_HINTS.drawEmpty, { type: 'info' });
+  }, [dispatch]);
+
+  // Lets anyone revisit the how-to-draw coach mark on demand — the automatic
+  // showing is once-per-device, so this is the only way back to it afterwards.
+  const replayTutorial = useCallback(() => {
+    draft.reset();
+    editor.setMode('draw');
+    setTutorialVisible(true);
   }, [draft, editor]);
+
+  // Defensive: if a real point ever lands while the coach mark is up (it
+  // shouldn't — the scrim blocks the map), get out of the way immediately
+  // rather than layering a demo over a boundary the farmer is actually
+  // drawing.
+  useEffect(() => {
+    if (tutorialVisible && draft.vertexCount > 0) {
+      setTutorialVisible(false);
+      dispatch(markDrawTutorialSeen());
+    }
+  }, [tutorialVisible, draft.vertexCount, dispatch]);
 
   const startEdit = useCallback(() => {
     editor.setMode('edit');
@@ -198,6 +321,12 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
     if (!draft.canSave) {
       return;
     }
+    if (isDraft) {
+      onSave?.(draft.ring);
+      editor.setMode('view');
+      navigation.goBack();
+      return;
+    }
     try {
       const stored = await persistence.save(draft.ring);
       draft.load(stored.ring);
@@ -208,7 +337,7 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
         type: 'error',
       });
     }
-  }, [draft, persistence, editor]);
+  }, [draft, isDraft, onSave, persistence, editor, navigation]);
 
   const deleteBoundary = useCallback(() => {
     Alert.alert(
@@ -220,7 +349,11 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            persistence.remove().catch(() => {});
+            if (isDraft) {
+              onSave?.(null);
+            } else {
+              persistence.remove().catch(() => {});
+            }
             draft.reset();
             editor.setMode('view');
             showToast('Boundary deleted.', { type: 'info' });
@@ -228,14 +361,14 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
         },
       ],
     );
-  }, [persistence, draft, editor]);
+  }, [isDraft, onSave, persistence, draft, editor]);
 
   const isDirty = editor.isPlacing && (draft.vertexCount > 0 || draft.canUndo);
 
   const cancelEditing = useCallback(() => {
     const toView = () => {
-      if (persistence.saved) {
-        draft.load(persistence.saved.ring);
+      if (committedRing) {
+        draft.load(committedRing);
       } else {
         draft.reset();
       }
@@ -249,7 +382,7 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
       { text: 'Keep editing', style: 'cancel' },
       { text: 'Discard', style: 'destructive', onPress: toView },
     ]);
-  }, [isDirty, persistence.saved, draft, editor]);
+  }, [isDirty, committedRing, draft, editor]);
 
   const goBack = useCallback(() => {
     if (isDirty) {
@@ -259,20 +392,71 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
       ]);
       return;
     }
+    if (isDraft) {
+      const ring = draft.vertexCount >= MIN_VERTICES ? draft.ring : null;
+      if (!sameRing(ring, committedRing)) {
+        onSave?.(ring);
+      }
+    }
     navigation.goBack();
-  }, [isDirty, navigation]);
+  }, [isDirty, isDraft, draft, committedRing, onSave, navigation]);
 
   const { displayRing, drag, isDrawing, isEditing, isPlacing } = editor;
   const invalid = !draft.validation.isSimple && draft.vertexCount >= MIN_VERTICES;
   const dragBlocked = editor.dragBlocked;
 
-  const draggingVertexId =
-    drag && drag.kind === 'vertex' ? drag.vertexId : null;
   const draggingEdgeIndex = drag && drag.kind === 'edge' ? drag.edgeIndex : null;
 
   const showMidpoints = isEditing && draft.vertexCount >= MIN_VERTICES;
 
+  // The overlay draws from plain state, so the vertex under the finger has to
+  // carry the live drag position itself (the native markers move themselves).
+  const handleVertices = useMemo(
+    () =>
+      drag && drag.kind === 'vertex'
+        ? draft.vertices.map((vertex, index) =>
+            index === drag.index
+              ? {
+                  ...vertex,
+                  latitude: drag.point.latitude,
+                  longitude: drag.point.longitude,
+                }
+              : vertex,
+          )
+        : draft.vertices,
+    [draft.vertices, drag],
+  );
+
+  // Only ever the overlay's *seed*: once mounted it tracks the map itself.
+  const initialRegion = useMemo<MapRegion>(
+    () => (fieldCenter ? regionFromZoom(fieldCenter, 18) : DEFAULT_MAP_REGION),
+    [fieldCenter],
+  );
+
+  const limitAcres = useMemo(() => {
+    if (typeof maxAcres === 'number') {
+      return roundAcres(maxAcres);
+    }
+    const farm = selectedFarm?.id === farmId ? selectedFarm : null;
+    if (!farm || farm.availableAcres == null) {
+      return null;
+    }
+    const ownAcres = fieldId ? field?.areaAcres ?? 0 : 0;
+    return roundAcres(farm.availableAcres + ownAcres);
+  }, [maxAcres, selectedFarm, farmId, fieldId, field]);
+
+  const liveAcres = roundAcres(convertArea(editor.liveAreaSqM, 'acre'));
+  const overLimit = limitAcres !== null && liveAcres > limitAcres;
+
   const status = useMemo<{ text: string; tone: BoundaryStatusTone }>(() => {
+    if (overLimit && limitAcres !== null) {
+      return {
+        text: `${formatAcres(liveAcres)} ac is bigger than this farm — only ${formatAcres(
+          limitAcres,
+        )} ac are free. Make the shape smaller.`,
+        tone: 'danger',
+      };
+    }
     if (dragBlocked) {
       return { text: BOUNDARY_HINTS.editBlocked, tone: 'danger' };
     }
@@ -301,18 +485,36 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
       text: draft.selectedId ? BOUNDARY_HINTS.editSelected : BOUNDARY_HINTS.editIdle,
       tone: 'info',
     };
-  }, [dragBlocked, invalid, isDrawing, draft.vertexCount, draft.validation.reason, draft.selectedId]);
+  }, [
+    overLimit,
+    limitAcres,
+    liveAcres,
+    dragBlocked,
+    invalid,
+    isDrawing,
+    draft.vertexCount,
+    draft.validation.reason,
+    draft.selectedId,
+  ]);
 
   const title = field?.name ?? fieldName ?? 'Field boundary';
   const subtitle = editor.isPlacing
     ? `${draft.vertexCount} point${draft.vertexCount === 1 ? '' : 's'}`
-    : persistence.saved
-      ? 'Saved boundary'
+    : committedRing
+      ? isDraft
+        ? 'Boundary traced'
+        : 'Saved boundary'
       : 'No boundary yet';
 
   return (
     <View style={styles.safe}>
       <View style={styles.mapWrap} onLayout={mapScale.onLayout}>
+        {locatingField ? (
+          <View style={styles.mapLoading}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <AppText style={styles.mapLoadingText}>Finding this field…</AppText>
+          </View>
+        ) : null}
         <AppMapView
           ref={mapRef}
           onReady={onMapReady}
@@ -321,6 +523,8 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
           initialZoom={18}
           onPress={editor.onMapPress}
           onRegionChange={onRegionChange}
+          onCenterChange={onCenterChange}
+          interactive={!handleDragging}
           style={styles.map}>
           <BoundaryPolygon
             ring={displayRing}
@@ -339,7 +543,7 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
             />
           ) : null}
 
-          {isPlacing
+          {isPlacing && !USE_OVERLAY_HANDLES
             ? draft.vertices.map((vertex, index) => (
                 <VertexMarker
                   key={editor.markerKey(vertex.id)}
@@ -349,8 +553,6 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
                   isFirst={index === 0}
                   snapTarget={isDrawing && index === 0 && draft.vertexCount >= MIN_VERTICES}
                   invalid={draft.crossingIds.has(vertex.id)}
-                  dragging={draggingVertexId === vertex.id}
-                  blocked={dragBlocked}
                   draggable
                   onPress={editor.onVertexPress}
                   onDragStart={editor.onVertexDragStart}
@@ -360,15 +562,13 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
               ))
             : null}
 
-          {showMidpoints
+          {showMidpoints && !USE_OVERLAY_HANDLES
             ? draft.midpoints.map(midpoint =>
                 draggingEdgeIndex !== null &&
                 draggingEdgeIndex !== midpoint.edgeIndex ? null : (
                   <MidpointHandle
                     key={`${midpoint.fromId}>${midpoint.toId}`}
                     midpoint={midpoint}
-                    dragging={draggingEdgeIndex === midpoint.edgeIndex}
-                    blocked={dragBlocked}
                     onPress={editor.onEdgePress}
                     onDragStart={editor.onEdgeDragStart}
                     onDrag={editor.onEdgeDrag}
@@ -378,6 +578,33 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
               )
             : null}
         </AppMapView>
+
+        {/* Mounted in every mode — an overlay that unmounts stops receiving
+            region updates and comes back pinned to a stale frame. It simply
+            draws nothing outside draw/edit. */}
+        {USE_OVERLAY_HANDLES ? (
+          <BoundaryHandleLayer
+            ref={handleLayerRef}
+            vertices={isPlacing ? handleVertices : NO_VERTICES}
+            midpoints={draft.midpoints}
+            initialRegion={initialRegion}
+            selectedId={draft.selectedId}
+            crossingIds={draft.crossingIds}
+            snapToFirst={isDrawing && draft.vertexCount >= MIN_VERTICES}
+            showMidpoints={showMidpoints}
+            activeEdgeIndex={draggingEdgeIndex}
+            activeEdgePoint={drag && drag.kind === 'edge' ? drag.point : null}
+            onVertexPress={editor.onVertexPress}
+            onVertexDragStart={editor.onVertexDragStart}
+            onVertexDrag={editor.onVertexDrag}
+            onVertexDragEnd={editor.onVertexDragEnd}
+            onEdgePress={editor.onEdgePress}
+            onEdgeDragStart={editor.onEdgeDragStart}
+            onEdgeDrag={editor.onEdgeDrag}
+            onEdgeDragEnd={editor.onEdgeDragEnd}
+            onDragActiveChange={setHandleDragging}
+          />
+        ) : null}
 
         <View style={[styles.topBar, { top: insets.top + spacing[2] + SEARCH_ROW_H }]}>
           <View style={styles.titlePill}>
@@ -459,8 +686,19 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
           />
         ) : null}
 
+        {editor.mode === 'view' && !committedRing ? (
+          <Pressable
+            onPress={replayTutorial}
+            style={[styles.howToDrawBtn, { bottom: insets.bottom + scale(130) }]}
+            accessibilityRole="button"
+            accessibilityLabel="How to draw a boundary">
+            <AppIcon name="help-circle-outline" size={moderateScale(16)} color={COLORS.white} />
+            <AppText style={styles.howToDrawText}>How to draw</AppText>
+          </Pressable>
+        ) : null}
+
         {!isReady ? (
-          <View style={styles.loading}>
+          <View style={styles.loading} pointerEvents="none">
             <ActivityIndicator color={COLORS.primary} />
           </View>
         ) : null}
@@ -468,7 +706,7 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
 
       <BoundaryToolbar
         mode={editor.mode}
-        hasBoundary={!!persistence.saved}
+        hasBoundary={!!committedRing}
         hasSelection={draft.selectedId !== null}
         status={status.text}
         statusTone={status.tone}
@@ -481,8 +719,9 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
         canClose={draft.canClose}
         canDelete={draft.canDelete}
         canAddPoint={draft.vertexCount >= MIN_VERTICES}
-        canSave={draft.canSave}
+        canSave={draft.canSave && !overLimit}
         saving={persistence.saving}
+        saveLabel={isDraft ? 'Use this boundary' : undefined}
         onCycleUnit={setUnit}
         onStartDraw={startDraw}
         onStartEdit={startEdit}
@@ -495,6 +734,8 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
         onCancel={cancelEditing}
         onSave={save}
       />
+
+      <BoundaryDrawTutorial visible={tutorialVisible} onDismiss={dismissTutorial} />
     </View>
   );
 };

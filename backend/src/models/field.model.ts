@@ -242,7 +242,8 @@ export async function updateField(
 // editor, never merged. Passing null clears it to SQL NULL via Prisma.DbNull.
 export async function updateFieldBoundary(
   id: string,
-  boundary: GeoJSONPolygon | null
+  boundary: GeoJSONPolygon | null,
+  areaAcres?: number
 ): Promise<PublicField | null> {
   const { count } = await prisma.fields.updateMany({
     where: { id, deleted_at: null },
@@ -252,6 +253,7 @@ export async function updateFieldBoundary(
           ? Prisma.DbNull
           : (boundary as unknown as Prisma.InputJsonValue),
       boundary_updated_at: boundary === null ? null : new Date(),
+      ...(areaAcres !== undefined ? { area_acres: areaAcres } : {}),
       updated_at: new Date(),
     },
   });
@@ -298,6 +300,14 @@ async function cascadeFieldChildren(
     data: { deleted_at: now, updated_at: now },
   });
   await tx.assessment_responses.updateMany({
+    where: { field_id: { in: fieldIds }, deleted_at: null },
+    data: { deleted_at: now, updated_at: now },
+  });
+  await tx.assessment_records.updateMany({
+    where: { field_id: { in: fieldIds }, deleted_at: null },
+    data: { deleted_at: now, updated_at: now },
+  });
+  await tx.assessment_category_evidence.updateMany({
     where: { field_id: { in: fieldIds }, deleted_at: null },
     data: { deleted_at: now, updated_at: now },
   });

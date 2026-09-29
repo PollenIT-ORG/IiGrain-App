@@ -4,11 +4,11 @@ import axios, {
   InternalAxiosRequestConfig,
 } from 'axios';
 import { Env } from '../config/env';
-import { Endpoints, isPublicAuthPath } from '../config/endpoints';
+import { Endpoints, isPublicPath } from '../config/endpoints';
 import { tokenStorage } from './tokenStorage';
 import { showError } from './errorService';
 import { getApiMessage } from '../utils/getApiMessage';
-import { accountRevocationFor } from '../utils/sessionGuards';
+import { revocationForError } from '../utils/sessionGuards';
 import { reauthSocket } from './socket';
 import {
   logApiInit,
@@ -24,7 +24,7 @@ declare module 'axios' {
   }
 }
 
-type UnauthorizedHandler = () => void;
+type UnauthorizedHandler = (accountNotice?: string | null) => void;
 let onUnauthorized: UnauthorizedHandler | null = null;
 
 export const setUnauthorizedHandler = (handler: UnauthorizedHandler | null): void => {
@@ -101,7 +101,7 @@ const performRefresh = async (): Promise<string | null> => {
   }
 };
 
-const refreshAccessToken = (): Promise<string | null> => {
+export const refreshAccessToken = (): Promise<string | null> => {
   if (!refreshPromise) {
     refreshPromise = performRefresh().finally(() => {
       refreshPromise = null;
@@ -132,15 +132,17 @@ http.interceptors.response.use(
 
     const status = error.response?.status ?? null;
     const url = error.config?.url;
-    const publicAuth = isPublicAuthPath(url);
+    const publicAuth = isPublicPath(url);
     const silent = Boolean((error.config as RetryableConfig | undefined)?.silent);
 
-    const revoked = accountRevocationFor(status, message);
+    const revoked = revocationForError(error);
     if (revoked && !publicAuth) {
       if (onUnauthorized) {
-        onUnauthorized();
+        onUnauthorized(revoked === 'deactivated' ? message : null);
       }
-      showError(error);
+      if (revoked !== 'deactivated') {
+        showError(error);
+      }
       return Promise.reject(error);
     }
 
@@ -168,7 +170,7 @@ http.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (!silent) {
+    if (!silent && error.response) {
       showError(error);
     }
     return Promise.reject(error);

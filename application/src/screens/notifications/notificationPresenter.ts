@@ -11,6 +11,7 @@ const TYPE_META: Record<string, TypeMeta> = {
   assessor_assigned: { icon: 'account-tie-outline', color: COLORS.primary },
   assessor_visit_started: { icon: 'map-marker-radius-outline', color: COLORS.warning },
   assessment_submitted: { icon: 'clipboard-check-outline', color: COLORS.success },
+  assessment_reviewed: { icon: 'star-check-outline', color: COLORS.success },
 };
 
 const DEFAULT_META: TypeMeta = { icon: 'bell-outline', color: COLORS.gray600 };

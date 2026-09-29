@@ -1,7 +1,9 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   useGetPasTemplateQuery,
+  useListPasProgramsQuery,
+  useListPasContractsQuery,
   useCreatePasCategoryMutation,
   useUpdatePasCategoryMutation,
   useDeletePasCategoryMutation,
@@ -17,21 +19,27 @@ import {
   type ScoringRule,
 } from "../store/endpoints/programAdminSurveyApi";
 import { errMsg } from "../lib/errMsg";
+import { useForward, useTrail } from "../lib/returnTo";
 import { useAuth } from "../store/useAuth";
 import { useLiveData } from "../lib/useLiveData";
 import { showSuccess, showError } from "../lib/toast";
 import { useDialog } from "../components/ui/DialogProvider";
 import Select from "../components/ui/Select";
 import Loader from "../components/Loader";
+import Breadcrumbs, { type Crumb } from "../components/ui/Breadcrumbs";
+import ContractPdfPreview from "../components/ContractPdfPreview";
+import { SurveySubmissionsModule } from "./ProgramSubmissions";
 import { CategoryIcon, CATEGORY_ICON_KEYS } from "./survey/SurveyIcons";
-import { PlusIcon, EditIcon, TrashIcon, ChevronLeftIcon } from "../components/icons";
+import { PlusIcon, EditIcon, TrashIcon } from "../components/icons";
 
 const BAND_ORDER: Category[] = ["gold", "silver", "bronze", "not_qualified"];
 
 export default function ProgramTemplateEditor() {
-  const navigate = useNavigate();
   const { id = "" } = useParams();
-  return <SurveyEditor id={id} onBack={() => navigate("/surveys")} />;
+  const trail = useTrail();
+  return (
+    <SurveyEditor id={id} parents={trail ?? [{ label: "Surveys", to: "/surveys" }]} />
+  );
 }
 
 /**
@@ -39,15 +47,15 @@ export default function ProgramTemplateEditor() {
  *
  * It is the page behind /surveys/surveys/:id, and the same component is opened
  * over the Programs list when a survey is created for a program, so setting a
- * program up never means leaving it. Leave `onBack` out when it is embedded:
+ * program up never means leaving it. Leave `parents` out when it is embedded:
  * whatever is showing it provides its own way back.
  */
 export function SurveyEditor({
   id,
-  onBack,
+  parents,
 }: {
   id: string;
-  onBack?: () => void;
+  parents?: Crumb[];
 }) {
   const { user } = useAuth();
   const isPlatformAdmin =
@@ -61,7 +69,7 @@ export function SurveyEditor({
   if (isError || !data) {
     return (
       <div className="space-y-4">
-        {onBack && <BackBtn onClick={onBack} />}
+        {parents && <Breadcrumbs items={[...parents, { label: "Survey" }]} />}
         <div className="card px-5 py-16 text-center text-sm text-gray-500">
           {errMsg(error) || "Survey not found."}
         </div>
@@ -73,15 +81,16 @@ export function SurveyEditor({
   // The global template is the shared master: platform admins maintain it,
   // program administrators must copy it first.
   const readOnly = template.is_global && !isPlatformAdmin;
+  const crumbs = parents ? [...parents, { label: template.name }] : [];
 
   return (
     <div className="space-y-5">
-      {onBack && <BackBtn onClick={onBack} />}
+      {parents && <Breadcrumbs items={crumbs} />}
 
       {/* Embedded, the sheet's own header already names the survey. */}
-      {(onBack || template.is_global) && (
+      {(parents || template.is_global) && (
         <div className="flex flex-wrap items-center gap-3">
-          {onBack && (
+          {parents && (
             <h1 className="text-2xl font-bold text-gray-900">{template.name}</h1>
           )}
           {template.is_global && (
@@ -121,11 +130,165 @@ export function SurveyEditor({
         questions={questions}
         readOnly={readOnly}
       />
+      {parents && <SurveyContractCard templateId={id} crumbs={crumbs} />}
       <ThresholdsCard
         templateId={id}
         rules={scoringRules}
         readOnly={readOnly}
       />
+      {parents && <SurveySubmissionsSection templateId={id} crumbs={crumbs} />}
+    </div>
+  );
+}
+
+function useSurveyLink(templateId: string) {
+  const { data: links, isLoading } = useListPasProgramsQuery();
+  const link =
+    (links ?? []).find((l) => l.template_id === templateId && l.program_id) ??
+    null;
+  return { link, loading: isLoading };
+}
+
+function SurveySubmissionsSection({
+  templateId,
+  crumbs,
+}: {
+  templateId: string;
+  crumbs: Crumb[];
+}) {
+  const { link } = useSurveyLink(templateId);
+  const forward = useForward(crumbs);
+  if (!link?.program_id) return null;
+
+  return (
+    <SurveySubmissionsModule
+      programId={link.program_id}
+      className="space-y-4"
+      linkState={forward}
+      openPath={(submissionId) =>
+        `/surveys/surveys/${templateId}/submissions/${submissionId}`
+      }
+      header={(exportButton) => (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+              Survey submissions
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Producers who applied to {link.name} through this survey.
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">{exportButton}</div>
+        </div>
+      )}
+    />
+  );
+}
+
+function SurveyContractCard({
+  templateId,
+  crumbs,
+}: {
+  templateId: string;
+  crumbs: Crumb[];
+}) {
+  const navigate = useNavigate();
+  const forward = useForward(crumbs);
+  const [previewing, setPreviewing] = useState(false);
+  const { link, loading: loadingLinks } = useSurveyLink(templateId);
+  const { data: contracts, isLoading: loadingContracts } =
+    useListPasContractsQuery();
+
+  const contract = link
+    ? (contracts ?? []).find((c) =>
+        link.contract_template_id
+          ? c.id === link.contract_template_id
+          : c.is_global
+      ) ?? null
+    : null;
+
+  return (
+    <div className="card p-5">
+      <p className="text-sm font-bold text-gray-900">Program and contract</p>
+      {loadingLinks || loadingContracts ? (
+        <p className="mt-1 text-sm text-gray-500">Loading the program and contract...</p>
+      ) : !link ? (
+        <p className="mt-1 text-sm text-gray-500">
+          This survey is not linked to a program yet, so there is no contract
+          for it. Link it to a program from the Surveys list.
+        </p>
+      ) : (
+        <>
+          <div className="mt-4 grid gap-5 lg:grid-cols-2">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                Program
+              </p>
+              <Link
+                to={`/programs/${link.program_id}`}
+                state={forward}
+                className="mt-1 inline-block font-semibold text-gray-900 hover:text-primary hover:underline"
+              >
+                {link.name}
+              </Link>
+              <p className="mt-0.5 text-sm text-gray-500">
+                Producers apply to this program through this survey.
+              </p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                Contract
+              </p>
+              {contract ? (
+                <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="font-semibold text-gray-900">{contract.name}</span>
+                    {!link.contract_template_id && (
+                      <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                        Global default
+                      </span>
+                    )}
+                    {contract.source === "uploaded" ? (
+                      <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+                        Uploaded PDF
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600">
+                        Written
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <button
+                      className="btn-secondary"
+                      onClick={() => setPreviewing((v) => !v)}
+                    >
+                      {previewing ? "Hide contract" : "Preview contract"}
+                    </button>
+                    <button
+                      className="btn-secondary"
+                      onClick={() =>
+                        navigate(`/surveys/contracts/${contract.id}`, { state: forward })
+                      }
+                    >
+                      Open contract
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-1 text-sm text-gray-500">
+                  No contract is set for this program.
+                </p>
+              )}
+            </div>
+          </div>
+          {previewing && contract && (
+            <div className="mt-4">
+              <ContractPdfPreview contractId={contract.id} className="h-[34rem]" />
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -790,17 +953,5 @@ function ModalShell({
         <div className="max-h-[75vh] overflow-y-auto">{children}</div>
       </div>
     </div>
-  );
-}
-
-function BackBtn({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-    >
-      <ChevronLeftIcon width={16} height={16} />
-      Back to surveys
-    </button>
   );
 }

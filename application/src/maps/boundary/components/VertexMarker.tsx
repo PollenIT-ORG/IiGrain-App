@@ -18,8 +18,6 @@ export interface VertexMarkerProps {
   isFirst: boolean;
   snapTarget: boolean;
   invalid: boolean;
-  dragging: boolean;
-  blocked: boolean;
   draggable: boolean;
   onPress: (id: string) => void;
   onDragStart: (id: string) => void;
@@ -43,8 +41,6 @@ const VertexMarker: React.FC<VertexMarkerProps> = ({
   isFirst,
   snapTarget,
   invalid,
-  dragging,
-  blocked,
   draggable,
   onPress,
   onDragStart,
@@ -57,9 +53,7 @@ const VertexMarker: React.FC<VertexMarkerProps> = ({
     setTracks(true);
     const timer = setTimeout(() => setTracks(false), SETTLE_MS);
     return () => clearTimeout(timer);
-  }, [selected, snapTarget, invalid, blocked, isFirst, index]);
-
-  const danger = invalid || (dragging && blocked);
+  }, [selected, snapTarget, invalid, isFirst, index]);
 
   return (
     <MapMarker
@@ -79,7 +73,7 @@ const VertexMarker: React.FC<VertexMarkerProps> = ({
             style={[
               styles.halo,
               snapTarget && styles.haloSnap,
-              danger && styles.haloDanger,
+              invalid && styles.haloDanger,
             ]}
           />
         ) : null}
@@ -89,7 +83,7 @@ const VertexMarker: React.FC<VertexMarkerProps> = ({
             isFirst && styles.dotFirst,
             selected && styles.dotSelected,
             snapTarget && styles.dotSnap,
-            danger && styles.dotDanger,
+            invalid && styles.dotDanger,
           ]}>
           <AppText style={styles.label}>{index + 1}</AppText>
         </View>

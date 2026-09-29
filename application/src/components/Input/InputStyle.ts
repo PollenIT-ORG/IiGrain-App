@@ -52,6 +52,13 @@ export const styles = StyleSheet.create({
     borderColor: COLORS.danger,
     borderWidth: borderWidth.medium,
   },
+  fieldReadOnly: {
+    backgroundColor: COLORS.gray100,
+    borderColor: COLORS.gray200,
+  },
+  trailing: {
+    marginLeft: spacing[2],
+  },
 
   input: {
     ...presets.inputText,

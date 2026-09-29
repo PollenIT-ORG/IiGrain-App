@@ -18,6 +18,12 @@ import {
   type ListFieldsFilters,
 } from "../models/field.model.js";
 import { findFarmById } from "../models/farm.model.js";
+import {
+  MIN_BOUNDARY_AREA_SQM,
+  polygonAreaSqMeters,
+  polygonCrossesItself,
+  sqMetersToAcres,
+} from "../utils/geo.js";
 import { emitSync } from "../socket/liveSync.js";
 import { broadcastToAdmins } from "./realtime.service.js";
 
@@ -63,6 +69,39 @@ async function assertFieldAreaWithinFarm(
      `Field area is too large. Only ${remaining < 0 ? 0 : remaining} acre(s) can be added.`
   );
   }
+}
+
+// Same ceiling the area validators put on a field and on a farm.
+const MAX_AREA_ACRES = 9999999;
+
+// Acres a drawn outline covers, refusing the shapes the boundary editors refuse.
+function acresFromBoundary(boundary: GeoJSONPolygon): number {
+  if (polygonCrossesItself(boundary)) {
+    throw ApiError.badRequest("The boundary crosses itself. Redraw it so no edges cross.");
+  }
+  const sqm = polygonAreaSqMeters(boundary);
+  if (sqm < MIN_BOUNDARY_AREA_SQM) {
+    throw ApiError.badRequest("This boundary is too small. Place the points further apart.");
+  }
+  const acres = round2(sqMetersToAcres(sqm));
+  if (acres > MAX_AREA_ACRES) {
+    throw ApiError.badRequest("This boundary is too large. Please check the points.");
+  }
+  // An outline under 0.005 acres rounds to zero, so it is kept at the smallest stored size.
+  return Math.max(acres, 0.01);
+}
+
+function storedOutlineAcres(boundary: GeoJSONPolygon | null): number | undefined {
+  if (!boundary) return undefined;
+  try {
+    return acresFromBoundary(boundary);
+  } catch {
+    return undefined;
+  }
+}
+
+function missingAcres(field: PublicField): boolean {
+  return field.area_acres === null || Number(field.area_acres) <= 0;
 }
 
 async function assertFarmOwner(farmId: string, userId: string): Promise<void> {
@@ -121,11 +160,15 @@ export async function createFieldFor(input: CreateInput): Promise<PublicField> {
   await assertFarmExists(input.farmId);
   const name = input.name.trim();
   await assertFieldNameFree(input.farmId, name);
-  await assertFieldAreaWithinFarm(input.farmId, input.areaAcres);
+
+  // A drawn outline sets the acres itself and has to fit in the farm's free acres.
+  const drawnAcres = input.boundary ? acresFromBoundary(input.boundary) : undefined;
+  await assertFieldAreaWithinFarm(input.farmId, drawnAcres ?? input.areaAcres);
+
   const field = await createField({
     farmId: input.farmId,
     name,
-    areaAcres: input.areaAcres ?? null,
+    areaAcres: drawnAcres ?? input.areaAcres ?? null,
     crop: nn(input.crop),
     season: nn(input.season),
     irrigation: nn(input.irrigation),
@@ -206,13 +249,22 @@ export async function editField(id: string, input: UpdateInput): Promise<PublicF
     await assertFieldNameFree(existing.farm_id, input.name.trim(), id);
   }
 
-  if (input.areaAcres !== undefined) {
+  // While a field has an outline its acres follow it, so typed acres only count without one.
+  const drawnAcres = input.boundary ? acresFromBoundary(input.boundary) : undefined;
+  const keepsOutline = input.boundary === undefined && existing.boundary !== null;
+  let areaAcres = input.areaAcres;
+  if (drawnAcres !== undefined) {
+    areaAcres = drawnAcres;
+    await assertFieldAreaWithinFarm(existing.farm_id, drawnAcres, id);
+  } else if (keepsOutline) {
+    areaAcres = missingAcres(existing) ? storedOutlineAcres(existing.boundary) : undefined;
+  } else if (input.areaAcres !== undefined) {
     await assertFieldAreaWithinFarm(existing.farm_id, input.areaAcres, id);
   }
 
   const updated = await updateField(id, {
     name: input.name?.trim(),
-    areaAcres: input.areaAcres,
+    areaAcres,
     crop: input.crop !== undefined ? nn(input.crop) : undefined,
     season: input.season !== undefined ? nn(input.season) : undefined,
     irrigation: input.irrigation !== undefined ? nn(input.irrigation) : undefined,
@@ -321,6 +373,21 @@ export async function resetMyFarmField(
   return resetFieldById(fieldId);
 }
 
+// Writes an outline with the acres it covers; clearing it keeps the acres the field has.
+async function writeFieldBoundary(
+  field: PublicField,
+  boundary: GeoJSONPolygon | null
+): Promise<PublicField> {
+  const drawnAcres = boundary ? acresFromBoundary(boundary) : undefined;
+  if (drawnAcres !== undefined) {
+    await assertFieldAreaWithinFarm(field.farm_id, drawnAcres, field.id);
+  }
+  const updated = await updateFieldBoundary(field.id, boundary, drawnAcres);
+  if (!updated) throw ApiError.notFound("Field not found.");
+  await syncFieldOwner(field.farm_id, "updated", field.id);
+  return updated;
+}
+
 /** Staff save. The role gate is on the route, so only the field is checked. */
 export async function saveFieldBoundary(
   fieldId: string,
@@ -328,9 +395,7 @@ export async function saveFieldBoundary(
 ): Promise<PublicField> {
   const field = await findFieldById(fieldId);
   if (!field) throw ApiError.notFound("Field not found.");
-  const updated = await updateFieldBoundary(fieldId, boundary);
-  if (!updated) throw ApiError.notFound("Field not found.");
-  return updated;
+  return writeFieldBoundary(field, boundary);
 }
 
 export async function saveMyFarmFieldBoundary(
@@ -345,9 +410,5 @@ export async function saveMyFarmFieldBoundary(
   await assertFarmOwner(farmId, userId);
   const field = await findFieldById(fieldId);
   if (!field || field.farm_id !== farmId) throw ApiError.notFound("Field not found.");
-
-  const updated = await updateFieldBoundary(fieldId, boundary);
-  if (!updated) throw ApiError.notFound("Field not found.");
-  await syncFieldOwner(farmId, "updated", fieldId);
-  return updated;
+  return writeFieldBoundary(field, boundary);
 }

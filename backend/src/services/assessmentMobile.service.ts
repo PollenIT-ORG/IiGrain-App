@@ -5,12 +5,16 @@ import {
   listMyCompletedAssessments,
   getFieldCategoryScores,
   getCategoryProgressForField,
+  getProgramQuestionKind,
   getCategoryQuestionsForField,
   listCategoryQuestionsForField,
   findCategoryQuestionForField,
   findActiveCategory,
   findActiveQuestion,
   upsertResponse,
+  storedAnswerExtras,
+  deleteFormRecord,
+  getCategoryEvidence,
   isFieldSubmitted,
   findFieldAssessment,
   submitFieldAssessment,
@@ -22,8 +26,26 @@ import {
   type SavedResponse,
   type FieldAssessment,
   type ReviewRow,
+  type RecordTarget,
 } from "../models/assessmentMobile.model.js";
 import prisma from "../db/prisma.js";
+import {
+  answerPayload,
+  questionTypePayload,
+  resolveAnswer,
+  rowAnswerPayload,
+  type AnswerableQuestion,
+  type AnswerPayload,
+  type QuestionTypePayload,
+} from "./assessmentAnswer.js";
+import type { SaveAnswerBody } from "../validators/assessment.schema.js";
+import {
+  readFormRecords,
+  saveForm,
+  withFirstRecord,
+  type FormAnswer,
+  type RecordPayload,
+} from "./assessmentForm.js";
 import { notifyUser, notifyUsers } from "./notification.service.js";
 import { broadcastToAdmins } from "./realtime.service.js";
 import { emitSync } from "../socket/liveSync.js";
@@ -79,6 +101,12 @@ export async function assertAssessmentWritable(
         "This field is inactive, so its assessments cannot be edited or submitted."
       );
     }
+  }
+  // Answers wait until the program office opens the assessment by locking the survey.
+  if (!opts.allowClosedProgram && !ctx.assessment_open) {
+    throw ApiError.conflict(
+      "This program's assessment is not open yet. It opens once the program office locks the survey."
+    );
   }
 }
 
@@ -184,6 +212,7 @@ export interface CompletedAssessmentCard {
     totalQuestions: number;
     answered: number;
     percentage: number;
+    reviewStatus: "in_review" | "approved";
     submittedAt: string | null;
   };
 }
@@ -220,6 +249,7 @@ export async function getMyCompletedAssessments(
       totalQuestions: r.total_questions,
       answered: r.answered,
       percentage: r.percentage !== null ? Math.round(Number(r.percentage) * 10) / 10 : 0,
+      reviewStatus: r.review_status as "in_review" | "approved",
       submittedAt: r.submitted_at ? r.submitted_at.toISOString() : null,
     },
   }));
@@ -240,6 +270,8 @@ export interface CategorySummary {
   totalQuestions: number;
   answered: number;
   percentage: number;
+  // How many times the form has been filled in; 0 for a multiple choice category.
+  records: number;
 }
 
 export interface FieldAssessmentSummary {
@@ -251,15 +283,21 @@ export interface FieldAssessmentSummary {
     totalQuestions: number;
     answered: number;
     percentage: number;
+    // 'mcq' is answered question by question, 'input' is one form per category.
+    questionKind: "mcq" | "input";
   };
   // Whether this assessment can still be changed, and why not. When the program
   // has ended the field stays readable but every answer is locked; the client
   // shows a "program ended" banner and offers only a delete/discard action.
   canEdit: boolean;
+  // Set once the assessment is submitted: it waits for an admin, then is approved.
+  reviewStatus: "in_review" | "approved" | null;
   program: {
     active: boolean;
     ended: boolean;
     endDate: string | null;
+    // False until the program office locks the survey, which opens the assessment.
+    assessmentOpen: boolean;
   };
   categories: CategorySummary[];
 }
@@ -274,6 +312,7 @@ export async function getFieldAssessmentSummary(
   if (!field) throw ApiError.notFound("Field not found.");
 
   const rows = await getCategoryProgressForField(fieldId, programId);
+  const questionKind = await getProgramQuestionKind(programId);
 
   const categories: CategorySummary[] = rows.map((r) => ({
     id: r.id,
@@ -281,6 +320,7 @@ export async function getFieldAssessmentSummary(
     totalQuestions: r.total_questions,
     answered: r.answered,
     percentage: pct(r.answered, r.total_questions),
+    records: r.records,
   }));
 
   const totalQuestions = categories.reduce((s, c) => s + c.totalQuestions, 0);
@@ -298,12 +338,16 @@ export async function getFieldAssessmentSummary(
   const ctx = await getAssessmentWriteContext(fieldId, programId);
   const programActive = ctx?.program_active ?? true;
   const programEnded = ctx?.program_ended ?? false;
+  const assessmentOpen = ctx?.assessment_open ?? true;
   const canEdit =
     !!ctx &&
     ctx.program_active &&
     !ctx.program_ended &&
     ctx.farm_active &&
-    ctx.field_active;
+    ctx.field_active &&
+    ctx.assessment_open;
+
+  const submission = await findFieldAssessment(fieldId, programId);
 
   return {
     field: {
@@ -319,12 +363,15 @@ export async function getFieldAssessmentSummary(
       totalQuestions,
       answered,
       percentage: pct(answered, totalQuestions),
+      questionKind,
     },
     canEdit,
+    reviewStatus: submission?.status === "submitted" ? submission.review_status : null,
     program: {
       active: programActive,
       ended: programEnded,
       endDate: ctx?.program_end_date ?? null,
+      assessmentOpen,
     },
     categories,
   };
@@ -398,23 +445,26 @@ export async function getFieldRegenIndex(
 export interface CategoryQuestionsResult {
   field: { id: string; name: string };
   category: { id: string; name: string };
+  records: RecordPayload[];
+  evidenceUrls: string[];
+  // The same kind the summary reports, so a category opened on its own knows the shape.
+  questionKind: "mcq" | "input";
   progress: { totalQuestions: number; answered: number; percentage: number };
-  questions: Array<{
-    id: string;
-    questionCode: string | null;
-    questionText: string;
-    guidanceNote: string | null;
-    scoreDescriptions: {
-      score0: string | null;
-      score1: string | null;
-      score2: string | null;
-      score3: string | null;
-    };
-    answerScore: number | null;
-    answerComment: string | null;
-    answerEvidenceUrls: string[];
-    answered: boolean;
-  }>;
+  questions: Array<
+    {
+      id: string;
+      questionCode: string | null;
+      questionText: string;
+      guidanceNote: string | null;
+      scoreDescriptions: {
+        score0: string | null;
+        score1: string | null;
+        score2: string | null;
+        score3: string | null;
+      };
+    } & QuestionTypePayload &
+      AnswerPayload
+  >;
 }
 
 export async function getFieldCategoryQuestions(
@@ -426,10 +476,17 @@ export async function getFieldCategoryQuestions(
   const field = await findOwnedField(fieldId, userId, programId);
   if (!field) throw ApiError.notFound("Field not found.");
 
-  const category = await findActiveCategory(categoryId);
+  const category = await findActiveCategory(categoryId, programId);
   if (!category) throw ApiError.notFound("Category not found.");
 
-  const rows = await getCategoryQuestionsForField(categoryId, fieldId, programId);
+  const questionKind = await getProgramQuestionKind(programId);
+  const form =
+    questionKind === "input"
+      ? await readFormRecords({ fieldId, programId, categoryId, authorRole: "farmer" })
+      : null;
+  const rows = (await getCategoryQuestionsForField(categoryId, fieldId, programId)).map((q) =>
+    form ? withFirstRecord(q, form.firstByQuestion.get(q.id)) : q
+  );
 
   const questions = rows.map((q: QuestionWithAnswer) => ({
     id: q.id,
@@ -442,10 +499,8 @@ export async function getFieldCategoryQuestions(
       score2: q.score2_description,
       score3: q.score3_description,
     },
-    answerScore: q.answer_score,
-    answerComment: q.answer_comment,
-    answerEvidenceUrls: q.answer_evidence_urls ?? [],
-    answered: q.answer_score !== null,
+    ...questionTypePayload(q),
+    ...answerPayload(q),
   }));
 
   const totalQuestions = questions.length;
@@ -454,14 +509,23 @@ export async function getFieldCategoryQuestions(
   return {
     field: { id: field.id, name: field.name },
     category: { id: category.id, name: category.name },
+    questionKind,
     progress: { totalQuestions, answered, percentage: pct(answered, totalQuestions) },
     questions,
+    // Every filling of this form, each with its own answers; empty for multiple choice.
+    records: form?.records ?? [],
+    // The evidence at the end of the form: the first record's, or the category's for multiple choice.
+    evidenceUrls: form
+      ? form.records[0]?.evidenceUrls ?? []
+      : await getCategoryEvidence(categoryId, fieldId, programId, "farmer"),
   };
 }
 
 export interface CategoryQuestionListResult {
   field: { id: string; name: string };
   category: { id: string; name: string };
+  // The same kind the summary reports, so any entry point knows the shape.
+  questionKind: "mcq" | "input";
   progress: { totalQuestions: number; answered: number; percentage: number };
   questions: Array<{
     id: string;
@@ -481,7 +545,7 @@ export async function getFieldCategoryQuestionList(
   const field = await findOwnedField(fieldId, userId, programId);
   if (!field) throw ApiError.notFound("Field not found.");
 
-  const category = await findActiveCategory(categoryId);
+  const category = await findActiveCategory(categoryId, programId);
   if (!category) throw ApiError.notFound("Category not found.");
 
   const rows = await listCategoryQuestionsForField(categoryId, fieldId, programId);
@@ -500,6 +564,7 @@ export async function getFieldCategoryQuestionList(
   return {
     field: { id: field.id, name: field.name },
     category: { id: category.id, name: category.name },
+    questionKind: await getProgramQuestionKind(programId),
     progress: { totalQuestions, answered, percentage: pct(answered, totalQuestions) },
     questions,
   };
@@ -519,11 +584,8 @@ export interface QuestionDetail {
       score2: string | null;
       score3: string | null;
     };
-    answerScore: number | null;
-    answerComment: string | null;
-    answerEvidenceUrls: string[];
-    answered: boolean;
-  };
+  } & QuestionTypePayload &
+    AnswerPayload;
   locked: boolean;
 }
 
@@ -537,7 +599,7 @@ export async function getFieldQuestionDetail(
   const field = await findOwnedField(fieldId, userId, programId);
   if (!field) throw ApiError.notFound("Field not found.");
 
-  const category = await findActiveCategory(categoryId);
+  const category = await findActiveCategory(categoryId, programId);
   if (!category) throw ApiError.notFound("Category not found.");
 
   const q = await findCategoryQuestionForField(categoryId, questionId, fieldId, programId);
@@ -559,21 +621,15 @@ export async function getFieldQuestionDetail(
         score2: q.score2_description,
         score3: q.score3_description,
       },
-      answerScore: q.answer_score,
-      answerComment: q.answer_comment,
-      answerEvidenceUrls: q.answer_evidence_urls ?? [],
-      answered: q.answer_score !== null,
+      ...questionTypePayload(q),
+      ...answerPayload(q),
     },
     locked,
   };
 }
 
-export interface SaveAnswerInput {
-  score: number;
-  // null clears the stored value; undefined leaves it untouched.
-  comment?: string | null;
-  evidenceUrls?: string[] | null;
-}
+// The answer fields the app may send; which of them a question needs depends on its type.
+export type SaveAnswerInput = SaveAnswerBody;
 
 // Returns `undefined` for a field the caller did not send, so the stored value is
 // left untouched. Sending "" or [] explicitly still clears it.
@@ -583,7 +639,11 @@ async function assertCanAnswer(
   questionId: string,
   userId: string,
   input: SaveAnswerInput
-): Promise<{ comment?: string | null; evidenceUrls?: string[] }> {
+): Promise<{
+  question: AnswerableQuestion;
+  comment?: string | null;
+  evidenceUrls?: string[];
+}> {
   const field = await findOwnedField(fieldId, userId, programId);
   if (!field) throw ApiError.notFound("Field not found.");
 
@@ -595,7 +655,7 @@ async function assertCanAnswer(
     );
   }
 
-  const question = await findActiveQuestion(questionId);
+  const question = await findActiveQuestion(questionId, programId);
   if (!question) throw ApiError.notFound("Question not found.");
 
   // null means "clear the photos", so normalise it to an empty array; undefined
@@ -614,7 +674,7 @@ async function assertCanAnswer(
         ? input.comment.trim()
         : null;
 
-  return { comment, evidenceUrls };
+  return { question, comment, evidenceUrls };
 }
 
 export async function saveFieldAnswer(
@@ -624,7 +684,7 @@ export async function saveFieldAnswer(
   userId: string,
   input: SaveAnswerInput
 ): Promise<SavedResponse> {
-  const { comment, evidenceUrls } = await assertCanAnswer(
+  const { question, comment, evidenceUrls } = await assertCanAnswer(
     fieldId,
     programId,
     questionId,
@@ -632,16 +692,36 @@ export async function saveFieldAnswer(
     input
   );
 
+  if ((await getProgramQuestionKind(programId)) === "input") {
+    const questions = await getCategoryQuestionsForField(question.category_id, fieldId, programId);
+    const { saved } = await saveForm(
+      { fieldId, programId, categoryId: question.category_id, authorRole: "farmer", authorId: userId },
+      questions,
+      [{ ...input, questionId }],
+      { kind: "first" }
+    );
+    emitSync(userId, { resource: "assessment", action: "answer_saved", programId, fieldId, questionId });
+    return saved[0];
+  }
+
+  // A photo or a note left out of this save is the one already stored, not nothing.
+  const stored = await storedAnswerExtras(fieldId, programId, questionId, "farmer");
+  const values = resolveAnswer(question, input, {
+    evidenceUrls: evidenceUrls ?? stored.evidenceUrls,
+    comment: comment === undefined ? stored.comment : comment,
+  });
+
   const saved = await upsertResponse({
     fieldId,
     questionId,
-    score: input.score,
+    ...values,
     comment,
     evidenceUrls,
     authorRole: "farmer",
     authorId: userId,
     programId,
   });
+  if (!saved) throw ApiError.conflict("This assessment was just changed. Refresh and try again.");
 
   // Live sync: tell this farmer's other devices an answer changed so a second
   // phone on the same assessment updates without a manual refresh.
@@ -654,6 +734,117 @@ export async function saveFieldAnswer(
   });
 
   return saved;
+}
+
+export interface SaveCategoryAnswersInput {
+  answers: (SaveAnswerInput & { questionId: string })[];
+  // The evidence uploaded at the end of the form.
+  evidenceUrls?: string[] | null;
+}
+
+/**
+ * Saves a whole category at once: an input based assessment shows one form per
+ * category, so the form is sent as it stands and every field lands together.
+ */
+// The checks every form save shares: the farmer's field, an open assessment, a live category.
+async function assertFormWritable(
+  fieldId: string,
+  programId: string,
+  categoryId: string,
+  userId: string
+): Promise<void> {
+  const field = await findOwnedField(fieldId, userId, programId);
+  if (!field) throw ApiError.notFound("Field not found.");
+  await assertAssessmentWritable(fieldId, programId);
+  if (await isFieldSubmitted(fieldId, programId)) {
+    throw ApiError.forbidden("This assessment has been submitted and can no longer be edited.");
+  }
+  const category = await findActiveCategory(categoryId, programId);
+  if (!category) throw ApiError.notFound("Category not found.");
+}
+
+async function saveFarmerForm(
+  fieldId: string,
+  programId: string,
+  categoryId: string,
+  userId: string,
+  answers: FormAnswer[],
+  target: RecordTarget,
+  evidenceUrls?: string[] | null
+): Promise<CategoryQuestionsResult> {
+  await assertFormWritable(fieldId, programId, categoryId, userId);
+  const questions = await getCategoryQuestionsForField(categoryId, fieldId, programId);
+  await saveForm(
+    { fieldId, programId, categoryId, authorRole: "farmer", authorId: userId },
+    questions,
+    answers,
+    target,
+    evidenceUrls
+  );
+  emitSync(userId, { resource: "assessment", action: "answer_saved", programId, fieldId });
+  return getFieldCategoryQuestions(fieldId, programId, categoryId, userId);
+}
+
+/** The whole form in one save; an input based form saves into its first record. */
+export async function saveFieldCategoryAnswers(
+  fieldId: string,
+  programId: string,
+  categoryId: string,
+  userId: string,
+  input: SaveCategoryAnswersInput
+): Promise<CategoryQuestionsResult> {
+  return saveFarmerForm(fieldId, programId, categoryId, userId, input.answers, { kind: "first" }, input.evidenceUrls);
+}
+
+/** One more filling of an input based form. */
+export async function addFieldRecord(
+  fieldId: string,
+  programId: string,
+  categoryId: string,
+  userId: string,
+  input: SaveCategoryAnswersInput
+): Promise<CategoryQuestionsResult> {
+  return saveFarmerForm(fieldId, programId, categoryId, userId, input.answers, { kind: "new" }, input.evidenceUrls);
+}
+
+/** Changes one record of an input based form. */
+export async function saveFieldRecord(
+  fieldId: string,
+  programId: string,
+  categoryId: string,
+  recordId: string,
+  userId: string,
+  input: SaveCategoryAnswersInput
+): Promise<CategoryQuestionsResult> {
+  return saveFarmerForm(
+    fieldId,
+    programId,
+    categoryId,
+    userId,
+    input.answers,
+    { kind: "id", id: recordId },
+    input.evidenceUrls
+  );
+}
+
+/** Removes one record of an input based form, with its answers. */
+export async function removeFieldRecord(
+  fieldId: string,
+  programId: string,
+  categoryId: string,
+  recordId: string,
+  userId: string
+): Promise<CategoryQuestionsResult> {
+  await assertFormWritable(fieldId, programId, categoryId, userId);
+  const removed = await deleteFormRecord(recordId, {
+    fieldId,
+    programId,
+    categoryId,
+    authorRole: "farmer",
+  });
+  if (!removed) throw ApiError.notFound("That record is no longer there.");
+  emitSync(userId, { resource: "assessment", action: "answer_saved", programId, fieldId });
+  return getFieldCategoryQuestions(fieldId, programId, categoryId, userId);
 }
 
 export interface FieldReview {
@@ -671,15 +862,17 @@ export interface FieldReview {
     totalQuestions: number;
     answered: number;
     percentage: number;
-    questions: Array<{
-      id: string;
-      questionCode: string | null;
-      questionText: string;
-      answerScore: number | null;
-      answerComment: string | null;
-      answerEvidenceUrls: string[];
-      answered: boolean;
-    }>;
+    questions: Array<
+      {
+        id: string;
+        questionCode: string | null;
+        questionText: string;
+        guidanceNote: string | null;
+        answerOptionText: string | null;
+        recordId: string | null;
+      } & QuestionTypePayload &
+        AnswerPayload
+    >;
   }>;
 }
 
@@ -695,6 +888,8 @@ export async function getFieldReview(
   const submission = await findFieldAssessment(fieldId, programId);
 
   const byCat = new Map<string, FieldReview["categories"][number]>();
+  const counted = new Set<string>();
+  const answeredOnce = new Set<string>();
   for (const r of rows) {
     let cat = byCat.get(r.category_id);
     if (!cat) {
@@ -708,18 +903,26 @@ export async function getFieldReview(
       };
       byCat.set(r.category_id, cat);
     }
-    const answered = r.answer_score !== null;
+    const answered = r.answered;
     cat.questions.push({
       id: r.question_id,
       questionCode: r.question_code,
       questionText: r.question_text,
-      answerScore: r.answer_score,
-      answerComment: r.answer_comment,
-      answerEvidenceUrls: r.answer_evidence_urls ?? [],
-      answered,
+      guidanceNote: r.guidance_note,
+      ...questionTypePayload(r),
+      ...rowAnswerPayload(r),
+      // Which filling of the form this answer is from; null for multiple choice.
+      recordId: r.record_id,
     });
-    cat.totalQuestions += 1;
-    if (answered) cat.answered += 1;
+    const seenKey = `${r.category_id}:${r.question_id}`;
+    if (!counted.has(seenKey)) {
+      counted.add(seenKey);
+      cat.totalQuestions += 1;
+    }
+    if (answered && !answeredOnce.has(seenKey)) {
+      answeredOnce.add(seenKey);
+      cat.answered += 1;
+    }
   }
 
   const categories = [...byCat.values()].map((c) => ({
@@ -750,8 +953,10 @@ export async function getFieldReview(
   };
 }
 
-export interface HistoryQuestion {
+export type HistoryQuestion = {
   id: string;
+  // Which filling of the form this answer is from; null for multiple choice.
+  recordId: string | null;
   questionCode: string | null;
   questionText: string;
   guidanceNote: string | null;
@@ -761,12 +966,10 @@ export interface HistoryQuestion {
     score2: string | null;
     score3: string | null;
   };
-  answerScore: number | null;
   answerScoreDescription: string | null;
-  answerComment: string | null;
-  answerEvidenceUrls: string[];
-  answered: boolean;
-}
+  answerOptionText: string | null;
+} & QuestionTypePayload &
+  AnswerPayload;
 
 export interface HistoryCategory {
   id: string;
@@ -780,6 +983,8 @@ export interface FieldAssessmentHistory {
   field: { id: string; name: string };
   locked: true;
   status: "completed";
+  reviewStatus: "in_review" | "approved";
+  reviewNote: string | null;
   submittedAt: string | null;
   score: {
     totalQuestions: number;
@@ -844,7 +1049,7 @@ export async function getFieldAssessmentHistory(
       };
       byCat.set(r.category_id, cat);
     }
-    const answered = r.answer_score !== null;
+    const answered = r.answered;
     cat.questions.push({
       id: r.question_id,
       questionCode: r.question_code,
@@ -856,11 +1061,11 @@ export async function getFieldAssessmentHistory(
         score2: r.score2_description,
         score3: r.score3_description,
       },
-      answerScore: r.answer_score,
       answerScoreDescription: scoreDescriptionFor(r, r.answer_score),
-      answerComment: r.answer_comment,
-      answerEvidenceUrls: r.answer_evidence_urls ?? [],
-      answered,
+      ...questionTypePayload(r),
+      ...rowAnswerPayload(r),
+      // Which filling of the form this answer is from; null for multiple choice.
+      recordId: r.record_id,
     });
     cat.totalQuestions += 1;
     if (answered) cat.answered += 1;
@@ -870,6 +1075,8 @@ export async function getFieldAssessmentHistory(
     field: { id: field.id, name: field.name },
     locked: true,
     status: "completed",
+    reviewStatus: submission.review_status,
+    reviewNote: submission.review_note,
     submittedAt: submission.submitted_at
       ? submission.submitted_at.toISOString()
       : null,
@@ -944,7 +1151,7 @@ export async function submitFieldAssessmentForUser(
   }
 
   const rows = await getReviewRowsForField(fieldId, programId, "farmer");
-  const answeredCount = rows.filter((r) => r.answer_score !== null).length;
+  const answeredCount = rows.filter((r) => r.answered).length;
   if (answeredCount === 0) {
     throw ApiError.badRequest(
       "Answer at least one question before submitting."

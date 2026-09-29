@@ -11,6 +11,7 @@ import { AppIcon, ICONS } from '../../components/AppIcon';
 import { AppHeader, AppStatusBadge, AppText, Button } from '../../components';
 import { EmptyState, StatCard } from '../../components/farms';
 import { FadeSlideIn } from '../../components/home';
+import StaleDataNote from '../../components/StaleDataNote';
 import {
   AppShimmer,
   AppShimmerChip,
@@ -29,6 +30,7 @@ import {
   selectAssessorDashboard,
   selectAssessorDashboardLoading,
   selectAssessorError,
+  selectAssessorFieldsCapturedAt,
   selectAssessorFieldsOverview,
 } from '../../redux/slices/assessorSlice';
 import { selectAuthUser } from '../../redux/slices/authSlice';
@@ -49,6 +51,7 @@ const AssessorDashboardScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<AssessorStackParamList>>();
   const dispatch = useAppDispatch();
   const overview = useAppSelector(selectAssessorFieldsOverview);
+  const fieldsCapturedAt = useAppSelector(selectAssessorFieldsCapturedAt);
   const dashboard = useAppSelector(selectAssessorDashboard);
   const loading = useAppSelector(selectAssessorDashboardLoading);
   const error = useAppSelector(selectAssessorError);
@@ -182,6 +185,12 @@ const AssessorDashboardScreen: React.FC = () => {
             </View>
           </View>
         </FadeSlideIn>
+
+        {fieldsCapturedAt ? (
+          <FadeSlideIn delay={40} style={styles.section}>
+            <StaleDataNote capturedAt={fieldsCapturedAt} noun="These assessments" />
+          </FadeSlideIn>
+        ) : null}
 
         {dashboard ? (
           <>

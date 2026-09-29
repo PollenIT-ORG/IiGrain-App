@@ -41,6 +41,8 @@ npx react-native log-android   # or log-ios
 | `BillingNotEnabledMapError` | [#9](#9-billing-not-enabled) |
 | iOS map looks like Apple Maps | [#10](#10-ios-renders-apple-maps-instead-of-google) |
 | Marker missing / an empty square | [#11](#11-marker-invisible-or-renders-as-a-blank-square) |
+| Custom marker invisible **on iOS only**, plain pins fine | [#11 Cause E](#cause-e--ios--new-architecture--provider_google-a-marker-with-children-never-renders) |
+| Polygon frozen — moving a point does not reshape it (iOS) | [#19](#19-polygon-does-not-update-when-a-coordinate-moves-ios) |
 | Camera does not move | [#12](#12-camera-not-moving) |
 | Location permission problems | [#13](#13-permission-denied) |
 | GPS never returns a fix | [#14](#14-location-unavailable--times-out) |
@@ -310,6 +312,44 @@ gives the live assessor `zIndex={2}` so it stays above the destination.
 render nothing and log nothing. Guard with `isValidLatLng()` — every component in
 this module already does.
 
+#### Cause E — iOS + New Architecture + `PROVIDER_GOOGLE`: a marker with children never renders
+
+**Symptom.** Platform-split, and total: on Android the marker is perfect; on iOS
+it is not faint or mispositioned, it is *absent*. `<Polygon>`, `<Polyline>` and
+plain `<Marker coordinate title />` pins on the same map all draw correctly, so
+the key, the provider and the tiles are demonstrably fine. Because the marker is
+also zero-sized it is un-tappable and un-draggable — the screen looks like its
+touch handling is broken, which sends you hunting in the wrong place.
+
+**Cause.** In react-native-maps 1.29 the Fabric marker for Google-on-iOS
+(`RNMapsGoogleMarkerView`) wraps the legacy `AIRGoogleMapMarker`, and that view
+is never inserted into a UIView hierarchy — `AIRGoogleMap.insertReactSubview`
+only appends it to a `_reactSubviews` array. So `layoutSubviews` never runs, and
+`didUpdateReactSubviews` (a Paper-only callback) is never called either. Both are
+the only places that size `GMSMarker.iconView`, the container the React children
+are mounted into. It keeps a zero frame, and once `tracksViewChanges` flips to
+`false` the SDK snapshots that zero-sized view. Nothing to draw, nothing to hit.
+
+Apple MapKit on iOS is *not* affected — `RNMapsMarkerView` handles children
+correctly — which is a useful confirmation test.
+
+**How to confirm in 60 seconds.** Put three markers on one Google map: a plain
+pin, a child-marker with `tracksViewChanges`, and a child-marker that settles to
+`false`. Only the plain pin appears.
+
+**Solution.** Do not put React children inside a `<Marker>` on iOS. The Farm
+Boundary editor draws its handles as a screen-space overlay above the map
+instead — `src/maps/boundary/components/BoundaryHandleLayer.tsx`, selected by
+`USE_OVERLAY_HANDLES` in `boundaryConfig.ts`. It projects each coordinate with
+the live region and renders plain RN views, so it is immune to the SDK's marker
+plumbing. See ADR-B09 in
+[FarmBoundary/DECISION_LOG.md](./FarmBoundary/DECISION_LOG.md).
+
+**Still on native markers, and iOS-blind:** `VisitMap`, `SamplePointsMap` and
+`FieldLocationPreview` all pass children to `<Marker>`. They are subject to the
+same bug and need the same treatment (or a patched pod) before their pins can be
+trusted on iOS.
+
 ---
 
 ## 12. Camera not moving
@@ -469,3 +509,48 @@ ls ios/Pods/GoogleMaps 2>/dev/null && echo "Google ✅" || echo "Apple Maps fall
 # Cloud: is the key + billing + API healthy?
 curl -s "https://maps.googleapis.com/maps/api/directions/json?origin=20.59,78.96&destination=20.60,78.97&key=$MAPS_API_KEY" | head -c 400
 ```
+
+---
+
+## 19. Polygon does not update when a coordinate moves (iOS)
+
+**Symptom.** Drawing works — every new point extends the shape. **Editing does
+not**: drag a vertex and the handle moves while the outline stays exactly where
+it was. Add or delete a point and the outline suddenly snaps to the correct
+shape, catching up on every edit you made in between. It reads as "editing is
+broken" or "the lines disappeared during edit", not as a rendering bug.
+
+A `<Polyline>` over the identical coordinate array **does** follow. That
+asymmetry is the tell.
+
+**Cause.** `RNMapsGooglePolygonView.updateProps` rebuilds the `GMSMutablePath`
+only when the coordinate **count** changes:
+
+```objc
+// ios/AirGoogleMaps/RNMapsGooglePolygonView.mm
+if (newViewProps.coordinates.size() != oldViewProps.coordinates.size()) {
+    GMSMutablePath *path = [GMSMutablePath path];
+    …
+    _view.path = path;
+}
+```
+
+Moving a vertex changes the values, never the count — so the path is never
+rebuilt. Drawing appends points, so the count changes on every tap and drawing
+looks perfectly healthy. Android's renderer diffs the coordinates themselves and
+is unaffected.
+
+**Confirm it in 60 seconds.** One Google map, one `<Polygon>` and one
+`<Polyline>` fed the *same* array, one corner animated on a timer. The polyline
+moves; the polygon sits still.
+
+**Solution.** Make the count differ on every update. `BoundaryPolygon` pads the
+ring with one or two repeats of its last vertex — a zero-length closing segment
+the SDK draws as nothing — picking the count so it can never equal the count it
+sent last time, including across an insert or a delete. Android gets the ring
+unpadded. See `src/maps/boundary/components/BoundaryPolygon.tsx` and ADR-B10.
+
+**If you add a new polygon,** route it through `BoundaryPolygon` rather than
+`MapPolygon` — otherwise it inherits the bug the moment its shape can change.
+`VisitMap` still uses `MapPolygon` directly; that is safe only because its ring
+is fixed for the life of the screen.

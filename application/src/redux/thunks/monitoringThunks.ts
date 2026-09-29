@@ -1,14 +1,19 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import * as api from '../../api/fieldMonitoringApi';
 import { extractFieldErrors } from '../../api/fieldMonitoringApi';
-import { handleApiError, type StandardizedError } from '../../utils/handleApiError';
+import { takesFieldPoints } from '../../config/monitoringModules';
+import {
+  handleApiError,
+  isTimeoutError,
+  type StandardizedError,
+} from '../../utils/handleApiError';
 import type {
   DocumentKind,
   DocumentModule,
   ModuleKey,
+  MonitoringContext,
   MonitoringDocument,
   MonitoringFieldErrors,
-  MonitoringProgram,
   MonitoringRecord,
   RecordPatch,
   RecordPayload,
@@ -19,6 +24,22 @@ export interface MonitoringError extends StandardizedError {
   fieldErrors: MonitoringFieldErrors;
 }
 
+import { asOwnerUserId, isDatabaseReady } from '../../services/db';
+import type { OwnerUserId } from '../../services/db/types';
+import {
+  cacheMonitoringRecords,
+  readCachedMonitoringRecord,
+  readCachedMonitoringRecords,
+  recordFromRow,
+} from '../../services/sync/monitoringCache';
+import {
+  createMonitoringOffline,
+  updateMonitoringOffline,
+} from '../../services/sync';
+import { resolveFieldRow } from '../../services/sync/farmCache';
+import { throughOfflineSnapshot } from '../../services/sync/offlineSnapshot';
+import { monitoringRepository } from '../../repositories';
+
 type ThunkConfig = { rejectValue: MonitoringError };
 
 const toError = (error: unknown): MonitoringError => ({
@@ -26,26 +47,39 @@ const toError = (error: unknown): MonitoringError => ({
   fieldErrors: extractFieldErrors(error),
 });
 
-
-export interface FarmProgramsArg {
-  farmId: string;
+interface AuthStateSlice {
+  auth?: { user?: { id?: string } | null } | null;
 }
 
-export const fetchFarmProgramsThunk = createAsyncThunk<
-  MonitoringProgram[],
-  FarmProgramsArg,
-  ThunkConfig
->('monitoring/farmPrograms', async ({ farmId }, { rejectWithValue }) => {
-  try {
-    return await api.getFarmPrograms(farmId);
-  } catch (error) {
-    return rejectWithValue(toError(error));
+const ownerFrom = (getState: () => unknown): OwnerUserId | null => {
+  if (!isDatabaseReady()) {
+    return null;
   }
-});
+  const userId = (getState() as AuthStateSlice).auth?.user?.id;
+  return userId ? asOwnerUserId(userId) : null;
+};
+
+const isOffline = (error: unknown): boolean =>
+  handleApiError(error).kind === 'offline';
+
+const recordValues = (
+  payload: RecordPayload | RecordPatch,
+): Record<string, string | number | null> => {
+  const values: Record<string, string | number | null> = {};
+  if (payload.status !== undefined) {
+    values.status = payload.status;
+  }
+  if (payload.notes !== undefined) {
+    values.notes = payload.notes ?? null;
+  }
+  if (payload.values !== undefined) {
+    values.values_json = JSON.stringify(payload.values ?? {});
+  }
+  return values;
+};
 
 
 export interface ScopeArg {
-  programId: string;
   fieldId: string;
 }
 
@@ -53,9 +87,11 @@ export const fetchModulesThunk = createAsyncThunk<
   api.ModulesResult,
   ScopeArg,
   ThunkConfig
->('monitoring/modules', async ({ programId, fieldId }, { rejectWithValue }) => {
+>('monitoring/modules', async ({ fieldId }, { getState, rejectWithValue }) => {
   try {
-    return await api.getModules(programId, fieldId);
+    return await throughOfflineSnapshot(ownerFrom(getState), `monitoring:${fieldId}:modules`, () =>
+      api.getModules(fieldId),
+    );
   } catch (error) {
     return rejectWithValue(toError(error));
   }
@@ -69,10 +105,29 @@ export const fetchModuleRecordsThunk = createAsyncThunk<
   api.RecordsResult,
   ModuleArg,
   ThunkConfig
->('monitoring/records', async ({ programId, fieldId, module }, { rejectWithValue }) => {
+>('monitoring/records', async ({ fieldId, module }, { getState, rejectWithValue }) => {
+  const owner = ownerFrom(getState);
   try {
-    return await api.getRecords(programId, fieldId, module);
+    const result = await api.getRecords(fieldId, module);
+    if (owner) {
+      await cacheMonitoringRecords(owner, fieldId, module, result.records).catch(
+        () => undefined,
+      );
+    }
+    return result;
   } catch (error) {
+    if (owner && isOffline(error)) {
+      const cached = await readCachedMonitoringRecords(owner, fieldId, module).catch(
+        () => null,
+      );
+      if (cached) {
+        const state = getState() as { monitoring?: { context?: MonitoringContext } };
+        const context = state.monitoring?.context;
+        if (context) {
+          return { context, records: cached };
+        }
+      }
+    }
     return rejectWithValue(toError(error));
   }
 });
@@ -85,10 +140,23 @@ export const fetchModuleRecordThunk = createAsyncThunk<
   MonitoringRecord,
   RecordArg,
   ThunkConfig
->('monitoring/record', async ({ programId, fieldId, module, recordId }, { rejectWithValue }) => {
+>('monitoring/record', async ({ fieldId, module, recordId }, { getState, rejectWithValue }) => {
+  const owner = ownerFrom(getState);
   try {
-    return await api.getRecord(programId, fieldId, module, recordId);
+    const record = await api.getRecord(fieldId, module, recordId);
+    if (owner) {
+      await cacheMonitoringRecords(owner, fieldId, module, [record]).catch(
+        () => undefined,
+      );
+    }
+    return record;
   } catch (error) {
+    if (owner && isOffline(error)) {
+      const cached = await readCachedMonitoringRecord(owner, recordId).catch(() => null);
+      if (cached) {
+        return cached;
+      }
+    }
     return rejectWithValue(toError(error));
   }
 });
@@ -101,10 +169,34 @@ export const createRecordThunk = createAsyncThunk<
   MonitoringRecord,
   CreateRecordArg,
   ThunkConfig
->('monitoring/createRecord', async ({ programId, fieldId, module, payload }, { rejectWithValue }) => {
+>('monitoring/createRecord', async ({ fieldId, module, payload }, { getState, rejectWithValue }) => {
+  const owner = ownerFrom(getState);
   try {
-    return await api.createRecord(programId, fieldId, module, payload);
+    const record = await api.createRecord(fieldId, module, payload);
+    if (owner) {
+      await cacheMonitoringRecords(owner, fieldId, module, [record]).catch(
+        () => undefined,
+      );
+    }
+    return record;
   } catch (error) {
+    if (owner && isOffline(error)) {
+      const field = await resolveFieldRow(owner, fieldId).catch(() => null);
+      if (field) {
+        try {
+          const row = await createMonitoringOffline(
+            owner,
+            field.local_id,
+            module,
+            recordValues(payload),
+            { outcomeUncertain: isTimeoutError(error) },
+          );
+          return recordFromRow(row);
+        } catch {
+          return rejectWithValue(toError(error));
+        }
+      }
+    }
     return rejectWithValue(toError(error));
   }
 });
@@ -119,10 +211,36 @@ export const updateRecordThunk = createAsyncThunk<
   ThunkConfig
 >(
   'monitoring/updateRecord',
-  async ({ programId, fieldId, module, recordId, patch }, { rejectWithValue }) => {
+  async ({ fieldId, module, recordId, patch }, { getState, rejectWithValue }) => {
+    const owner = ownerFrom(getState);
     try {
-      return await api.updateRecord(programId, fieldId, module, recordId, patch);
+      const record = await api.updateRecord(fieldId, module, recordId, patch);
+      if (owner) {
+        await cacheMonitoringRecords(owner, fieldId, module, [record]).catch(
+          () => undefined,
+        );
+      }
+      return record;
     } catch (error) {
+      if (owner && isOffline(error)) {
+        const existing =
+          (await monitoringRepository.getByServerId(owner, recordId).catch(() => null)) ??
+          (await monitoringRepository.getByLocalId(owner, recordId).catch(() => null));
+        if (existing) {
+          try {
+            const row = await updateMonitoringOffline(
+              owner,
+              existing.local_id,
+              recordValues(patch),
+            );
+            if (row) {
+              return recordFromRow(row);
+            }
+          } catch {
+            return rejectWithValue(toError(error));
+          }
+        }
+      }
       return rejectWithValue(toError(error));
     }
   },
@@ -147,13 +265,18 @@ export interface SeedFieldPointsResult {
 const coordKey = (latitude: number, longitude: number): string =>
   `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
 
+
+
 export const seedFieldPointsThunk = createAsyncThunk<
   SeedFieldPointsResult,
   SeedFieldPointsArg,
   ThunkConfig
->('monitoring/seedFieldPoints', async ({ programId, fieldId, module, points }, { rejectWithValue }) => {
+>('monitoring/seedFieldPoints', async ({ fieldId, module, points }, { rejectWithValue }) => {
+  if (!takesFieldPoints(module)) {
+    return { created: [], complete: true };
+  }
   try {
-    const { records } = await api.getRecords(programId, fieldId, module);
+    const { records } = await api.getRecords(fieldId, module);
 
     const taken = new Set<string>();
     for (const record of records) {
@@ -171,7 +294,7 @@ export const seedFieldPointsThunk = createAsyncThunk<
     for (const point of missing) {
       try {
         created.push(
-          await api.createRecord(programId, fieldId, module, {
+          await api.createRecord(fieldId, module, {
             status: 'in_progress',
             notes: null,
             values: {
@@ -194,9 +317,9 @@ export const seedFieldPointsThunk = createAsyncThunk<
 
 export const deleteRecordThunk = createAsyncThunk<string, RecordArg, ThunkConfig>(
   'monitoring/deleteRecord',
-  async ({ programId, fieldId, module, recordId }, { rejectWithValue }) => {
+  async ({ fieldId, module, recordId }, { rejectWithValue }) => {
     try {
-      return await api.deleteRecord(programId, fieldId, module, recordId);
+      return await api.deleteRecord(fieldId, module, recordId);
     } catch (error) {
       return rejectWithValue(toError(error));
     }
@@ -213,9 +336,13 @@ export const fetchDocumentsThunk = createAsyncThunk<
   MonitoringDocument[],
   DocumentsArg,
   ThunkConfig
->('monitoring/documents', async ({ programId, fieldId, module, recordId }, { rejectWithValue }) => {
+>('monitoring/documents', async ({ fieldId, module, recordId }, { getState, rejectWithValue }) => {
   try {
-    return await api.getDocuments(programId, fieldId, { module, recordId });
+    return await throughOfflineSnapshot(
+      ownerFrom(getState),
+      `monitoring:${fieldId}:documents:${module ?? 'all'}:${recordId ?? 'none'}`,
+      () => api.getDocuments(fieldId, { module, recordId }),
+    );
   } catch (error) {
     return rejectWithValue(toError(error));
   }
@@ -250,9 +377,9 @@ export const deleteDocumentThunk = createAsyncThunk<
   string,
   DeleteDocumentArg,
   ThunkConfig
->('monitoring/deleteDocument', async ({ programId, fieldId, documentId }, { rejectWithValue }) => {
+>('monitoring/deleteDocument', async ({ fieldId, documentId }, { rejectWithValue }) => {
   try {
-    return await api.deleteDocument(programId, fieldId, documentId);
+    return await api.deleteDocument(fieldId, documentId);
   } catch (error) {
     return rejectWithValue(toError(error));
   }

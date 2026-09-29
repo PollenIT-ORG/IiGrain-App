@@ -11,7 +11,7 @@ import {
 } from 'redux-persist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import authReducer, { logoutThunk } from './slices/authSlice';
+import authReducer, { logoutThunk, showAccountNotice } from './slices/authSlice';
 import userReducer from './slices/userSlice';
 import farmReducer from './slices/farmSlice';
 import fieldReducer from './slices/fieldSlice';
@@ -29,6 +29,7 @@ import syncReducer from './slices/syncSlice';
 import appReducer from './slices/appSlice';
 import boundaryReducer from './slices/boundarySlice';
 import onboardingReducer from './slices/onboardingSlice';
+import supportReducer from './slices/supportSlice';
 import { setUnauthorizedHandler } from '../services/http';
 import { PERSIST_ROOT_KEY, PERSIST_VERSION } from '../config/storageKeys';
 
@@ -57,14 +58,21 @@ const boundaryPersistConfig = {
   key: 'boundary',
   version: PERSIST_VERSION,
   storage: AsyncStorage,
-  whitelist: ['byFieldId', 'pointsSeeded'],
+  whitelist: ['byFieldId', 'pointsSeeded', 'drawTutorialSeen'],
 };
 
 const onboardingPersistConfig = {
   key: 'onboarding',
   version: PERSIST_VERSION,
   storage: AsyncStorage,
-  whitelist: ['enrollmentIdByEmail', 'dismissedByUserId', 'programInfoSeenByUserId'],
+  whitelist: ['enrollmentIdByEmail', 'registeredByEmail', 'dismissedByUserId'],
+};
+
+const supportPersistConfig = {
+  key: 'support',
+  version: PERSIST_VERSION,
+  storage: AsyncStorage,
+  whitelist: ['faqs', 'faqsLoaded', 'faqsFetchedAt'],
 };
 
 const rootReducer = combineReducers({
@@ -86,6 +94,7 @@ const rootReducer = combineReducers({
   app: appReducer,
   boundary: persistReducer(boundaryPersistConfig, boundaryReducer),
   onboarding: persistReducer(onboardingPersistConfig, onboardingReducer),
+  support: persistReducer(supportPersistConfig, supportReducer),
 });
 
 const rootPersistConfig = {
@@ -110,8 +119,12 @@ export const store = configureStore({
 
 export const persistor = persistStore(store);
 
-setUnauthorizedHandler(() => {
+setUnauthorizedHandler(accountNotice => {
+  const email = store.getState().auth.user?.email ?? null;
   store.dispatch(logoutThunk());
+  if (accountNotice) {
+    store.dispatch(showAccountNotice({ message: accountNotice, email }));
+  }
 });
 
 export type RootState = ReturnType<typeof store.getState>;

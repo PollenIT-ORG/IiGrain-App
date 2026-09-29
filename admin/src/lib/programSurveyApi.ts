@@ -45,8 +45,18 @@ export interface SurveyStructure {
 }
 
 export interface EmailCheck {
-  state: "new" | "draft" | "submitted";
+  state: "new" | "draft" | "submitted" | "returning";
   statusToken: string | null;
+  /** Set on "returning": details already on file, not asked for again. */
+  profile: {
+    firstName: string | null;
+    lastName: string | null;
+    phone: string | null;
+    farmName: string | null;
+    referralSource: string | null;
+    state: string | null;
+    totalAcres: string | null;
+  } | null;
   draft: {
     firstName: string | null;
     lastName: string | null;

@@ -6,26 +6,24 @@ import { AppHeader, AppText } from '../../components';
 import { ProfileAvatar } from '../../components/account';
 import { COLORS, borderRadius, borderWidth, presets, spacing, fonts } from '../../constants';
 import { addAlpha, moderateScale, scale } from '../../utils';
-import { useAppDispatch, useAppSelector } from '../../redux/hooks';
-import { logoutThunk } from '../../redux/slices/authSlice';
+import { useAppSelector } from '../../redux/hooks';
 import { selectProfileIdentity } from '../../redux/selectors/profileSelectors';
 import type { AssessorStackParamList } from '../../navigation/navigationTypes';
 
 interface MenuItem {
   icon: string;
   label: string;
-  target?: 'Profile' | 'Account' | 'EditProfile' | 'ChangePassword';
+  target?: 'Profile' | 'Account' | 'EditProfile' | 'ChangePassword' | 'Help';
 }
 
 const MENU: MenuItem[] = [
   { icon: 'account-circle-outline', label: 'Profile', target: 'Profile' },
   { icon: 'account-outline', label: 'Account', target: 'Account' },
-  { icon: 'help-circle-outline', label: 'Help & Support' },
+  { icon: ICONS.HELP, label: 'Help & Support', target: 'Help' },
 ];
 
 const AssessorMoreScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<AssessorStackParamList>>();
-  const dispatch = useAppDispatch();
   const identity = useAppSelector(selectProfileIdentity);
 
   const handlePress = useCallback(
@@ -36,8 +34,6 @@ const AssessorMoreScreen: React.FC = () => {
     },
     [navigation],
   );
-
-  const handleLogout = useCallback(() => dispatch(logoutThunk()), [dispatch]);
 
   return (
     <View style={styles.safe}>

@@ -234,6 +234,15 @@ export default function Users() {
                         >
                           {u.full_name || "-"}
                         </button>
+                        {/* Still on the password we emailed, so they cannot sign in yet. */}
+                        {u.must_change_password && (
+                          <span
+                            title="They have not replaced the temporary password yet, so they cannot sign in."
+                            className="ml-2 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"
+                          >
+                            Not set up
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-3.5 text-gray-700">{u.email}</td>
                       <td className="px-5 py-3.5 text-gray-700">

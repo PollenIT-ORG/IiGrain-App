@@ -2,7 +2,7 @@ import { isAxiosError } from 'axios';
 import http from '../services/http';
 import { Endpoints } from '../config/endpoints';
 import { normalizeEnrollmentId } from '../utils/enrollmentId';
-import { accountRevocationFor } from '../utils/sessionGuards';
+import { isEmailNotVerifiedError } from '../utils/sessionGuards';
 
 interface Envelope<T> {
   data: T;
@@ -18,17 +18,13 @@ export interface AuthUser {
   avatarUrl?: string | null;
 }
 
-export interface Role {
-  value: string;
-  label: string;
-}
+export const FARMER_ROLE = 'farmer';
 
 export interface RegisterPayload {
   fullName: string;
-  email: string;
+  email?: string;
   phone: string;
   password: string;
-  role: string;
   enrollmentId: string;
 }
 
@@ -60,6 +56,7 @@ export interface RefreshData {
 }
 
 interface RegisterData {
+  email?: string;
   verificationRequired: boolean;
   code?: string;
 }
@@ -100,47 +97,49 @@ export const normalizeAuthUser = (raw: RawAuthUser): AuthUser => ({
   avatarUrl: cleanAvatarUrl(raw.avatarUrl) ?? cleanAvatarUrl(raw.avatar_url),
 });
 
-const humanize = (value: string): string =>
-  value
-    .split(/[_\s-]+/)
-    .filter(Boolean)
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-
-const normalizeRole = (raw: unknown): Role | null => {
-  if (typeof raw === 'string' && raw.trim()) {
-    return { value: raw, label: humanize(raw) };
-  }
-  if (typeof raw === 'object' && raw !== null) {
-    const record = raw as Record<string, unknown>;
-    const value =
-      typeof record.value === 'string'
-        ? record.value
-        : typeof record.name === 'string'
-        ? record.name
-        : typeof record.id === 'string'
-        ? record.id
-        : null;
-    if (!value) {
-      return null;
-    }
-    const label =
-      typeof record.label === 'string'
-        ? record.label
-        : typeof record.displayName === 'string'
-        ? record.displayName
-        : humanize(value);
-    return { value, label };
-  }
-  return null;
-};
-
 export const register = async (payload: RegisterPayload): Promise<RegisterData> => {
+  const { email, ...rest } = payload;
   const res = await http.post<Envelope<RegisterData>>(Endpoints.auth.register, {
-    ...payload,
+    ...rest,
+    ...(email ? { email } : {}),
+    role: FARMER_ROLE,
     enrollmentId: normalizeEnrollmentId(payload.enrollmentId ?? ''),
   });
   return res.data.data;
+};
+
+export interface EnrollmentIdLookup {
+  enrollmentId: string;
+  fullName: string | null;
+  maskedEmail: string;
+  maskedPhone: string | null;
+  programName: string | null;
+}
+
+interface RawEnrollmentIdLookup {
+  enrollmentId?: string;
+  fullName?: string | null;
+  maskedEmail?: string;
+  maskedPhone?: string | null;
+  programName?: string | null;
+}
+
+export const lookupEnrollmentId = async (
+  enrollmentId: string,
+): Promise<EnrollmentIdLookup> => {
+  const id = normalizeEnrollmentId(enrollmentId);
+  const res = await http.post<Envelope<RawEnrollmentIdLookup>>(
+    Endpoints.auth.enrollmentIdLookup,
+    { enrollmentId: id },
+  );
+  const raw = res.data.data ?? {};
+  return {
+    enrollmentId: raw.enrollmentId ?? id,
+    fullName: raw.fullName?.trim() || null,
+    maskedEmail: raw.maskedEmail ?? '',
+    maskedPhone: raw.maskedPhone ?? null,
+    programName: raw.programName?.trim() || null,
+  };
 };
 
 export const login = async (payload: LoginPayload): Promise<AuthData> => {
@@ -193,51 +192,11 @@ export const me = async (): Promise<AuthUser> => {
   return normalizeAuthUser(res.data.data.user);
 };
 
-const asRoleArray = (value: unknown): unknown[] | null => {
-  if (Array.isArray(value)) {
-    return value;
-  }
-  if (typeof value === 'object' && value !== null) {
-    const roles = (value as Record<string, unknown>).roles;
-    if (Array.isArray(roles)) {
-      return roles;
-    }
-  }
-  return null;
-};
-
-export const getRoles = async (): Promise<Role[]> => {
-  const res = await http.get<unknown>(Endpoints.roles.list);
-  const body = res.data;
-  if (__DEV__) {
-    console.log('[roles] raw response:', JSON.stringify(body));
-  }
-  const enveloped =
-    typeof body === 'object' && body !== null
-      ? (body as Record<string, unknown>).data
-      : undefined;
-
-  const list = asRoleArray(enveloped) ?? asRoleArray(body) ?? [];
-  const roles = list.map(normalizeRole).filter((role): role is Role => role !== null);
-  if (__DEV__) {
-    console.log(`[roles] parsed ${roles.length} role(s):`, roles);
-  }
-  return roles;
-};
-
 export const isUnverifiedEmailError = (error: unknown): boolean => {
   if (!isAxiosError(error)) {
     return false;
   }
-  const status = error.response?.status ?? null;
-  const message = error.message ?? '';
-  if (accountRevocationFor(status, message)) {
-    return false;
-  }
-  if (status === 403) {
-    return true;
-  }
-  return message.toLowerCase().includes('verif');
+  return isEmailNotVerifiedError(error);
 };
 
 export interface EmailAvailability {

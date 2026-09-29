@@ -27,6 +27,20 @@ export interface AppGradientProps {
 
 let gradientSeq = 0;
 
+// A pill radius in this app is 9999. Handing that straight to <Rect rx> gives a
+// corner far larger than the box, the shape degenerates, and nothing is painted --
+// leaving only the flat fallback colour. SVG clamps rx to half the box; so do we.
+export const clampCornerRadius = (
+  radius: number,
+  width: number,
+  height: number,
+): number => {
+  if (!(radius > 0) || !(width > 0) || !(height > 0)) {
+    return 0;
+  }
+  return Math.min(radius, width / 2, height / 2);
+};
+
 const AppGradient: React.FC<AppGradientProps> = ({
   variant,
   colors: customColors,
@@ -66,6 +80,8 @@ const AppGradient: React.FC<AppGradientProps> = ({
   const count = resolvedColors.length;
   const fallbackColor = resolvedColors[count - 1];
 
+  const cornerRadius = clampCornerRadius(radius, size.width, size.height);
+
   return (
     <View
       onLayout={onLayout}
@@ -103,8 +119,8 @@ const AppGradient: React.FC<AppGradientProps> = ({
             y={0}
             width={size.width}
             height={size.height}
-            rx={radius || undefined}
-            ry={radius || undefined}
+            rx={cornerRadius || undefined}
+            ry={cornerRadius || undefined}
             fill={`url(#${gradientId})`}
           />
         </Svg>

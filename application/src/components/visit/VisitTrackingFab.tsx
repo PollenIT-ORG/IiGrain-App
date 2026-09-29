@@ -8,6 +8,8 @@ import { moderateScale, scale } from '../../utils';
 import { useAppSelector } from '../../redux/hooks';
 import { selectActiveVisit, selectIncomingVisit } from '../../redux/slices/visitSlice';
 import { navigationRef } from '../../services/navigationRef';
+import { useSyncStatus } from '../../hooks/useSyncStatus';
+import { BANNER_HEIGHT } from '../SyncStatusBanner';
 
 const HIDDEN_ROUTES = new Set<string>([
   'AssessorQuestion',
@@ -29,6 +31,9 @@ const RING_MAX = 2.4;
 
 const VisitTrackingFab: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const syncStatus = useSyncStatus();
+  const bannerLift =
+    syncStatus.phase === 'idle' ? 0 : BANNER_HEIGHT + moderateScale(12);
   const activeVisit = useAppSelector(selectActiveVisit);
   const incomingVisit = useAppSelector(selectIncomingVisit);
   const visit = activeVisit ?? incomingVisit;
@@ -123,7 +128,7 @@ const VisitTrackingFab: React.FC = () => {
   return (
     <View
       pointerEvents="box-none"
-      style={[styles.wrap, { bottom: insets.bottom + moderateScale(84) }]}>
+      style={[styles.wrap, { bottom: insets.bottom + moderateScale(84) + bannerLift }]}>
       <Pressable
         onPress={openMap}
         accessibilityRole="button"

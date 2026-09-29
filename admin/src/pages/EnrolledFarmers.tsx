@@ -1,10 +1,5 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { MODULES } from "../lib/fieldModules";
-import { exportFarmWorkbook } from "../lib/farmWorkbookExport";
-import { useLazyListModuleRecordsQuery, useLazyListModuleDocumentsQuery }
-  from "../store/endpoints/fieldMonitoringApi";
-import type { ModuleKey, ModuleRecord } from "../types";
 import {
   useGetProgramQuery,
   useListEnrollmentsPagedQuery,
@@ -15,9 +10,13 @@ import {
 import { useListUsersQuery } from "../store/endpoints/usersApi";
 import { showSuccess, showError } from "../lib/toast";
 import { useLiveData } from "../lib/useLiveData";
+import { scopeFor } from "../lib/programScope";
+import { useHere } from "../lib/returnTo";
+import { useProgramCrumbs } from "../lib/useProgramCrumbs";
 import { useDialog } from "../components/ui/DialogProvider";
 import Select from "../components/ui/Select";
 import Loader from "../components/Loader";
+import Breadcrumbs from "../components/ui/Breadcrumbs";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -25,7 +24,11 @@ import {
   SearchIcon,
   TrashIcon,
 } from "../components/icons";
-import type { Program, ProgramEnrollment } from "../types";
+import type {
+  EnrollmentAssessmentSide,
+  Program,
+  ProgramEnrollment,
+} from "../types";
 
 function errMsg(err: unknown): string {
   return (
@@ -37,8 +40,42 @@ function errMsg(err: unknown): string {
 const PAGE_SIZE = 10;
 
 export default function EnrolledFarmers() {
-  const navigate = useNavigate();
   const { id = "" } = useParams();
+  const { data: program } = useGetProgramQuery(id, { skip: !id });
+  const programCrumbs = useProgramCrumbs(id);
+
+  return (
+    <EnrolledFarmersModule
+      programId={id}
+      className="space-y-6"
+      header={(total) => (
+        <div>
+          <Breadcrumbs
+            className="mb-2"
+            items={[...programCrumbs, { label: "Enrolled farmers in assessment" }]}
+          />
+          <h1 className="text-2xl font-bold text-gray-900">
+            Enrolled Farmers in Assessment
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            {program ? program.name : " "}
+            {total !== null ? ` · ${total.toLocaleString()} enrolled` : ""}
+          </p>
+        </div>
+      )}
+    />
+  );
+}
+
+export function EnrolledFarmersModule({
+  programId: id,
+  header,
+  className,
+}: {
+  programId: string;
+  header: (total: number | null) => ReactNode;
+  className: string;
+}) {
   const { confirm } = useDialog();
 
   const [page, setPage] = useState(1);
@@ -46,7 +83,6 @@ export default function EnrolledFarmers() {
   const [search, setSearch] = useState("");
   const [assessorFilter, setAssessorFilter] = useState("");
 
-  const { data: program } = useGetProgramQuery(id, { skip: !id });
   const { data, isLoading, isFetching, isError, error, refetch } =
     useListEnrollmentsPagedQuery(
       {
@@ -92,21 +128,8 @@ export default function EnrolledFarmers() {
   const totalPages = meta?.totalPages ?? 1;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <button
-          onClick={() => navigate(`/programs/${id}`)}
-          className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to program
-        </button>
-        <h1 className="text-2xl font-bold text-gray-900">Enrolled Farmers</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          {program ? program.name : " "}
-          {meta ? ` · ${meta.total.toLocaleString()} enrolled` : ""}
-        </p>
-      </div>
+    <div className={className}>
+      {header(meta ? meta.total : null)}
 
       <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
         <div className="relative flex-1">
@@ -211,87 +234,6 @@ export default function EnrolledFarmers() {
   );
 }
 
-/**
- * The whole farm as one workbook, in the client's own shape: a profile listing
- * every enrolled field, then a sheet per module holding the detail across all
- * of them.
- *
- * The records are fetched only when the button is pressed. Nine modules for
- * every field of every farm would be a lot to hold open on a list screen that
- * mostly nobody exports from.
- */
-function FarmWorkbookButton({ enrollment: e }: { enrollment: ProgramEnrollment }) {
-  const [busy, setBusy] = useState(false);
-  const [fetchRecords] = useLazyListModuleRecordsQuery();
-  const [fetchDocs] = useLazyListModuleDocumentsQuery();
-
-  async function run() {
-    if (!e.fields.length) {
-      showError("This farmer has no fields enrolled yet.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const byModule = {} as Record<
-        ModuleKey,
-        Array<ModuleRecord & { fieldName: string }>
-      >;
-      for (const def of MODULES) byModule[def.key] = [];
-      const documents = [];
-
-      for (const f of e.fields) {
-        for (const def of MODULES) {
-          const res = await fetchRecords(
-            { fieldId: f.field_id, module: def.key },
-            true
-          ).unwrap();
-          byModule[def.key].push(
-            ...res.records.map((r) => ({ ...r, fieldName: f.field_name }))
-          );
-        }
-        const docs = await fetchDocs({ fieldId: f.field_id }, true).unwrap();
-        documents.push(...docs);
-      }
-
-      await exportFarmWorkbook({
-        // Every field of one enrolment sits on the same farm in practice; the
-        // first one names it.
-        farmName: e.fields[0].farm_name ?? "Farm",
-        fields: e.fields.map((f) => ({
-          fieldId: f.field_id,
-          fieldName: f.field_name,
-          areaAcres: f.area_acres,
-        })),
-        recordsByModule: byModule,
-        documents,
-      });
-      showSuccess("Farm workbook downloaded.");
-    } catch (err) {
-      showError(errMsg(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <button
-      onClick={() => void run()}
-      disabled={busy}
-      className="grid h-8 w-8 place-items-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary disabled:opacity-50"
-      title="Download the full farm workbook"
-    >
-      {busy ? (
-        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-primary" />
-      ) : (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <path d="M7 10l5 5 5-5M12 15V3" />
-        </svg>
-      )}
-    </button>
-  );
-}
-
 function EnrollmentRow({
   programId,
   enrollment: e,
@@ -304,6 +246,20 @@ function EnrollmentRow({
   confirm: ReturnType<typeof useDialog>["confirm"];
 }) {
   const navigate = useNavigate();
+  const { to } = scopeFor(programId);
+  const here = useHere();
+
+  // Which submission the Review link opens: the farmer's, else the assessor's.
+  const reviewTarget = (row: {
+    farmer: EnrollmentAssessmentSide;
+    assessor: EnrollmentAssessmentSide;
+  }): string | null => row.farmer.assessmentId ?? row.assessor.assessmentId;
+
+  // A submitted assessment opens on the review screen, where it is scored.
+  const openReview = (assessmentId: string | null) =>
+    assessmentId
+      ? () => navigate(to(`/submissions/${assessmentId}`), { state: here })
+      : undefined;
   const [expanded, setExpanded] = useState(false);
   const [unenroll] = useUnenrollMutation();
   const [setAssessor, { isLoading: savingAssessor }] =
@@ -361,17 +317,15 @@ function EnrollmentRow({
             {e.fields.length === 0 ? (
               <span className="text-xs text-gray-400">No fields</span>
             ) : (
-              // Each field opens its own monitoring record for this program,
-              // which is the only place those records make sense.
+              // Each field opens on its own page, where its submitted
+              // assessments are listed.
               e.fields.map((f) => (
                 <button
                   key={f.id}
                   type="button"
-                  onClick={() =>
-                    navigate(`/fields/${f.field_id}/monitoring`)
-                  }
+                  onClick={() => navigate(to(`/fields/${f.field_id}`), { state: here })}
                   className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-primary/10 hover:text-primary"
-                  title={`Open monitoring records${f.farm_name ? ` - ${f.farm_name}` : ""}`}
+                  title={`Open ${f.field_name}${f.farm_name ? ` - ${f.farm_name}` : ""}`}
                 >
                   {f.field_name}
                 </button>
@@ -398,7 +352,6 @@ function EnrollmentRow({
         </td>
         <td className="px-5 py-3.5 align-middle">
           <div className="flex items-center justify-end gap-1">
-            <FarmWorkbookButton enrollment={e} />
             <button
               onClick={() => setExpanded((v) => !v)}
               className={`grid h-8 w-8 place-items-center rounded-lg hover:bg-gray-100 hover:text-primary ${
@@ -451,25 +404,64 @@ function EnrollmentRow({
                         >
                           <td className="px-4 py-2">
                             <button
-                              onClick={() => navigate(`/fields/${row.field.id}`)}
+                              onClick={() =>
+                                navigate(to(`/fields/${row.field.id}`), { state: here })
+                              }
                               className="text-left font-medium text-gray-900 hover:text-primary hover:underline"
                             >
                               {row.field.name}
                             </button>
                           </td>
                           <td className="px-4 py-2">
-                            <SubmitStatus side={row.farmer} />
+                            <SubmitStatus
+                              side={row.farmer}
+                              onOpen={openReview(row.farmer.assessmentId)}
+                            />
                           </td>
                           <td className="px-4 py-2">
-                            <SubmitStatus side={row.assessor} />
+                            <SubmitStatus
+                              side={row.assessor}
+                              onOpen={openReview(row.assessor.assessmentId)}
+                            />
                           </td>
-                          <td className="px-4 py-2 text-right">
-                            <button
-                              onClick={() => navigate(`/fields/${row.field.id}`)}
-                              className="text-sm font-medium text-primary hover:underline"
-                            >
-                              Open
-                            </button>
+                          <td className="px-4 py-2">
+                            <div className="flex items-center justify-end gap-3">
+                              <button
+                                onClick={() =>
+                                  navigate(to(`/fields/${row.field.id}`), { state: here })
+                                }
+                                title="The field, with everything submitted for it"
+                                className="text-sm font-medium text-gray-600 hover:text-primary hover:underline"
+                              >
+                                View
+                              </button>
+                              {reviewTarget(row) && (
+                                <button
+                                  onClick={openReview(reviewTarget(row))}
+                                  title={
+                                    row.farmer.assessmentId
+                                      ? "Score and approve the farmer's assessment"
+                                      : "Score and approve the assessor's assessment"
+                                  }
+                                  className="text-sm font-medium text-primary hover:underline"
+                                >
+                                  Review
+                                </button>
+                              )}
+                              {row.farmer.submitted && row.assessor.submitted && (
+                                <button
+                                  onClick={() =>
+                                    navigate(to(`/fields/${row.field.id}/comparison`), {
+                                      state: here,
+                                    })
+                                  }
+                                  title="The farmer's answers next to the assessor's"
+                                  className="text-sm font-medium text-primary hover:underline"
+                                >
+                                  Compare
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -487,14 +479,32 @@ function EnrollmentRow({
 
 function SubmitStatus({
   side,
+  onOpen,
 }: {
-  side: { submitted: boolean; percentage: number | null };
+  side: EnrollmentAssessmentSide;
+  onOpen?: () => void;
 }) {
   if (side.submitted) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-0.5 text-xs font-semibold text-success">
+    const label = (
+      <>
         <span className="h-1.5 w-1.5 rounded-full bg-success" />
         Submitted{side.percentage !== null ? ` · ${side.percentage}%` : ""}
+        {side.reviewStatus === "approved" ? " · Approved" : ""}
+      </>
+    );
+    // A submitted side opens its own review screen, farmer or assessor alike.
+    return onOpen ? (
+      <button
+        type="button"
+        onClick={onOpen}
+        title="Open this submission to score and approve it"
+        className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-0.5 text-xs font-semibold text-success hover:bg-success/20"
+      >
+        {label}
+      </button>
+    ) : (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-0.5 text-xs font-semibold text-success">
+        {label}
       </span>
     );
   }

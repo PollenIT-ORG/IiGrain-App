@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   useListPasSubmissionsQuery,
   useLazyListPasSubmissionsQuery,
@@ -15,6 +15,8 @@ import {
 import { REFERRAL_SOURCES } from "./survey/states";
 import { errMsg } from "../lib/errMsg";
 import { useLiveData } from "../lib/useLiveData";
+import { scopeFor } from "../lib/programScope";
+import { useHere, type ReturnState } from "../lib/returnTo";
 import { showSuccess, showError } from "../lib/toast";
 import { useDialog } from "../components/ui/DialogProvider";
 import Select from "../components/ui/Select";
@@ -68,9 +70,43 @@ function formatDate(iso: string): { date: string; time: string } {
 }
 
 export default function ProgramSubmissions() {
+  return (
+    <SurveySubmissionsModule
+      className="space-y-6"
+      header={(exportButton) => (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Survey Submissions</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              View and manage submissions to your surveys.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">{exportButton}</div>
+        </div>
+      )}
+    />
+  );
+}
+
+export function SurveySubmissionsModule({
+  programId: lockedProgramId,
+  header,
+  className,
+  openPath,
+  linkState,
+}: {
+  programId?: string;
+  header: (exportButton: ReactNode) => ReactNode;
+  className: string;
+  openPath?: (submissionId: string) => string;
+  linkState?: ReturnState;
+}) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [params, setParams] = useSearchParams();
   const { confirm } = useDialog();
+  const scope = scopeFor(lockedProgramId);
+  const here = useHere();
   const [deleteSubmission] = useDeletePasSubmissionMutation();
   const [withdrawSubmission] = useWithdrawPasSubmissionMutation();
 
@@ -88,7 +124,7 @@ export default function ProgramSubmissions() {
   // and the program filter so Programs can send someone straight to one
   // program's submissions.
   const status = params.get("status") ?? "";
-  const programId = params.get("program") ?? "";
+  const programId = lockedProgramId ?? params.get("program") ?? "";
   const [referral, setReferral] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -97,7 +133,7 @@ export default function ProgramSubmissions() {
     const p = new URLSearchParams(params);
     if (next) p.set(key, next);
     else p.delete(key);
-    setParams(p, { replace: true });
+    setParams(p, { replace: true, state: location.state });
   }
 
   function setStatus(next: string) {
@@ -124,9 +160,20 @@ export default function ProgramSubmissions() {
     search: search || undefined,
   };
 
+  // The cards count what the table lists, so they take the same filters. Status
+  // is the one they leave out: picking a status would empty the other five.
+  const statsFilters = {
+    programId: filters.programId,
+    referral: filters.referral,
+    createdFrom: filters.createdFrom,
+    createdTo: filters.createdTo,
+    search: filters.search,
+  };
+
   const { data, isLoading, isFetching, isError, error, refetch } =
     useListPasSubmissionsQuery({ page, limit: perPage, ...filters });
-  const { data: stats, refetch: refetchStats } = usePasSubmissionStatsQuery();
+  const { data: stats, refetch: refetchStats } =
+    usePasSubmissionStatsQuery(statsFilters);
   const { data: programs } = useListPasProgramsQuery();
   const [triggerExport] = useLazyListPasSubmissionsQuery();
 
@@ -156,8 +203,9 @@ export default function ProgramSubmissions() {
   const loading = isLoading || isFetching;
 
 
-  const hasFilters =
-    Boolean(status || programId || referral || from || to || search);
+  const hasFilters = Boolean(
+    status || (!lockedProgramId && programId) || referral || from || to || search
+  );
 
   function clearFilters() {
     // Both live in the URL, so they go in one write - two would each start
@@ -165,7 +213,7 @@ export default function ProgramSubmissions() {
     const p = new URLSearchParams(params);
     p.delete("status");
     p.delete("program");
-    setParams(p, { replace: true });
+    setParams(p, { replace: true, state: location.state });
     setReferral("");
     setFrom("");
     setTo("");
@@ -238,23 +286,20 @@ export default function ProgramSubmissions() {
   const showingTo = Math.min(page * perPage, total);
   const pages = useMemo(() => pageNumbers(page, totalPages), [page, totalPages]);
 
+  function openSubmission(id: string) {
+    navigate(openPath ? openPath(id) : scope.to(`/survey-submissions/${id}`), {
+      state: linkState ?? here,
+    });
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Survey Submissions</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            View and manage submissions to your surveys.
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button onClick={handleExport} className="btn-secondary">
-            <IconDownload />
-            Export
-          </button>
-        </div>
-      </div>
+    <div className={className}>
+      {header(
+        <button onClick={handleExport} className="btn-secondary">
+          <IconDownload />
+          Export
+        </button>
+      )}
 
       {/* Stat cards, shared with the dashboard */}
       <ProgramSubmissionCards stats={stats} active={status} onPick={setStatus} />
@@ -284,13 +329,15 @@ export default function ProgramSubmissions() {
             placeholder="All sources"
             className="w-full min-w-0 sm:w-36"
           />
-          <Select
-            value={programId}
-            onChange={setProgramId}
-            options={programOptions}
-            placeholder="All programs"
-            className="w-full min-w-0 sm:w-[9.5rem]"
-          />
+          {!lockedProgramId && (
+            <Select
+              value={programId}
+              onChange={setProgramId}
+              options={programOptions}
+              placeholder="All programs"
+              className="w-full min-w-0 sm:w-[9.5rem]"
+            />
+          )}
           <Select
             value={status}
             onChange={setStatus}
@@ -368,7 +415,7 @@ export default function ProgramSubmissions() {
                             </span>
                             <div>
                               <button
-                                onClick={() => navigate(`/survey-submissions/${s.id}`)}
+                                onClick={() => openSubmission(s.id)}
                                 className="text-left font-semibold text-gray-900 hover:text-primary hover:underline"
                               >
                                 {s.full_name}
@@ -411,7 +458,7 @@ export default function ProgramSubmissions() {
                         <td className="px-5 py-3.5">
                           <div className="flex items-center justify-end gap-1">
                             <button
-                              onClick={() => navigate(`/survey-submissions/${s.id}`)}
+                              onClick={() => openSubmission(s.id)}
                               className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:border-primary/40 hover:text-primary"
                             >
                               <IconEye />
@@ -521,7 +568,7 @@ export default function ProgramSubmissions() {
                 <button
                   onClick={() => {
                     setMenu(null);
-                    navigate(`/survey-submissions/${s.id}`);
+                    openSubmission(s.id);
                   }}
                   className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
                 >

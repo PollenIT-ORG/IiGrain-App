@@ -73,8 +73,8 @@ const WRITE_INVALIDATIONS: Record<string, (arg: WriteArg) => string[]> = {
   'assessor/saveAnswer': assessmentWrite,
   'assessor/submit': assessmentWrite,
 
-  'enrollment/enrollSelf': arg => withMonitoringPrograms(ENROLMENT_TAGS, arg),
-  'enrollment/unenrollField': arg => withMonitoringPrograms(ENROLMENT_TAGS, arg),
+  'enrollment/enrollSelf': () => ENROLMENT_TAGS,
+  'enrollment/unenrollField': () => ENROLMENT_TAGS,
 
   'farm/createFarm': () => FARM_SHAPE_TAGS,
   'farm/updateFarm': () => FARM_SHAPE_TAGS,
@@ -85,6 +85,7 @@ const WRITE_INVALIDATIONS: Record<string, (arg: WriteArg) => string[]> = {
   'field/updateField': arg => withFarm(FARM_SHAPE_TAGS, arg),
   'field/deleteField': arg => withFarm(FARM_SHAPE_TAGS, arg),
   'field/resetField': arg => withFarm(FARM_SHAPE_TAGS, arg),
+  'field/backfillBoundaryAcres': arg => withFarm(FARM_SHAPE_TAGS, arg),
 
   'soil/save': arg => {
     const fieldId = str(arg.fieldId);
@@ -102,21 +103,15 @@ const WRITE_INVALIDATIONS: Record<string, (arg: WriteArg) => string[]> = {
   'monitoring/deleteDocument': monitoringWrite,
 };
 
-const withMonitoringPrograms = (base: string[], arg: WriteArg): string[] => {
-  const farmId = str(arg.farmId);
-  return farmId ? [...base, Tags.monitoringPrograms(farmId)] : base;
-};
-
 function monitoringWrite(arg: WriteArg): string[] {
-  const programId = str(arg.programId);
   const fieldId = str(arg.fieldId);
-  if (!programId || !fieldId) {
+  if (!fieldId) {
     return [];
   }
   const module = str(arg.module);
-  const tags = [Tags.monitoring(programId, fieldId)];
+  const tags = [Tags.monitoring(fieldId)];
   if (module) {
-    tags.push(Tags.monitoringModule(programId, fieldId, module));
+    tags.push(Tags.monitoringModule(fieldId, module));
   }
   return tags;
 }

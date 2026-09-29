@@ -5,36 +5,63 @@ import { handleUpload } from "../middlewares/handleUpload.js";
 import { importLimiter } from "../middlewares/rateLimiters.js";
 import { excelUpload, evidenceUpload } from "../config/multer.js";
 import {
+  createTemplateSchema,
+  listTemplatesQuerySchema,
+  updateTemplateSchema,
   createCategorySchema,
   updateCategorySchema,
   reorderSchema,
+  saveCategoryFieldsSchema,
+  templateCategoryParamsSchema,
   createQuestionSchema,
   updateQuestionSchema,
   listQuestionsQuerySchema,
   idParamSchema,
+  reviewScoresSchema,
   saveAnswerSchema,
+  saveCategoryAnswersSchema,
   historyQuerySchema,
   programFieldParamsSchema,
   programFieldCategoryParamsSchema,
+  programFieldRecordParamsSchema,
   programFieldCategoryQuestionParamsSchema,
   programFieldQuestionParamsSchema,
 } from "../validators/assessment.schema.js";
 import { paginationQuerySchema } from "../validators/pagination.schema.js";
 import {
-  listCategories,
+  listTemplates,
+  getTemplate,
+  createTemplate,
+  updateTemplate,
+  deleteTemplate,
+  makeTemplateGlobal,
+  lockTemplate,
+  unlockTemplate,
+} from "../controllers/assessmentTemplate.controller.js";
+import {
+  listTemplateCategories,
+  createTemplateCategory,
+  reorderTemplateCategories,
   getCategory,
-  createCategory,
   updateCategory,
   deleteCategory,
-  reorderCategoriesCtrl,
-  listQuestions,
+  listTemplateQuestions,
+  createTemplateQuestion,
+  reorderTemplateQuestions,
   getQuestion,
-  createQuestion,
   updateQuestion,
   deleteQuestion,
-  reorderQuestionsCtrl,
-  importExcel,
+  importTemplateFromFile,
+  importTemplateQuestions,
+  saveTemplateCategoryFields,
+  downloadImportSample,
+  downloadTemplateQuestions,
 } from "../controllers/assessment.controller.js";
+import {
+  getReview,
+  saveReviewScores,
+  approveReview,
+} from "../controllers/assessmentReview.controller.js";
 import {
   myFieldsAssessmentList,
   myAssessmentHistory,
@@ -44,6 +71,10 @@ import {
   myFieldCategoryQuestionList,
   myFieldQuestionDetail,
   saveMyFieldAnswer,
+  saveMyFieldCategoryAnswers,
+  addMyFieldRecord,
+  saveMyFieldRecord,
+  removeMyFieldRecord,
   myFieldReview,
   myFieldAssessmentHistory,
   submitMyFieldAssessment,
@@ -53,7 +84,9 @@ import {
 
 const router = Router();
 
-const adminAuth = [authenticate, authorize("super_admin", "admin")];
+// Program administrators work on templates too; what each role may change is decided per template in the service.
+const templateManagers = [authenticate, authorize("super_admin", "admin", "program_administrator")];
+const withId = validate(idParamSchema, "params");
 
 router.post(
   "/evidence",
@@ -103,6 +136,35 @@ router.get(
   validate(programFieldCategoryParamsSchema, "params"),
   myFieldCategoryQuestions
 );
+// A whole form of one category, saved together.
+router.put(
+  "/my/programs/:programId/fields/:fieldId/categories/:categoryId/answers",
+  authenticate,
+  validate(programFieldCategoryParamsSchema, "params"),
+  validate(saveCategoryAnswersSchema),
+  saveMyFieldCategoryAnswers
+);
+// The records of an input based form: add one, change one, remove one.
+router.post(
+  "/my/programs/:programId/fields/:fieldId/categories/:categoryId/records",
+  authenticate,
+  validate(programFieldCategoryParamsSchema, "params"),
+  validate(saveCategoryAnswersSchema),
+  addMyFieldRecord
+);
+router.put(
+  "/my/programs/:programId/fields/:fieldId/categories/:categoryId/records/:recordId",
+  authenticate,
+  validate(programFieldRecordParamsSchema, "params"),
+  validate(saveCategoryAnswersSchema),
+  saveMyFieldRecord
+);
+router.delete(
+  "/my/programs/:programId/fields/:fieldId/categories/:categoryId/records/:recordId",
+  authenticate,
+  validate(programFieldRecordParamsSchema, "params"),
+  removeMyFieldRecord
+);
 router.put(
   "/my/programs/:programId/fields/:fieldId/questions/:questionId/answer",
   authenticate,
@@ -135,25 +197,66 @@ router.delete(
   discardMyFieldAssessment
 );
 
-router.get("/categories", ...adminAuth, listCategories);
-router.post("/categories", ...adminAuth, validate(createCategorySchema), createCategory);
-router.patch("/categories/reorder", ...adminAuth, validate(reorderSchema), reorderCategoriesCtrl);
-router.get("/categories/:id", ...adminAuth, validate(idParamSchema, "params"), getCategory);
-router.patch("/categories/:id", ...adminAuth, validate(idParamSchema, "params"), validate(updateCategorySchema), updateCategory);
-router.delete("/categories/:id", ...adminAuth, validate(idParamSchema, "params"), deleteCategory);
+// Admin review of a submitted assessment, before its score counts anywhere.
+router.get("/reviews/:id", ...templateManagers, withId, getReview);
+router.patch("/reviews/:id", ...templateManagers, withId, validate(reviewScoresSchema), saveReviewScores);
+router.post("/reviews/:id/approve", ...templateManagers, withId, validate(reviewScoresSchema), approveReview);
 
-router.get("/questions", ...adminAuth, validate(listQuestionsQuerySchema, "query"), listQuestions);
-router.post("/questions", ...adminAuth, validate(createQuestionSchema), createQuestion);
+router.get("/import-sample", ...templateManagers, downloadImportSample);
+
+router.get("/templates", ...templateManagers, validate(listTemplatesQuerySchema, "query"), listTemplates);
+router.post("/templates", ...templateManagers, validate(createTemplateSchema), createTemplate);
+router.get("/templates/:id", ...templateManagers, withId, getTemplate);
+router.patch("/templates/:id", ...templateManagers, withId, validate(updateTemplateSchema), updateTemplate);
+router.delete("/templates/:id", ...templateManagers, withId, deleteTemplate);
+router.post("/templates/:id/global", ...templateManagers, withId, makeTemplateGlobal);
+router.post("/templates/:id/lock", ...templateManagers, withId, lockTemplate);
+router.delete("/templates/:id/lock", ...templateManagers, withId, unlockTemplate);
+
+router.get("/templates/:id/categories", ...templateManagers, withId, listTemplateCategories);
+router.post("/templates/:id/categories", ...templateManagers, withId, validate(createCategorySchema), createTemplateCategory);
+router.patch("/templates/:id/categories/reorder", ...templateManagers, withId, validate(reorderSchema), reorderTemplateCategories);
+
+// The fields of one category, written as a single form.
+router.put(
+  "/templates/:id/categories/:categoryId/fields",
+  ...templateManagers,
+  validate(templateCategoryParamsSchema, "params"),
+  validate(saveCategoryFieldsSchema),
+  saveTemplateCategoryFields
+);
+
+router.get("/templates/:id/questions", ...templateManagers, withId, validate(listQuestionsQuerySchema, "query"), listTemplateQuestions);
+router.post("/templates/:id/questions", ...templateManagers, withId, validate(createQuestionSchema), createTemplateQuestion);
+router.patch("/templates/:id/questions/reorder", ...templateManagers, withId, validate(reorderSchema), reorderTemplateQuestions);
+router.get(
+  "/templates/:id/questions/export",
+  ...templateManagers,
+  withId,
+  downloadTemplateQuestions
+);
 router.post(
-  "/questions/import",
-  ...adminAuth,
+  "/templates/import",
+  ...templateManagers,
   importLimiter,
   handleUpload(excelUpload.single("file")),
-  importExcel
+  importTemplateFromFile
 );
-router.patch("/questions/reorder", ...adminAuth, validate(reorderSchema), reorderQuestionsCtrl);
-router.get("/questions/:id", ...adminAuth, validate(idParamSchema, "params"), getQuestion);
-router.patch("/questions/:id", ...adminAuth, validate(idParamSchema, "params"), validate(updateQuestionSchema), updateQuestion);
-router.delete("/questions/:id", ...adminAuth, validate(idParamSchema, "params"), deleteQuestion);
+router.post(
+  "/templates/:id/questions/import",
+  ...templateManagers,
+  withId,
+  importLimiter,
+  handleUpload(excelUpload.single("file")),
+  importTemplateQuestions
+);
+
+router.get("/categories/:id", ...templateManagers, withId, getCategory);
+router.patch("/categories/:id", ...templateManagers, withId, validate(updateCategorySchema), updateCategory);
+router.delete("/categories/:id", ...templateManagers, withId, deleteCategory);
+
+router.get("/questions/:id", ...templateManagers, withId, getQuestion);
+router.patch("/questions/:id", ...templateManagers, withId, validate(updateQuestionSchema), updateQuestion);
+router.delete("/questions/:id", ...templateManagers, withId, deleteQuestion);
 
 export default router;

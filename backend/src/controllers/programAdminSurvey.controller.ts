@@ -23,6 +23,7 @@ import type {
   ContractTemplateUpdateBody,
   SetCategoryBody,
   ListSubmissionsQuery,
+  SubmissionStatsQuery,
 } from "../validators/programAdminSurvey.schema.js";
 
 // Admin portal for the Program Admin Survey module. A program administrator is
@@ -206,6 +207,18 @@ export const updateProgram = asyncHandler(async (req, res) => {
   return ApiResponse.send(res, 200, "Program updated.", { program });
 });
 
+export const lockProgramSurvey = asyncHandler(async (req, res) => {
+  const { ownerId, actorId } = scope(req);
+  const program = await svc.setProgramSurveyLocked(req.params.id, ownerId, actorId, true);
+  return ApiResponse.send(res, 200, "Survey locked.", { program });
+});
+
+export const unlockProgramSurvey = asyncHandler(async (req, res) => {
+  const { ownerId, actorId } = scope(req);
+  const program = await svc.setProgramSurveyLocked(req.params.id, ownerId, actorId, false);
+  return ApiResponse.send(res, 200, "Survey unlocked.", { program });
+});
+
 // -------------------------- Contract templates -----------------------------
 
 export const listContractTemplates = asyncHandler(async (req, res) => {
@@ -377,8 +390,15 @@ export const listSubmissions = asyncHandler(async (req, res) => {
 
 export const submissionStats = asyncHandler(async (req, res) => {
   const { ownerId } = scope(req);
-  const { programId } = req.query as { programId?: string };
-  const stats = await svc.getSubmissionStats(ownerId, programId);
+  const q = req.query as unknown as SubmissionStatsQuery;
+  const stats = await svc.getSubmissionStats(ownerId, {
+    programId: q.programId,
+    category: q.category,
+    referral: q.referral,
+    createdFrom: q.createdFrom,
+    createdTo: q.createdTo,
+    search: q.search,
+  });
   return ApiResponse.send(res, 200, "Submission stats.", { stats });
 });
 

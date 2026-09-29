@@ -25,12 +25,25 @@ export interface SummaryCardOptions {
   submitted?: boolean;
 }
 
+const OPENS_SOON_LABEL = 'Opens Soon';
+
 export const toSummaryCardModel = (
   summary: FieldAssessmentSummary,
   options?: SummaryCardOptions,
 ): AssessmentSummary => {
   const info = summary.assessment;
   const submitted = options?.submitted ?? info.submitted;
+  const complete = isAssessmentComplete(summary);
+  const surveyClosed = summary.canEdit === false && !complete;
+  const buttonTitle = surveyClosed
+    ? OPENS_SOON_LABEL
+    : complete
+    ? submitted
+      ? VIEW_LABEL
+      : REVIEW_SUBMIT_LABEL
+    : info.answered > 0
+    ? CONTINUE_LABEL
+    : START_LABEL;
   return {
     id: summary.field.id,
     title: info.title,
@@ -39,13 +52,9 @@ export const toSummaryCardModel = (
     completedQuestions: info.answered,
     totalQuestions: info.totalQuestions,
     progress: info.percentage,
-    buttonTitle: isAssessmentComplete(summary)
-      ? submitted
-        ? VIEW_LABEL
-        : REVIEW_SUBMIT_LABEL
-      : info.answered > 0
-      ? CONTINUE_LABEL
-      : START_LABEL,
+    buttonTitle,
+    reviewStatus: summary.reviewStatus,
+    surveyClosed,
   };
 };
 

@@ -6,7 +6,6 @@ import {
   Pressable,
   RefreshControl,
   View,
-  type LayoutChangeEvent,
   type ListRenderItem,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,7 +24,6 @@ import { GENERIC_ERROR_MESSAGE } from '../../config/errorMessages';
 import { moderateScale, scale } from '../../utils';
 import { EmptyState, FarmCard, FARM_CARD_TOTAL_HEIGHT } from '../../components/farms';
 import { AppShimmerList, FarmCardShimmer } from '../../components/Shimmer';
-import { showToast } from '../../services/toastService';
 import type { Farm } from '../../types/farm';
 import type { AppStackParamList } from '../../navigation/navigationTypes';
 import { styles } from './FarmsScreenStyle';
@@ -122,10 +120,9 @@ const FarmsScreen: React.FC = () => {
   const hasMore = useAppSelector(selectFarmsHasMore);
   const total = useAppSelector(selectFarmsTotal);
 
-  const [view, setView] = useState<FarmsView>('farms');
+  const [view] = useState<FarmsView>('farms');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('default');
-  const [tabBarWidth, setTabBarWidth] = useState(0);
   const indicatorProgress = useRef(new Animated.Value(0)).current;
 
   const search = useDebouncedValue(query.trim());
@@ -189,15 +186,6 @@ const FarmsScreen: React.FC = () => {
 
   const keyExtractor = useCallback((item: Farm) => item.id, []);
 
-  const handleViewChange = useCallback((nextView: FarmsView) => {
-    setView(currentView => (currentView === nextView ? currentView : nextView));
-  }, []);
-
-  const handleTabBarLayout = useCallback((event: LayoutChangeEvent) => {
-    const nextWidth = event.nativeEvent.layout.width;
-    setTabBarWidth(currentWidth => (currentWidth === nextWidth ? currentWidth : nextWidth));
-  }, []);
-
   const getItemLayout = useCallback(
     (_data: ArrayLike<Farm> | null | undefined, index: number) => ({
       length: FARM_CARD_TOTAL_HEIGHT,
@@ -219,7 +207,6 @@ const FarmsScreen: React.FC = () => {
   );
 
   const isFarms = view === 'farms';
-  const indicatorWidth = tabBarWidth / TABS.length;
 
   useEffect(() => {
     const nextIndex = TABS.findIndex(tab => tab.key === view);
@@ -234,26 +221,6 @@ const FarmsScreen: React.FC = () => {
       useNativeDriver: true,
     }).start();
   }, [indicatorProgress, view]);
-
-  const indicatorTranslateX = useMemo(
-    () =>
-      indicatorProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0, indicatorWidth],
-      }),
-    [indicatorProgress, indicatorWidth],
-  );
-
-  const indicatorStyle = useMemo(
-    () => [
-      styles.tabIndicator,
-      {
-        width: indicatorWidth,
-        transform: [{ translateX: indicatorTranslateX }],
-      },
-    ],
-    [indicatorTranslateX, indicatorWidth],
-  );
 
   const searchSettled = appliedSearch === search;
   const awaitingFirstPage = meta === null || !searchSettled;

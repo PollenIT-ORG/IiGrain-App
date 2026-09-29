@@ -14,6 +14,18 @@ export const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.black },
   mapWrap: { flex: 1 },
   map: { flex: 1 },
+  mapLoading: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing[3],
+    backgroundColor: COLORS.surface,
+  },
+  mapLoadingText: {
+    ...presets.bodySM,
+    color: COLORS.gray600,
+  },
 
   topBar: {
     position: 'absolute',
@@ -60,64 +72,48 @@ export const styles = StyleSheet.create({
     right: spacing[3],
   },
 
-  actionStack: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    gap: spacing[2],
+  rail: {
+    right: spacing[3],
   },
-  addPointBtn: {
+
+  gpsPointBtn: {
+    position: 'absolute',
+    left: spacing[3],
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[2],
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3],
     borderRadius: borderRadius.full,
-    backgroundColor: COLORS.primary,
+    backgroundColor: 'rgba(0,0,0,0.66)',
     ...shadows.lg,
   },
-  addPointText: { ...presets.labelMD, fontFamily: fonts.semibold, color: COLORS.white },
+  gpsPointText: {
+    ...presets.labelSM,
+    fontFamily: fonts.semibold,
+    color: COLORS.white,
+  },
 
-  gpsBtn: { backgroundColor: 'rgba(0,0,0,0.62)' },
-  undoBtn: { backgroundColor: 'rgba(0,0,0,0.62)' },
-  deletePointBtn: { backgroundColor: COLORS.danger },
-  closeShapeBtn: { backgroundColor: COLORS.primaryDark },
-
-  liveStats: {
-    position: 'absolute',
+  nudgePad: {
     right: spacing[3],
-    alignItems: 'flex-end',
-    gap: 2,
-    paddingHorizontal: spacing[3],
-    paddingVertical: spacing[2],
-    borderRadius: borderRadius.full,
-    backgroundColor: 'rgba(0,0,0,0.55)',
   },
-  liveStatText: { ...presets.labelSM, fontFamily: fonts.semibold, color: COLORS.white },
-  liveStatMuted: { ...presets.caption, color: 'rgba(255,255,255,0.75)' },
 
-  crosshair: {
-    ...StyleSheet.absoluteFillObject,
+  howToDrawBtn: {
+    position: 'absolute',
+    alignSelf: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  crosshairRing: {
-    width: scale(30),
-    height: scale(30),
-    borderRadius: scale(15),
-    borderWidth: 2.5,
-    borderColor: COLORS.white,
-    backgroundColor: 'rgba(19,111,63,0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    gap: spacing[1.5],
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[2.5],
+    borderRadius: borderRadius.full,
+    backgroundColor: 'rgba(0,0,0,0.66)',
     ...shadows.md,
   },
-  crosshairDot: {
-    width: scale(6),
-    height: scale(6),
-    borderRadius: scale(3),
-    backgroundColor: COLORS.white,
+  howToDrawText: {
+    ...presets.labelSM,
+    fontFamily: fonts.semibold,
+    color: COLORS.white,
   },
 
   loading: {

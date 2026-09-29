@@ -105,6 +105,13 @@ const FieldSummaryView: React.FC<FieldSummaryViewProps> = ({
     enabled: supportsRegenIndex && !!programId && !!fieldId,
   });
 
+  useSyncedFetch({
+    tags: [Tags.assessmentSummary(fieldId), Tags.assessment(programId, fieldId)],
+    run: useCallback(() => loadSummary(target), [loadSummary, target]),
+    hasData: summaryReady,
+    enabled: !!programId && !!fieldId,
+  });
+
   const isFirstFocus = useRef(true);
   useFocusEffect(
     useCallback(() => {
@@ -328,9 +335,15 @@ const FieldSummaryView: React.FC<FieldSummaryViewProps> = ({
               <AppIcon name={ICONS.LOCK} size={moderateScale(18)} color={COLORS.accent} />
             </View>
             <View style={extras.gateTexts}>
-              <AppText style={extras.gateTitle}>Locked until you reach the field</AppText>
+              <AppText style={extras.gateTitle}>
+                {access.state === 'program_not_open'
+                  ? 'Opens once the program office locks the survey'
+                  : 'Locked until you reach the field'}
+              </AppText>
               <AppText style={extras.gateBody}>
-                {access.state === 'en_route'
+                {access.state === 'program_not_open'
+                  ? "No action needed — you'll be able to start as soon as it opens."
+                  : access.state === 'en_route'
                   ? 'Mark the visit as arrived once you are on the field to start scoring.'
                   : access.state === 'other_field'
                   ? `Your live visit is for ${access.otherFieldName ?? 'another field'}.`
@@ -348,7 +361,7 @@ const FieldSummaryView: React.FC<FieldSummaryViewProps> = ({
         <AssessmentSummaryCard
           summary={summaryCard}
           onContinue={handlePrimaryCta}
-          locked={gated && !isComplete}
+          locked={(gated && !isComplete) || summaryCard.surveyClosed}
         />
 
         <View style={styles.section}>
@@ -374,6 +387,24 @@ const FieldSummaryView: React.FC<FieldSummaryViewProps> = ({
           <FieldRegenIndexCard
             data={regenReady ? regenIndex : null}
             loading={loadingRegenIndex}
+          />
+        ) : null}
+
+        {role === 'farmer' && summary.reviewStatus === 'approved' ? (
+          <Button
+            title="Compare with assessor"
+            variant="outline"
+            fullWidth
+            onPress={() =>
+              navigation.navigate('FarmerComparison', {
+                programId,
+                fieldId,
+                fieldName: summary.field.name,
+              })
+            }
+            leftIcon={
+              <AppIcon name={ICONS.BALANCE} size={moderateScale(18)} color={COLORS.primary} />
+            }
           />
         ) : null}
 

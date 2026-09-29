@@ -1,17 +1,12 @@
 import { ICONS } from '../../components/AppIcon';
-import type { OnboardingSnapshot } from './useOnboardingData';
+import type { FarmRef, OnboardingSnapshot } from './useOnboardingData';
 
 export interface ProducerIdentity {
   fullName?: string;
   phone?: string;
 }
 
-export type OnboardingStepKey =
-  | 'profile'
-  | 'farms'
-  | 'fields'
-  | 'boundaries'
-  | 'program';
+export type OnboardingStepKey = 'profile' | 'farms' | 'fields' | 'boundaries';
 
 export interface OnboardingStep {
   key: OnboardingStepKey;
@@ -25,7 +20,6 @@ export interface StepInput {
   profile: ProducerIdentity | null;
   snapshot: OnboardingSnapshot;
   hasLocalBoundary: boolean;
-  programInfoSeen: boolean;
 }
 
 const isProfileComplete = (profile: ProducerIdentity | null): boolean =>
@@ -35,7 +29,6 @@ export const buildSteps = ({
   profile,
   snapshot,
   hasLocalBoundary,
-  programInfoSeen,
 }: StepInput): OnboardingStep[] => [
   {
     key: 'profile',
@@ -65,14 +58,24 @@ export const buildSteps = ({
     icon: ICONS.MAP_CHECK,
     done: snapshot.boundaryCount > 0 || hasLocalBoundary,
   },
-  {
-    key: 'program',
-    title: 'Program Information',
-    subtitle: 'Review program guidelines',
-    icon: ICONS.PROGRAM,
-    done: programInfoSeen,
-  },
 ];
+
+export const canOpenStep = (step: OnboardingStep): boolean => !step.done;
 
 export const completedCount = (steps: readonly OnboardingStep[]): number =>
   steps.filter(step => step.done).length;
+
+export type AddFieldTarget =
+  | { kind: 'addFarm' }
+  | { kind: 'addField'; farm: FarmRef }
+  | { kind: 'pickFarm' };
+
+export const addFieldTarget = (farms: readonly FarmRef[]): AddFieldTarget => {
+  if (farms.length === 0) {
+    return { kind: 'addFarm' };
+  }
+  if (farms.length === 1) {
+    return { kind: 'addField', farm: farms[0] };
+  }
+  return { kind: 'pickFarm' };
+};

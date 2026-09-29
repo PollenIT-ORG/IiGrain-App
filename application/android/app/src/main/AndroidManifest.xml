@@ -35,9 +35,9 @@
       android:usesCleartextTraffic="${usesCleartextTraffic}"
       android:supportsRtl="true">
 
-     <meta-data
-    android:name="com.google.android.geo.API_KEY"
-    android:value="AIzaSyAg9Wec7_q1obUENjrGxqn59_OrBfmBHOQ"/>
+      <meta-data
+          android:name="com.google.android.geo.API_KEY"
+          android:value="${MAPS_API_KEY_ANDROID}" />
 
       <!-- Declares which Play Services client library the APK was built
            against. MapView checks this at runtime and shows the "update Google

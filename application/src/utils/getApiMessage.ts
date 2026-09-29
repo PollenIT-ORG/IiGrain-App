@@ -3,6 +3,25 @@ import { GENERIC_ERROR_MESSAGE } from '../config/errorMessages';
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
+const MESSAGE_KEYS = ['message', 'msg', 'detail', 'description', 'reason', 'error'];
+
+const IDENTIFIER_KEYS = new Set([
+  'field',
+  'param',
+  'path',
+  'location',
+  'code',
+  'key',
+  'type',
+  'name',
+  'id',
+  'value',
+  'index',
+  'instancePath',
+  'schemaPath',
+  'keyword',
+]);
+
 const firstString = (value: unknown): string | undefined => {
   if (typeof value === 'string' && value.trim()) {
     return value.trim();
@@ -14,9 +33,24 @@ const firstString = (value: unknown): string | undefined => {
         return found;
       }
     }
+    return undefined;
   }
   if (isRecord(value)) {
+    for (const key of MESSAGE_KEYS) {
+      if (key in value) {
+        const found = firstString(value[key]);
+        if (found) {
+          return found;
+        }
+      }
+    }
     for (const key of Object.keys(value)) {
+      if (MESSAGE_KEYS.includes(key)) {
+        continue;
+      }
+      if (IDENTIFIER_KEYS.has(key) && typeof value[key] === 'string') {
+        continue;
+      }
       const found = firstString(value[key]);
       if (found) {
         return found;

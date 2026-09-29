@@ -2,7 +2,8 @@ import React from 'react';
 import { View } from 'react-native';
 import { AppText } from '../../../components';
 import { AppShimmer, AppShimmerText } from '../../../components/Shimmer';
-import { formatDate, formatNumber } from '../../../utils';
+import { formatDate } from '../../../utils';
+import { formatAcres } from '../../../maps/utils/fieldAcres';
 import type { AvailableProgram } from '../../../types/enrollment';
 import { styles } from './ProgramSummaryCardStyle';
 
@@ -13,7 +14,7 @@ export interface ProgramSummaryCardProps {
   loading?: boolean;
 }
 
-const DASH = '—';
+const DASH = '-';
 
 export const programYear = (program: AvailableProgram): string => {
   const { startDateISO: start, endDateISO: end } = program;
@@ -89,7 +90,7 @@ const ProgramSummaryCard: React.FC<ProgramSummaryCardProps> = ({
       <Row label="Enrollment ID" value={enrollmentId ?? DASH} />
       <Row
         label="Enrolled Acres"
-        value={enrolledAcres === null ? DASH : formatNumber(enrolledAcres)}
+        value={enrolledAcres === null ? DASH : formatAcres(enrolledAcres)}
       />
       <Row label="Program Year" value={programYear(program)} />
     </View>

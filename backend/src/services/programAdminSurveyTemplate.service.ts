@@ -33,7 +33,10 @@ import {
   type SurveyCategory,
   type ScaleValue,
 } from "../models/programAdminSurveyTemplate.model.js";
-import type { StoredAnswer } from "../models/programAdminSurvey.model.js";
+import {
+  lockedSurveyUsesTemplate,
+  type StoredAnswer,
+} from "../models/programAdminSurvey.model.js";
 
 export const SCALE_LABELS = [
   "Not at all",
@@ -81,6 +84,12 @@ async function getEditableTemplate(
   if (tpl.is_global && ownerId !== null) {
     throw ApiError.forbidden(
       "The global template cannot be edited. Copy it to make your own."
+    );
+  }
+  // A locked survey is already open to farmers, so its questions stay as they are.
+  if (await lockedSurveyUsesTemplate(id)) {
+    throw ApiError.conflict(
+      "This survey is locked. Unlock it from the program to change or delete it."
     );
   }
   return tpl;

@@ -31,11 +31,12 @@ export const ERROR_MESSAGES: Record<string, ErrorEntry> = {
   },
 
   NETWORK_ERROR: {
-    title: 'Connection Problem',
-    message: 'Please check your internet connection and try again.',
-    icon: ICONS.OFFLINE,
+    title: 'You are offline',
+    message:
+      'This part of the app needs a connection. Anything you have already saved stays on this device and will sync once you are back online.',
+    icon: ICONS.CLOUD_OFFLINE,
     severity: 'error',
-    buttonText: 'Retry',
+    buttonText: 'Try again',
   },
   TIMEOUT: {
     title: 'Taking Too Long',
@@ -81,9 +82,32 @@ export const ERROR_MESSAGES: Record<string, ErrorEntry> = {
     buttonText: 'Sign in',
     preferServerMessage: true,
   },
+  PASSWORD_CHANGE_REQUIRED: {
+    title: 'Set your password',
+    message:
+      'That was a temporary password. Choose a password of your own to finish setting up your account.',
+    icon: ICONS.LOCK_CHECK,
+    severity: 'info',
+    buttonText: 'Set password',
+  },
+  EMAIL_NOT_VERIFIED: {
+    title: 'Verify Your Email',
+    message: 'Your email is not verified yet. Request a verification code to continue.',
+    icon: ICONS.EMAIL,
+    severity: 'warning',
+    buttonText: 'Verify email',
+    preferServerMessage: true,
+  },
   TOO_MANY_REQUESTS: {
     title: 'Slow Down',
     message: 'Too many attempts. Please wait a moment and try again.',
+    icon: ICONS.CLOCK,
+    severity: 'warning',
+    buttonText: 'Got it',
+  },
+  CONTACT_RATE_LIMITED: {
+    title: 'Too Many Messages',
+    message: 'You have sent a few messages already. Please try again later.',
     icon: ICONS.CLOCK,
     severity: 'warning',
     buttonText: 'Got it',
@@ -216,11 +240,28 @@ export const ERROR_MESSAGES: Record<string, ErrorEntry> = {
     buttonText: 'Got it',
     preferServerMessage: true,
   },
+  ASSESSMENT_CONFLICT: {
+    title: 'Assessment Changed',
+    message: 'This assessment was just changed. Refresh and try again.',
+    icon: ICONS.WARNING,
+    severity: 'warning',
+    buttonText: 'Refresh',
+    preferServerMessage: true,
+  },
 
   ASSESSMENT_ALREADY_SUBMITTED: {
     title: 'Already Submitted',
     message: 'This assessment has already been submitted and can no longer be changed.',
     icon: ICONS.REVIEW,
+    severity: 'info',
+    buttonText: 'Got it',
+    preferServerMessage: true,
+  },
+  ASSESSMENT_CLOSED: {
+    title: 'Opens Soon',
+    message:
+      "This program's assessment is not open yet. It opens once the program office locks the survey.",
+    icon: ICONS.LOCK,
     severity: 'info',
     buttonText: 'Got it',
     preferServerMessage: true,
@@ -321,12 +362,17 @@ export const ERROR_RULES: readonly ErrorRule[] = [
   { resolveTo: 'TIMEOUT', timeout: true },
   { resolveTo: 'NETWORK_ERROR', offline: true },
 
-  { resolveTo: 'ACCOUNT_DEACTIVATED', status: 403, message: /deactivat/i },
+  { resolveTo: 'PASSWORD_CHANGE_REQUIRED', code: 'PASSWORD_CHANGE_REQUIRED' },
+  { resolveTo: 'ACCOUNT_DEACTIVATED', code: 'ACCOUNT_INACTIVE' },
+  { resolveTo: 'ACCOUNT_DEACTIVATED', status: 403, message: /deactivat|account is inactive/i },
   { resolveTo: 'ACCOUNT_UNAVAILABLE', status: 401, message: /no longer available/i },
+
+  { resolveTo: 'CONTACT_RATE_LIMITED', status: 429, url: /contact-enquiries/i },
 
   { resolveTo: 'FIELD_AREA_EXCEEDED', message: /field area is too large|exceed .*farm area/i },
   { resolveTo: 'INVALID_LOCATION', message: /valid location|location is required|invalid coordinates/i },
   { resolveTo: 'ASSESSMENT_ALREADY_SUBMITTED', message: /already been submitted/i },
+  { resolveTo: 'ASSESSMENT_CLOSED', status: 409, message: /assessment is not open yet|locks the survey/i },
   { resolveTo: 'ENTITY_IN_USE', message: /enrolled in a program|cannot be deleted/i },
   { resolveTo: 'ACCOUNT_ALREADY_EXISTS', message: /account with this email already exists/i },
 
@@ -339,6 +385,7 @@ export const ERROR_RULES: readonly ErrorRule[] = [
   { resolveTo: 'INVALID_CODE', status: 401, url: /verify-reset-code|verify-otp/i },
   { resolveTo: 'FIELD_ALREADY_EXISTS', status: 409, url: /\/fields(\/|$|\?)/i },
   { resolveTo: 'FARM_ALREADY_EXISTS', status: 409, url: /\/farms(\/|$|\?)/i },
+  { resolveTo: 'ASSESSMENT_CONFLICT', status: 409, url: /questions\/[^/]+\/answer/i },
   { resolveTo: 'FILE_TOO_LARGE', message: /file (is )?too large|payload too large/i },
   { resolveTo: 'UNSUPPORTED_TYPE', message: /file type is not supported|unsupported (file|media) type/i },
   { resolveTo: 'UPLOAD_FAILED', status: 413 },

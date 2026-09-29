@@ -34,7 +34,13 @@ src/maps/
 │   │   ├── BoundaryPolygon.tsx     <Polygon> + fill/stroke, from engine state
 │   │   ├── VertexHandle.tsx        draggable offset handle (one vertex)
 │   │   ├── MidpointHandle.tsx      ghost "insert here" handle (one edge)
+│   │   ├── BoundaryHandleLayer.tsx screen-space handles above the map — the
+│   │   │                           iOS path, where marker children never
+│   │   │                           render (ADR-B09); same visuals, one
+│   │   │                           PanResponder per handle
 │   │   ├── BoundaryToolbar.tsx     mode-driven toolbar (see UX §7)
+│   │   ├── BoundaryDrawTutorial.tsx first-draw coach mark (UX §10) — plain
+│   │   │                           RN `Animated`, no map/SDK dependency
 │   │   └── AreaReadout.tsx         live area + unit cycle
 │   ├── services/
 │   │   ├── boundaryRepository.ts   INTERFACE + local (redux) implementation

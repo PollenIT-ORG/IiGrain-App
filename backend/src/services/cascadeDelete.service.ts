@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "../db/prisma.js";
+import { softDeleteTemplates } from "../models/assessmentTemplate.model.js";
 
 /**
  * Deleting something deletes what belongs to it.
@@ -46,13 +47,15 @@ export async function summarizeProgramDeletion(
     }),
     prisma.field_visits.count({ where: { program_id: programId } }),
   ]);
-  const survey = await prisma.program_admin_surveys.count({
-    where: { program_id: programId, ...ALIVE },
-  });
+  const [survey, assessmentCopy] = await Promise.all([
+    prisma.program_admin_surveys.count({ where: { program_id: programId, ...ALIVE } }),
+    prisma.assessment_templates.count({ where: { program_id: programId, ...ALIVE } }),
+  ]);
 
   return [
     { label: "Enrolled farmers", count: enrollments },
     { label: "Survey", count: survey },
+    { label: "Assessment template copy", count: assessmentCopy },
     { label: "Survey submissions and their contracts", count: submissions },
     { label: "Field assessments", count: assessments },
     { label: "Field visits", count: visits },
@@ -110,9 +113,24 @@ async function cascadeProgram(tx: Tx, programId: string, now: Date): Promise<voi
     where: { program_id: programId, ...ALIVE },
     data: { ...stamp(now), updated_at: now },
   });
+  await tx.assessment_records.updateMany({
+    where: { program_id: programId, ...ALIVE },
+    data: { ...stamp(now), updated_at: now },
+  });
+  await tx.assessment_category_evidence.updateMany({
+    where: { program_id: programId, ...ALIVE },
+    data: { ...stamp(now), updated_at: now },
+  });
   // Neither of these carries deleted_at, so they go for real.
   await tx.field_assessments.deleteMany({ where: { program_id: programId } });
   await tx.field_visits.deleteMany({ where: { program_id: programId } });
+
+  // The program's own copy of its assessment template only ever served this program.
+  const copies = await tx.assessment_templates.findMany({
+    where: { program_id: programId, ...ALIVE },
+    select: { id: true },
+  });
+  await softDeleteTemplates(tx, copies.map((c) => c.id), now);
 
   await tx.programs.updateMany({
     where: { id: programId, ...ALIVE },
@@ -167,10 +185,14 @@ export async function summarizeUserDeletion(
       where: { owner_id: userId, ...ALIVE },
     }),
   ]);
+  const assessmentTemplates = await prisma.assessment_templates.count({
+    where: { owner_id: userId, program_id: null, is_global: false, ...ALIVE },
+  });
 
   return [
     { label: "Programs they run (and everything in them)", count: programs },
     { label: "Surveys they built", count: surveys },
+    { label: "Assessment templates they built", count: assessmentTemplates },
     { label: "Farms", count: farms },
     { label: "Fields", count: fields },
     { label: "Program enrollments", count: enrollments },
@@ -208,6 +230,12 @@ export async function deleteUserCascade(userId: string): Promise<boolean> {
         where: { owner_id: userId, is_global: false, ...ALIVE },
         data: { ...stamp(now), updated_at: now },
       });
+      // Their own assessment templates; the copies inside their programs went with the programs above.
+      const ownTemplates = await tx.assessment_templates.findMany({
+        where: { owner_id: userId, program_id: null, is_global: false, ...ALIVE },
+        select: { id: true },
+      });
+      await softDeleteTemplates(tx, ownTemplates.map((t) => t.id), now);
 
       // Their land, and everything recorded on it.
       const farms = await tx.farms.findMany({
@@ -231,6 +259,14 @@ export async function deleteUserCascade(userId: string): Promise<boolean> {
             data: stamp(now),
           });
           await tx.assessment_responses.updateMany({
+            where: { field_id: { in: fieldIds }, ...ALIVE },
+            data: { ...stamp(now), updated_at: now },
+          });
+          await tx.assessment_records.updateMany({
+            where: { field_id: { in: fieldIds }, ...ALIVE },
+            data: { ...stamp(now), updated_at: now },
+          });
+          await tx.assessment_category_evidence.updateMany({
             where: { field_id: { in: fieldIds }, ...ALIVE },
             data: { ...stamp(now), updated_at: now },
           });
@@ -266,6 +302,14 @@ export async function deleteUserCascade(userId: string): Promise<boolean> {
 
       // Whatever they filled in themselves, wherever it was.
       await tx.assessment_responses.updateMany({
+        where: { author_id: userId, ...ALIVE },
+        data: { ...stamp(now), updated_at: now },
+      });
+      await tx.assessment_records.updateMany({
+        where: { author_id: userId, ...ALIVE },
+        data: { ...stamp(now), updated_at: now },
+      });
+      await tx.assessment_category_evidence.updateMany({
         where: { author_id: userId, ...ALIVE },
         data: { ...stamp(now), updated_at: now },
       });
@@ -416,6 +460,14 @@ async function cascadeFields(
     data: { ...stamp(now), updated_at: now },
   });
   await tx.assessment_responses.updateMany({
+    where: { field_id: { in: fieldIds }, ...ALIVE },
+    data: { ...stamp(now), updated_at: now },
+  });
+  await tx.assessment_records.updateMany({
+    where: { field_id: { in: fieldIds }, ...ALIVE },
+    data: { ...stamp(now), updated_at: now },
+  });
+  await tx.assessment_category_evidence.updateMany({
     where: { field_id: { in: fieldIds }, ...ALIVE },
     data: { ...stamp(now), updated_at: now },
   });

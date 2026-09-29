@@ -9,10 +9,11 @@ import {
   shadows,
   spacing,
 } from '../../constants';
-import { addAlpha, formatNumber, moderateScale, scale } from '../../utils';
+import { addAlpha, moderateScale, scale } from '../../utils';
+import { formatAcres } from '../../maps/utils/fieldAcres';
 import AppText from '../AppText/AppText';
-import StatusBadge from './StatusBadge';
-import { FIELD_HEALTH_META, type Field } from '../../types/farm';
+import PendingSyncChip from '../PendingSyncChip';
+import { type Field } from '../../types/farm';
 
 export interface FieldCardProps {
   field: Field;
@@ -54,9 +55,9 @@ const FieldCard: React.FC<FieldCardProps> = ({ field, onPress }) => {
       onPressOut={handlePressOut}
       android_ripple={RIPPLE}
       accessibilityRole="button"
-      accessibilityLabel={`${field.name}, ${field.crop}, ${formatNumber(
-        field.areaAcres,
-      )} acres `}
+      accessibilityLabel={`${field.name}, ${field.crop}, ${formatAcres(field.areaAcres)} acres${
+        field.pendingSync ? ', waiting to sync' : ''
+      }`}
       accessibilityHint="Opens field details"
       style={[styles.card, { transform: [{ scale: scaleAnim }] }]}>
       <View style={styles.iconTile}>
@@ -68,12 +69,15 @@ const FieldCard: React.FC<FieldCardProps> = ({ field, onPress }) => {
           <AppText style={styles.name} numberOfLines={1}>
             {field.name}
           </AppText>
+          <PendingSyncChip visible={field.pendingSync} size="sm" />
         </View>
 
         <View style={styles.chipRow}>
-          <View style={styles.chip}>
+          <View style={[styles.chip, styles.areaChip]}>
             <AppIcon name={ICONS.AREA} size={CHIP_ICON} color={COLORS.primary} />
-            <AppText style={styles.chipText}>{formatNumber(field.areaAcres)} ac</AppText>
+            <AppText style={styles.chipText} numberOfLines={1}>
+              {formatAcres(field.areaAcres)} ac
+            </AppText>
           </View>
           <View style={styles.chip}>
             <AppIcon name={ICONS.CROP} size={CHIP_ICON} color={COLORS.primary} />
@@ -131,7 +135,11 @@ const styles = StyleSheet.create({
   chipRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: spacing[2],
+  },
+  areaChip: {
+    flexShrink: 0,
   },
   chip: {
     flexDirection: 'row',

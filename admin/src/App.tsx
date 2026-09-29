@@ -16,6 +16,8 @@ import RouteTitle from "./components/RouteTitle";
 const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const LoginLogs = lazy(() => import("./pages/LoginLogs"));
+const Faqs = lazy(() => import("./pages/Faqs"));
+const ContactEnquiries = lazy(() => import("./pages/ContactEnquiries"));
 const Users = lazy(() => import("./pages/Users"));
 const UserForm = lazy(() => import("./pages/UserForm"));
 const Organizations = lazy(() => import("./pages/Organizations"));
@@ -34,8 +36,9 @@ const ProgramDetail = lazy(() => import("./pages/ProgramDetail"));
 const ProgramSurveySetup = lazy(() => import("./pages/ProgramSurveySetup"));
 const NewSurveyProgram = lazy(() => import("./pages/NewSurveyProgram"));
 const EnrolledFarmers = lazy(() => import("./pages/EnrolledFarmers"));
-const FieldMonitoring = lazy(() => import("./pages/FieldMonitoring"));
+const AssessmentComparison = lazy(() => import("./pages/AssessmentComparison"));
 const Submissions = lazy(() => import("./pages/Submissions"));
+const AssessmentReview = lazy(() => import("./pages/AssessmentReview"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const ProgramAdminSurvey = lazy(() => import("./pages/ProgramAdminSurvey"));
 const ProgramTemplateEditor = lazy(
@@ -49,6 +52,7 @@ const ProgramSubmissionDetail = lazy(
   () => import("./pages/ProgramSubmissionDetail")
 );
 const LiveVisits = lazy(() => import("./pages/LiveVisits"));
+const AssessmentTemplates = lazy(() => import("./pages/AssessmentTemplates"));
 const AssessmentCategories = lazy(() => import("./pages/AssessmentCategories"));
 const CategoryForm = lazy(() => import("./pages/CategoryForm"));
 const AssessmentQuestions = lazy(() => import("./pages/AssessmentQuestions"));
@@ -103,6 +107,8 @@ export default function App() {
                 >
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/login-logs" element={<LoginLogs />} />
+                  <Route path="/faqs" element={<Faqs />} />
+                  <Route path="/contact-enquiries" element={<ContactEnquiries />} />
                   <Route path="/users" element={<Users />} />
                   <Route path="/users/new" element={<UserForm />} />
                   <Route path="/users/:id" element={<UserDetail />} />
@@ -133,6 +139,10 @@ export default function App() {
                   <Route path="/fields/new" element={<FieldForm />} />
                   <Route path="/fields/:id" element={<FieldDetail />} />
                   <Route path="/fields/:id/edit" element={<FieldForm />} />
+                  <Route
+                    path="/fields/:fieldId/comparison"
+                    element={<AssessmentComparison />}
+                  />
                   <Route path="/live-visits" element={<LiveVisits />} />
                   <Route path="/programs" element={<Programs />} />
                   <Route path="/programs/new" element={<ProgramForm />} />
@@ -144,14 +154,51 @@ export default function App() {
                     element={<ProgramSurveySetup />}
                   />
                   <Route
-                    path="/fields/:fieldId/monitoring"
-                    element={<FieldMonitoring />}
-                  />
-                  <Route
                     path="/programs/:id/farmers"
                     element={<EnrolledFarmers />}
                   />
+                  <Route
+                    path="/programs/:programId/survey-submissions/:id"
+                    element={<ProgramSubmissionDetail />}
+                  />
+                  <Route
+                    path="/programs/:programId/fields/:id"
+                    element={<FieldDetail />}
+                  />
+                  <Route
+                    path="/programs/:programId/fields/:id/edit"
+                    element={<FieldForm />}
+                  />
+                  <Route
+                    path="/programs/:programId/fields/:fieldId/comparison"
+                    element={<AssessmentComparison />}
+                  />
+                  <Route
+                    path="/programs/:programId/submissions/:id"
+                    element={<AssessmentReview />}
+                  />
+                  <Route
+                    path="/programs/:programId/assessments/categories/new"
+                    element={<CategoryForm />}
+                  />
+                  <Route
+                    path="/programs/:programId/assessments/categories/:id/edit"
+                    element={<CategoryForm />}
+                  />
+                  <Route
+                    path="/programs/:programId/assessments/categories/:categoryId/questions"
+                    element={<AssessmentQuestions />}
+                  />
+                  <Route
+                    path="/programs/:programId/assessments/categories/:categoryId/questions/new"
+                    element={<QuestionForm />}
+                  />
+                  <Route
+                    path="/programs/:programId/assessments/categories/:categoryId/questions/:id/edit"
+                    element={<QuestionForm />}
+                  />
                   <Route path="/submissions" element={<Submissions />} />
+                  <Route path="/submissions/:id" element={<AssessmentReview />} />
                   <Route path="/notifications" element={<Notifications />} />
                   {/* Older links to these modules still work. */}
                   <Route
@@ -175,6 +222,10 @@ export default function App() {
                     element={<ProgramTemplateEditor />}
                   />
                   <Route
+                    path="/surveys/surveys/:templateId/submissions/:id"
+                    element={<ProgramSubmissionDetail />}
+                  />
+                  <Route
                     path="/surveys/contracts/:id"
                     element={<ProgramContractEditor />}
                   />
@@ -183,19 +234,34 @@ export default function App() {
                     path="/survey-submissions/:id"
                     element={<ProgramSubmissionDetail />}
                   />
-                  <Route path="/assessments" element={<AssessmentCategories />} />
-                  <Route path="/assessments/categories/new" element={<CategoryForm />} />
-                  <Route path="/assessments/categories/:id/edit" element={<CategoryForm />} />
+                  <Route path="/assessments" element={<AssessmentTemplates />} />
+                  {/* Links from before templates open the template list. */}
                   <Route
-                    path="/assessments/categories/:categoryId/questions"
+                    path="/assessments/categories/*"
+                    element={<Navigate to="/assessments" replace />}
+                  />
+                  <Route
+                    path="/assessments/templates/:templateId"
+                    element={<AssessmentCategories />}
+                  />
+                  <Route
+                    path="/assessments/templates/:templateId/categories/new"
+                    element={<CategoryForm />}
+                  />
+                  <Route
+                    path="/assessments/templates/:templateId/categories/:id/edit"
+                    element={<CategoryForm />}
+                  />
+                  <Route
+                    path="/assessments/templates/:templateId/categories/:categoryId/questions"
                     element={<AssessmentQuestions />}
                   />
                   <Route
-                    path="/assessments/categories/:categoryId/questions/new"
+                    path="/assessments/templates/:templateId/categories/:categoryId/questions/new"
                     element={<QuestionForm />}
                   />
                   <Route
-                    path="/assessments/categories/:categoryId/questions/:id/edit"
+                    path="/assessments/templates/:templateId/categories/:categoryId/questions/:id/edit"
                     element={<QuestionForm />}
                   />
                   <Route

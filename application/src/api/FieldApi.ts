@@ -1,6 +1,13 @@
 import http from '../services/http';
 import { Endpoints } from '../config/endpoints';
-import { FIELD_HEALTH_META, type Field, type FieldHealth } from '../types/farm';
+import {
+  FIELD_HEALTH_META,
+  type Field,
+  type FieldBoundaryGeoJSON,
+  type FieldHealth,
+} from '../types/farm';
+import type { GeoJSONPolygon } from '../maps/boundary/types';
+import { acresFromBoundary } from '../maps/utils/fieldAcres';
 
 interface Envelope<T> {
   data: T;
@@ -27,6 +34,7 @@ interface RawField {
   expectedHarvest?: string;
   weather?: string;
   boundary?: unknown;
+  boundary_updated_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -43,6 +51,7 @@ export interface CreateFieldInput {
   sowingDate?: string;
   expectedHarvest?: string;
   status?: FieldHealth;
+  boundary?: GeoJSONPolygon | null;
 }
 
 export interface UpdateFieldInput {
@@ -57,6 +66,7 @@ export interface UpdateFieldInput {
   sowingDate?: string | null;
   expectedHarvest?: string | null;
   status?: FieldHealth;
+  boundary?: GeoJSONPolygon | null;
 }
 
 const VALID_STATUSES: readonly FieldHealth[] = ['healthy', 'monitor', 'critical'];
@@ -88,11 +98,14 @@ const toNumberOrNull = (value?: number | string | null): number | null => {
 
 const mapField = (raw: RawField, fallbackFarmId: string): Field => {
   const status = toFieldHealth(raw.status);
+  const serverAcres = toArea(raw.areaAcres ?? raw.area_acres);
+  const outlineAcres =
+    serverAcres > 0 ? null : acresFromBoundary(raw.boundary as GeoJSONPolygon | null);
   return {
     id: raw.id,
     farmId: raw.farmId ?? raw.farm_id ?? fallbackFarmId,
     name: raw.name ?? '',
-    areaAcres: toArea(raw.areaAcres ?? raw.area_acres),
+    areaAcres: outlineAcres ?? serverAcres,
     crop: raw.crop ?? '—',
     season: raw.season ?? '—',
     status,
@@ -105,6 +118,9 @@ const mapField = (raw: RawField, fallbackFarmId: string): Field => {
     weather: raw.weather ?? '—',
     healthLabel: FIELD_HEALTH_META[status].label,
     hasBoundary: hasDrawnBoundary(raw.boundary),
+    areaFromOutline: outlineAcres !== null,
+    boundary: (raw.boundary as FieldBoundaryGeoJSON | undefined) ?? null,
+    boundaryUpdatedAt: raw.boundary_updated_at ?? null,
   };
 };
 
@@ -152,8 +168,10 @@ export const getFarmField = async (
 
 const toCreateFieldBody = (
   input: CreateFieldInput,
-): Record<string, string | number | null> => {
-  const body: Record<string, string | number | null> = { name: input.name.trim() };
+): Record<string, string | number | null | GeoJSONPolygon> => {
+  const body: Record<string, string | number | null | GeoJSONPolygon> = {
+    name: input.name.trim(),
+  };
   const setText = (key: string, value?: string): void => {
     const v = value?.trim();
     if (v) {
@@ -175,6 +193,9 @@ const toCreateFieldBody = (
   }
   setText('sowingDate', input.sowingDate);
   setText('expectedHarvest', input.expectedHarvest);
+  if (input.boundary !== undefined) {
+    body.boundary = input.boundary;
+  }
   return body;
 };
 
@@ -195,8 +216,8 @@ export const createFarmField = async (
 
 const toUpdateFieldBody = (
   input: UpdateFieldInput,
-): Record<string, string | number | null> => {
-  const body: Record<string, string | number | null> = {};
+): Record<string, string | number | null | GeoJSONPolygon> => {
+  const body: Record<string, string | number | null | GeoJSONPolygon> = {};
   if (input.name !== undefined) {
     body.name = input.name.trim();
   }
@@ -226,6 +247,9 @@ const toUpdateFieldBody = (
   }
   if (input.expectedHarvest !== undefined) {
     body.expectedHarvest = input.expectedHarvest;
+  }
+  if (input.boundary !== undefined) {
+    body.boundary = input.boundary;
   }
   return body;
 };
@@ -262,4 +286,21 @@ export const deleteFarmField = async (
   fieldId: string,
 ): Promise<void> => {
   await http.delete(Endpoints.farms.field(farmId, fieldId));
+};
+
+export interface FieldBoundarySaveResult {
+  areaAcres: number | null;
+}
+
+export const saveFieldBoundary = async (
+  farmId: string,
+  fieldId: string,
+  boundary: GeoJSONPolygon | null,
+): Promise<FieldBoundarySaveResult> => {
+  const res = await http.put<Envelope<unknown>>(
+    Endpoints.farms.fieldBoundary(farmId, fieldId),
+    { boundary },
+  );
+  const raw = extractField(res?.data?.data);
+  return { areaAcres: toNumberOrNull(raw?.area_acres ?? raw?.areaAcres) };
 };

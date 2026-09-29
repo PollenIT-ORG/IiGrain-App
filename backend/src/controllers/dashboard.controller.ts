@@ -34,6 +34,26 @@ export const farmDashboard = asyncHandler(async (req: Request, res: Response) =>
   return ApiResponse.send(res, 200, "Farm dashboard fetched.", result);
 });
 
+export const myDashboardPrograms = asyncHandler(async (req: Request, res: Response) => {
+  const q = req.query as unknown as PaginationQuery;
+  const { programs, defaultProgramId, meta } = await service.getMyDashboardPrograms({
+    farmerId: farmerId(req),
+    page: q.page,
+    limit: q.limit,
+    search: q.search,
+  });
+  return ApiResponse.send(res, 200, "Dashboard programs fetched.", { programs, defaultProgramId }, meta);
+});
+
+export const programSummary = asyncHandler(async (req: Request, res: Response) => {
+  const { year, trendYears } = req.query as unknown as { year?: number; trendYears?: number };
+  const result = await service.getProgramSummaryReport(req.params.programId, farmerId(req), {
+    year,
+    trendYears,
+  });
+  return ApiResponse.send(res, 200, "Program summary fetched.", result);
+});
+
 export const farmSummary = asyncHandler(async (req: Request, res: Response) => {
   const { year, trendYears } = req.query as unknown as {
     year?: number;

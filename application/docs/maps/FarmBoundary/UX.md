@@ -133,6 +133,7 @@ Every state the editor can be in, so nothing is discovered late:
 |---|---|---|
 | Loading imagery | Enter editor | Map + spinner; toolbar disabled |
 | Empty / VIEW no-boundary | No saved polygon | "Draw field boundary" primary CTA, centred hint |
+| DRAW 0 verts, first time ever | Tapped Draw, `drawTutorialSeen` false | Full-screen coach mark: a ghost fingertip taps three demo points, the real white line grows between them, closes and fills — see §10. Skip / "Got it" dismisses for good. |
 | DRAW 0 verts | Tapped Draw | "Tap the field corners" coach hint, Cancel only |
 | DRAW 1–2 verts | Adding | Points + open edges; Close disabled; area "—" |
 | DRAW ≥ 3 verts | Adding | Filled polygon; Close enabled; live area |
@@ -190,3 +191,44 @@ EDIT+sel:[ ↶ ][ ↷ ]   [ 🗑 Delete point ]      [ Deselect ] [ Save ✓ ]
 | Header, buttons, icons, toasts | `AppHeader`, `Button`, `AppIcon`, `showToast` |
 
 The engine is new; almost everything around it already exists.
+
+---
+
+## 10. First-draw coach mark (added 2026-08-24)
+
+A field is bare satellite imagery — nothing on it hints "tap here" the way a
+form field's placeholder text does. First-time farmers opening DRAW mode had
+no signal for what a tap does, so the first thing they saw was an empty map and
+a status line they had no reason to read yet.
+
+**What it is.** A full-screen coach mark, shown once per device, that plays a
+silent demo of the exact gesture: a ghost fingertip taps a point, the same
+white line the real map draws grows to the next tap, closes into a filled
+triangle, then invites "now you try". It loops until dismissed.
+
+**Why a live demo and not a static illustration.** A drawing tells you *that*
+you tap corners; a demo tells you *what happens when you do* — the line
+appearing in real time is the one thing a screenshot or a paragraph of copy
+cannot convey. It also reuses the real vocabulary: the numbered dots are styled
+like `VertexMarker`, the lines are the same white stroke `MapPolyline` uses
+mid-draw, and the captions step through the exact `BOUNDARY_HINTS` text
+(`drawEmpty` → `drawOne` → `drawTwo` → `drawReady`) the real toolbar shows next
+— so the lesson and the real screen never disagree.
+
+**Trigger.** Tapping "Draw field boundary" the first time `drawTutorialSeen` is
+false in the persisted `boundary` slice (device-wide, not per-field — the
+lesson is about the gesture, not the field). Dismissing it — Skip, or "Got it —
+let's draw" once the loop completes — flips that flag for good; every
+subsequent first tap in DRAW just gets the normal `drawEmpty` toast.
+
+**Why it blocks the map underneath.** The scrim intercepts every touch while it
+plays. Without that, a stray tap during the demo would drop a *real* point at
+an arbitrary spot before the farmer had seen the whole gesture — confusing in
+exactly the moment the coach mark exists to prevent.
+
+**Component.** `src/maps/boundary/components/BoundaryDrawTutorial.tsx`. Built on
+plain RN `Animated` (transform/opacity on the native driver; the line's growing
+width is the one JS-driven tween, since layout properties can't run on the
+native thread) — no new dependency. Full choreography and the on-device
+verification are in
+[docs/maps/CHANGELOG.md](../CHANGELOG.md).

@@ -19,7 +19,9 @@ export interface AvailableProgram {
   isFull: boolean;
   alreadyEnrolled: boolean;
   canEnroll: boolean;
+  enrollmentId: string | null;
   surveyUrl: string | null;
+  surveyAcres: number | null;
   fields: ProgramField[];
 }
 

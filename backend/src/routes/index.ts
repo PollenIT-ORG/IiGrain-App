@@ -18,6 +18,8 @@ import dashboardRoutes from "./dashboard.routes.js";
 import visitRoutes from "./visit.routes.js";
 import fieldModuleRoutes from "./fieldModule.routes.js";
 import notificationRoutes from "./notification.routes.js";
+import faqRoutes from "./faq.routes.js";
+import contactEnquiryRoutes from "./contactEnquiry.routes.js";
 import webRoutes from "./web.routes.js";
 import programAdminSurveyRoutes from "./programAdminSurvey.routes.js";
 import programAdminSurveyPublicRoutes from "./programAdminSurveyPublic.routes.js";
@@ -43,6 +45,10 @@ router.use("/dashboard", dashboardRoutes);
 router.use("/visits", visitRoutes);
 router.use("/field-monitoring", fieldModuleRoutes);
 router.use("/notifications", notificationRoutes);
+// Help screen content and the form that reaches the office. Both have a public
+// half, because the app shows them to someone who cannot sign in.
+router.use("/faqs", faqRoutes);
+router.use("/contact-enquiries", contactEnquiryRoutes);
 
 // Public website (eligibility survey, contract signing, contact form).
 router.use("/web", webRoutes);

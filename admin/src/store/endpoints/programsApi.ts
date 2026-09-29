@@ -32,6 +32,12 @@ export interface CreateProgramBody {
   userLimit?: number | null;
   isActive?: boolean;
   showToFarmers?: boolean;
+  // Null starts the program from the Global template, "blank" starts it empty, an id copies that template.
+  assessmentTemplateId?: string | null;
+  // Only with "blank": whether the assessment holds multiple choice or input based questions.
+  questionKind?: "mcq" | "input";
+  // The name the program's own assessment is listed and reused under.
+  assessmentTemplateName?: string;
 }
 
 export type UpdateProgramBody = Partial<CreateProgramBody>;
@@ -45,9 +51,12 @@ export interface EnrollBody {
 
 export interface ListSubmissionsParams {
   page?: number;
+  // One field's submissions, whoever filled them in.
+  fieldId?: string;
   limit?: number;
   programId?: string;
   authorRole?: "farmer" | "assessor";
+  reviewStatus?: "in_review" | "approved";
 }
 
 export const programsApi = apiSlice.injectEndpoints({
@@ -99,9 +108,11 @@ export const programsApi = apiSlice.injectEndpoints({
       }),
       transformResponse: (res: ApiSuccess<{ program: Program }>) =>
         res.data.program,
-      invalidatesTags: (_r, _e, { id }) => [
+      // A new template choice gives the program a new copy; its id arrives with the program, and the old copy is gone.
+      invalidatesTags: (_r, _e, { id, body }) => [
         "Programs",
         { type: "Program", id },
+        ...(body.assessmentTemplateId !== undefined ? (["AssessmentTemplates"] as const) : []),
       ],
     }),
 
@@ -276,6 +287,7 @@ export const programsApi = apiSlice.injectEndpoints({
         submissions: res.data.submissions,
         meta: res.meta,
       }),
+      providesTags: ["AssessmentReviews"],
     }),
   }),
 });

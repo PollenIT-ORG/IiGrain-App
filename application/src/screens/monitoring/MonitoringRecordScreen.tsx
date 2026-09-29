@@ -19,6 +19,7 @@ import {
 } from '../../components/Shimmer';
 import MonitoringContextCard from '../../components/monitoring/MonitoringContextCard';
 import MonitoringAttachments from '../../components/monitoring/MonitoringAttachments';
+import { useMonitoringAttachments } from '../../hooks/useMonitoringAttachments';
 import AttachmentPickerSheet from '../../components/monitoring/AttachmentPickerSheet';
 import SamplePointsMap, {
   type SamplePoint,
@@ -54,7 +55,6 @@ import {
   selectUploadingBucket,
   setMonitoringScope,
   updateRecordThunk,
-  uploadDocumentThunk,
 } from '../../redux/slices/monitoringSlice';
 import { showSuccess, showToast } from '../../services/toastService';
 import {
@@ -65,6 +65,7 @@ import {
   recordCoords,
   recordTitle,
 } from '../../utils/monitoringValues';
+import { deleteDocumentFailure, deleteRecordFailure } from '../../utils/monitoringErrors';
 import { useBoundaryPersistence } from '../../maps/boundary';
 import type { DocumentKind, UploadFile } from '../../types/monitoring';
 import type { AppScreenProps } from '../../navigation/navigationTypes';
@@ -75,15 +76,14 @@ const MonitoringRecordScreen: React.FC<AppScreenProps<'MonitoringRecord'>> = ({
   route,
   navigation,
 }) => {
-  const { programId, fieldId, module, recordId, farmId, fieldName, programName } =
-    route.params;
+  const { fieldId, module, recordId, farmId, fieldName } = route.params;
   const dispatch = useAppDispatch();
   const insets = useSafeAreaInsets();
   const def = moduleDef(module);
 
   useEffect(() => {
-    dispatch(setMonitoringScope({ programId, fieldId }));
-  }, [dispatch, programId, fieldId]);
+    dispatch(setMonitoringScope({ fieldId }));
+  }, [dispatch, fieldId]);
 
   const record = useAppSelector(state => selectRecordById(state, module, recordId));
   const context = useAppSelector(selectMonitoringContext);
@@ -102,20 +102,50 @@ const MonitoringRecordScreen: React.FC<AppScreenProps<'MonitoringRecord'>> = ({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  const attachments = useMonitoringAttachments({ fieldId, module, recordId });
+
+  const pendingRows = useMemo(
+    () =>
+      attachments.queued.map(item => ({
+        id: item.localId,
+        name: item.name,
+        sizeBytes: item.sizeBytes,
+        status: item.status,
+      })),
+    [attachments.queued],
+  );
+
+  const removePending = useCallback(
+    (localId: string) => {
+      attachments.remove(localId).catch(() => undefined);
+    },
+    [attachments],
+  );
+
+  const pendingCount = attachments.queued.length;
+  const previousPendingCount = useRef(pendingCount);
+
   const loadRecord = useCallback(async () => {
     const action = await dispatch(
-      fetchModuleRecordThunk({ programId, fieldId, module, recordId }),
+      fetchModuleRecordThunk({ fieldId, module, recordId }),
     );
     if (fetchModuleRecordThunk.rejected.match(action) && action.payload?.status === 404) {
       setMissing(true);
     }
-  }, [dispatch, programId, fieldId, module, recordId]);
+  }, [dispatch, fieldId, module, recordId]);
 
   const loadDocuments = useCallback(() => {
-    dispatch(fetchDocumentsThunk({ programId, fieldId, module, recordId }));
-  }, [dispatch, programId, fieldId, module, recordId]);
+    dispatch(fetchDocumentsThunk({ fieldId, module, recordId }));
+  }, [dispatch, fieldId, module, recordId]);
 
-  const moduleTag = Tags.monitoringModule(programId, fieldId, module);
+  useEffect(() => {
+    if (pendingCount < previousPendingCount.current) {
+      loadDocuments();
+    }
+    previousPendingCount.current = pendingCount;
+  }, [pendingCount, loadDocuments]);
+
+  const moduleTag = Tags.monitoringModule(fieldId, module);
 
   useSyncedFetch({
     tags: [`${moduleTag}:${recordId}`, moduleTag],
@@ -180,15 +210,13 @@ const MonitoringRecordScreen: React.FC<AppScreenProps<'MonitoringRecord'>> = ({
 
   const goToEdit = useCallback(() => {
     navigation.navigate('MonitoringRecordForm', {
-      programId,
       fieldId,
       module,
       recordId,
       farmId,
       fieldName,
-      programName,
     });
-  }, [navigation, programId, fieldId, module, recordId, farmId, fieldName, programName]);
+  }, [navigation, fieldId, module, recordId, farmId, fieldName]);
 
   const toggleStatus = useCallback(async () => {
     if (!record) {
@@ -197,7 +225,6 @@ const MonitoringRecordScreen: React.FC<AppScreenProps<'MonitoringRecord'>> = ({
     const next = record.status === 'completed' ? 'in_progress' : 'completed';
     const action = await dispatch(
       updateRecordThunk({
-        programId,
         fieldId,
         module,
         recordId,
@@ -211,11 +238,11 @@ const MonitoringRecordScreen: React.FC<AppScreenProps<'MonitoringRecord'>> = ({
         type: 'error',
       });
     }
-  }, [dispatch, record, programId, fieldId, module, recordId]);
+  }, [dispatch, record, fieldId, module, recordId]);
 
   const runDelete = useCallback(async () => {
     const action = await dispatch(
-      deleteRecordThunk({ programId, fieldId, module, recordId }),
+      deleteRecordThunk({ fieldId, module, recordId }),
     );
     setConfirmDelete(false);
     if (deleteRecordThunk.fulfilled.match(action)) {
@@ -224,45 +251,41 @@ const MonitoringRecordScreen: React.FC<AppScreenProps<'MonitoringRecord'>> = ({
       return;
     }
     if (action.payload?.status === 404) {
-      showToast('That record was already removed.', { type: 'error' });
+      showToast('That record was already removed.', { type: 'info' });
       navigation.goBack();
       return;
     }
-    showToast(action.payload?.message ?? 'Could not delete this record.', {
-      type: 'error',
-    });
-  }, [dispatch, programId, fieldId, module, recordId, navigation, def.noun]);
+    showToast(deleteRecordFailure(def.noun, action.payload), { type: 'error' });
+  }, [dispatch, fieldId, module, recordId, navigation, def.noun]);
 
   const handleUpload = useCallback(
     async (file: UploadFile, kind: DocumentKind) => {
-      const action = await dispatch(
-        uploadDocumentThunk({ programId, fieldId, module, recordId, kind, file }),
-      );
-      if (uploadDocumentThunk.fulfilled.match(action)) {
-        showSuccess('File attached');
-      } else {
-        showToast(action.payload?.message ?? 'Upload failed. Please try again.', {
+      const stored = await attachments.attach(file, kind);
+      if (!stored) {
+        showToast('Could not keep that file on this device. Try again.', {
           type: 'error',
         });
+        return;
       }
+      showSuccess('File attached. It uploads in the background.');
     },
-    [dispatch, programId, fieldId, module, recordId],
+    [attachments],
   );
 
   const handleDeleteDocument = useCallback(
     async (documentId: string) => {
       const action = await dispatch(
-        deleteDocumentThunk({ programId, fieldId, documentId, module, recordId }),
+        deleteDocumentThunk({ fieldId, documentId, module, recordId }),
       );
       if (deleteDocumentThunk.fulfilled.match(action)) {
         showSuccess('File removed');
+      } else if (action.payload?.status === 404) {
+        showSuccess('File removed');
       } else {
-        showToast(action.payload?.message ?? 'Could not remove that file.', {
-          type: 'error',
-        });
+        showToast(deleteDocumentFailure(action.payload), { type: 'error' });
       }
     },
-    [dispatch, programId, fieldId, module, recordId],
+    [dispatch, fieldId, module, recordId],
   );
 
   const menuItems = useMemo<OverflowMenuItem[]>(
@@ -284,6 +307,7 @@ const MonitoringRecordScreen: React.FC<AppScreenProps<'MonitoringRecord'>> = ({
   const presence = def.presence;
   const presenceFilled = presence && record ? rows.some(r => r.key === presence.key && r.filled) : false;
   const completed = record?.status === 'completed';
+  const statusCaption = record ? (completed ? 'Completed' : 'In progress') : undefined;
 
   return (
     <View style={styles.safe}>
@@ -309,7 +333,9 @@ const MonitoringRecordScreen: React.FC<AppScreenProps<'MonitoringRecord'>> = ({
         <MonitoringContextCard
           title={context?.fieldName || fieldName || 'Field'}
           subtitle={context?.farmName}
-          caption={context?.programName || programName}
+          caption={statusCaption}
+          captionIcon={completed ? 'check-circle-outline' : 'progress-clock'}
+          meta={record ? `${filledCount} of ${rows.length} filled` : undefined}
           icon={def.icon}
         />
 
@@ -445,9 +471,11 @@ const MonitoringRecordScreen: React.FC<AppScreenProps<'MonitoringRecord'>> = ({
                 documents={documents}
                 loading={docsLoading}
                 error={docsError}
-                uploading={uploadingBucket === bucket}
+                uploading={attachments.busy || uploadingBucket === bucket}
                 deletingId={deletingDocId}
                 emptyMessage="Nothing attached to this record yet."
+                pending={pendingRows}
+                onRemovePending={removePending}
                 onAdd={() => setPickerOpen(true)}
                 onDelete={handleDeleteDocument}
                 onRetry={loadDocuments}

@@ -7,11 +7,12 @@ import {
 } from "../store/endpoints/organizationsApi";
 import { useListUsersQuery } from "../store/endpoints/usersApi";
 import { showSuccess, showError } from "../lib/toast";
+import { useHere } from "../lib/returnTo";
 import { useDialog } from "../components/ui/DialogProvider";
 import Select from "../components/ui/Select";
+import Breadcrumbs from "../components/ui/Breadcrumbs";
 import Loader from "../components/Loader";
 import {
-  ChevronLeftIcon,
   EditIcon,
   PlusIcon,
   TrashIcon,
@@ -29,6 +30,7 @@ export default function OrganizationDetail() {
   const navigate = useNavigate();
   const { id = "" } = useParams();
   const { confirm } = useDialog();
+  const here = useHere();
 
   const {
     data: detail,
@@ -103,13 +105,12 @@ export default function OrganizationDetail() {
   if (isError || !detail) {
     return (
       <div className="space-y-4">
-        <button
-          onClick={() => navigate("/organizations")}
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to organizations
-        </button>
+        <Breadcrumbs
+          items={[
+            { label: "Organizations", to: "/organizations" },
+            { label: "Organization" },
+          ]}
+        />
         <div className="card px-5 py-16 text-center text-sm text-gray-500">
           {errMsg(error) || "Organization not found."}
         </div>
@@ -122,13 +123,13 @@ export default function OrganizationDetail() {
   return (
     <div className="space-y-6">
       <div>
-        <button
-          onClick={() => navigate("/organizations")}
-          className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to organizations
-        </button>
+        <Breadcrumbs
+          className="mb-2"
+          items={[
+            { label: "Organizations", to: "/organizations" },
+            { label: org.name },
+          ]}
+        />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{org.name}</h1>
@@ -150,7 +151,7 @@ export default function OrganizationDetail() {
             </div>
           </div>
           <button
-            onClick={() => navigate(`/organizations/${org.id}/edit`)}
+            onClick={() => navigate(`/organizations/${org.id}/edit`, { state: here })}
             className="btn-secondary"
           >
             <EditIcon width={16} height={16} />

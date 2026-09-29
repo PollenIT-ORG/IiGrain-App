@@ -9,12 +9,12 @@ export { default as RecentActivityCard } from './RecentActivityCard';
 export type { ActivityItem } from './RecentActivityCard';
 export { default as PerformanceSummaryCard } from './PerformanceSummaryCard';
 export type { SummaryRow } from './PerformanceSummaryCard';
-export { default as FarmSelectorSheet } from './FarmSelectorSheet';
-export type { FarmSelectorSheetProps } from './FarmSelectorSheet';
+export { default as ProgramSelectorSheet } from './ProgramSelectorSheet';
+export type { ProgramSelectorSheetProps } from './ProgramSelectorSheet';
 export { default as FarmerEmptyState } from './FarmerEmptyState';
 export type { FarmerEmptyStateProps } from './FarmerEmptyState';
 export { default as FarmerLoader } from './FarmerLoader';
 export type { FarmerLoaderProps } from './FarmerLoader';
 
-export { default as FarmSelectorCard } from './FarmSelectorCard';
-export type { FarmSelectorCardProps } from './FarmSelectorCard';
+export { default as ProgramSelectorCard } from './ProgramSelectorCard';
+export type { ProgramSelectorCardProps } from './ProgramSelectorCard';

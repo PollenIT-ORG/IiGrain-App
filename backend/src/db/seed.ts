@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import prisma from "./prisma.js";
 import env from "../config/env.js";
 import logger from "../utils/logger.js";
+import { seedFaqs } from "./seedFaqs.js";
 import type { RoleName } from "../types/index.js";
 
 const ROLES: Array<{ name: RoleName; description: string }> = [
@@ -31,6 +32,11 @@ export async function runSeed(): Promise<void> {
   logger.info(`✅ Roles ensured (${ROLES.length} total).`);
 
   await seedSuperAdmin();
+
+  const faqs = await seedFaqs();
+  logger.info(
+    `✅ Help FAQs ensured (${faqs.created} added, ${faqs.skipped} already there).`
+  );
 }
 
 async function seedSuperAdmin(): Promise<void> {

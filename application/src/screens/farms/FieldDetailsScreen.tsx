@@ -30,7 +30,11 @@ import {
   Timeline,
 } from '../../components/farms';
 import { COLORS, spacing } from '../../constants';
-import { formatDate, formatNumber, moderateScale, scale } from '../../utils';
+import { formatDate, moderateScale, scale } from '../../utils';
+import { formatAcres } from '../../maps/utils/fieldAcres';
+import type { MapFocusHandle } from '../../maps/types';
+import { useSyncedFetch } from '../../hooks/useSyncedFetch';
+import { Tags } from '../../redux/syncTags';
 import {
   AppShimmer,
   AppShimmerCard,
@@ -51,6 +55,7 @@ import { selectBoundary } from '../../redux/slices/boundarySlice';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
   fetchFarmFieldsThunk,
+  refreshFarmFieldsThunk,
   selectFields,
   selectFieldsError,
   selectFieldsFarmId,
@@ -105,7 +110,10 @@ import { toFileUri } from '../../services/fileDownloadService';
 import { classifyMedia } from '../../utils/fileType';
 import MonitoringModulesView from '../monitoring/MonitoringModulesView';
 
-type FieldTab = 'overview' | 'history' | 'soil' | 'documents' | 'monitoring';
+const MAP_BUTTON_HIT_SLOP = { top: 6, bottom: 6, left: 6, right: 6 };
+
+type FieldTab = 'overview' | 'history' | 'soil' | 'documents' ;
+// | 'monitoring';
 
 type PendingAction = 'reset' | 'delete' | null;
 
@@ -114,7 +122,7 @@ const FILTER_TABS: { key: FieldTab; label: string; icon: string }[] = [
   { key: 'history', label: 'History', icon: 'history' },
   { key: 'soil', label: 'Soil', icon: 'layers-outline' },
   { key: 'documents', label: 'Docs', icon: 'file-document-outline' },
-  { key: 'monitoring', label: 'Program Data', icon: 'clipboard-list-outline' },
+  // { key: 'monitoring', label: 'Monitoring', icon: 'clipboard-list-outline' },
 ];
 
 const DOC_HITSLOP = { top: 8, bottom: 8, left: 8, right: 8 } as const;
@@ -207,6 +215,24 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
 
   useBoundaryPersistence({ fieldId: currentField?.id ?? '', farmId });
 
+  const mapFocusRef = useRef<MapFocusHandle | null>(null);
+  const focusMap = useCallback(() => mapFocusRef.current?.focus(), []);
+
+  const refreshLiveField = useCallback(() => {
+    dispatch(refreshFarmFieldsThunk(farmId));
+    if (selectedFieldId) {
+      dispatch(fetchFieldOverviewThunk(selectedFieldId));
+    }
+  }, [dispatch, farmId, selectedFieldId]);
+
+  useSyncedFetch({
+    tags: selectedFieldId
+      ? [Tags.field(selectedFieldId), Tags.fields(farmId)]
+      : [Tags.fields(farmId)],
+    run: refreshLiveField,
+    hasData: fieldsReady,
+  });
+
   const boundary = useAppSelector(state =>
     currentField ? selectBoundary(state, currentField.id) : null,
   );
@@ -219,6 +245,8 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
       farmId,
       fieldId: currentField.id,
       fieldName: currentField.name,
+      latitude: currentField.latitude,
+      longitude: currentField.longitude,
     });
   }, [navigation, farmId, currentField]);
 
@@ -650,6 +678,7 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
           onTouchCancel={() => setMapPanning(false)}>
           {boundary ? (
             <BoundaryPreviewMap
+              ref={mapFocusRef}
               ring={boundary.ring}
               center={boundary.center}
               onTouchStart={() => setMapPanning(true)}
@@ -658,6 +687,7 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
             />
           ) : currentField.latitude != null && currentField.longitude != null ? (
             <FieldLocationPreview
+              ref={mapFocusRef}
               latitude={currentField.latitude}
               longitude={currentField.longitude}
               onTouchStart={() => setMapPanning(true)}
@@ -671,19 +701,38 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
             </View>
           )}
 
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={goToBoundaryEditor}
-            style={[styles.mapFab, boundary ? styles.mapFabEdit : styles.mapFabAdd]}
-            accessibilityRole="button"
-            accessibilityLabel={boundary ? 'Edit field boundary' : 'Add field boundary'}>
-            <AppIcon
-              name={boundary ? 'pencil' : 'vector-polygon'}
-              size={moderateScale(15)}
-              color={COLORS.white}
-            />
-            <AppText style={styles.mapFabText}>{boundary ? 'Edit' : 'Add boundary'}</AppText>
-          </TouchableOpacity>
+          <View style={styles.mapActions}>
+            {boundary || (currentField.latitude != null && currentField.longitude != null) ? (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={focusMap}
+                hitSlop={MAP_BUTTON_HIT_SLOP}
+                style={styles.mapFocusBtn}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  boundary ? 'Show the whole field on the map' : 'Show the field location on the map'
+                }>
+                <AppIcon
+                  name={ICONS.FOCUS_FIELD}
+                  size={moderateScale(20)}
+                  color={COLORS.primaryDark}
+                />
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={goToBoundaryEditor}
+              style={[styles.mapFab, boundary ? styles.mapFabEdit : styles.mapFabAdd]}
+              accessibilityRole="button"
+              accessibilityLabel={boundary ? 'Edit field boundary' : 'Add field boundary'}>
+              <AppIcon
+                name={boundary ? 'pencil' : 'vector-polygon'}
+                size={moderateScale(15)}
+                color={COLORS.white}
+              />
+              <AppText style={styles.mapFabText}>{boundary ? 'Edit' : 'Add boundary'}</AppText>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.overviewHero}>
@@ -707,7 +756,7 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
         <SectionHeader title="Operational Stats" />
         <View style={styles.statsGrid}>
           <View style={styles.statsCell}>
-            <StatCard icon="vector-square" label="Area" value={`${formatNumber(o?.areaAcres ?? currentField.areaAcres)} ac`} tone="neutral" />
+            <StatCard icon="vector-square" label="Area" value={`${formatAcres(o?.areaAcres ?? currentField.areaAcres)} ac`} tone="neutral" />
           </View>
           <View style={styles.statsCell}>
             <StatCard icon="water-outline" label="Irrigation" value={o?.irrigation || currentField.irrigation || '—'} tone="info" />
@@ -944,15 +993,17 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
           {activeTab === 'history' && renderHistory()}
           {activeTab === 'soil' && renderSoil()}
           {activeTab === 'documents' && renderDocuments()}
-          {activeTab === 'monitoring' && (
+          {/* {activeTab === 'monitoring' && (
             <MonitoringModulesView
               farmId={farmId}
               fieldId={selectedFieldId}
               fieldName={currentField.name}
               fieldSubtitle={currentField.crop}
+              hasBoundary={!!boundary || currentField.hasBoundary === true}
+              onDrawBoundary={goToBoundaryEditor}
               navigation={navigation}
             />
-          )}
+          )} */}
         </View>
 
       </ScrollView>

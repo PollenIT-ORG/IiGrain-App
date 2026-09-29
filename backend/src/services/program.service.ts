@@ -1,5 +1,15 @@
 import ApiError from "../utils/ApiError.js";
+import type { QuestionKind } from "../validators/assessment.schema.js";
 import { surveyPublicLink } from "./programAdminSurvey.service.js";
+import {
+  resolveProgramSource,
+  createProgramCopy,
+  holdingTemplateId,
+  programHasAnswers,
+  assertTemplateNameFree,
+  TEMPLATE_TX,
+} from "./assessmentTemplate.service.js";
+import { softDeleteTemplates } from "../models/assessmentTemplate.model.js";
 import {
   holdsEnrollmentIdForProgram,
   enrollmentIdForProgram,
@@ -73,6 +83,11 @@ export interface CreateProgramInput {
   endDate?: string | null;
   userLimit?: number | null;
   isActive?: boolean;
+  assessmentTemplateId?: string | null;
+  // Only with "blank": which kind of questions the new assessment holds.
+  questionKind?: QuestionKind;
+  // The name the program's own assessment is listed and reused under.
+  assessmentTemplateName?: string;
 }
 
 function nn(v: string | null | undefined): string | null {
@@ -156,18 +171,46 @@ export async function addProgram(
     throw ApiError.conflict("A program with this code already exists.");
   }
 
-  const program = await createProgram({
-    orgId,
-    name: input.name.trim(),
-    code,
-    description: nn(input.description),
-    type: nn(input.type),
-    startDate: nn(input.startDate),
-    endDate: nn(input.endDate),
-    userLimit: input.userLimit ?? null,
-    isActive: input.isActive ?? true,
-    createdBy: actor.id,
-  });
+  // Every program answers its own copy of a template, so later edits to that template never reach it.
+  const source = await resolveProgramSource(input.assessmentTemplateId, actor);
+  if (input.assessmentTemplateName?.trim()) {
+    await assertTemplateNameFree(actor, input.assessmentTemplateName.trim());
+  }
+  const holdingId = await holdingTemplateId(source);
+  const name = input.name.trim();
+  const createdId = await prisma.$transaction(async (tx) => {
+    // The program points at a template until its copy exists, so the copy is inserted already tied to the program.
+    const created = await createProgram(
+      {
+        orgId,
+        name,
+        code,
+        description: nn(input.description),
+        type: nn(input.type),
+        startDate: nn(input.startDate),
+        endDate: nn(input.endDate),
+        userLimit: input.userLimit ?? null,
+        isActive: input.isActive ?? true,
+        createdBy: actor.id,
+        assessmentTemplateId: holdingId,
+      },
+      tx
+    );
+    const copyId = await createProgramCopy(
+      tx,
+      source,
+      { id: created.id, name },
+      actor,
+      input.questionKind,
+      input.assessmentTemplateName
+    );
+    await tx.programs.update({
+      where: { id: created.id },
+      data: { assessment_template_id: copyId },
+    });
+    return created.id;
+  }, TEMPLATE_TX);
+  const program = await getProgramById(createdId);
 
   void notifyOrgFarmersOfNewProgram(orgId, program);
   broadcastToAdmins("programs", { programId: program.id });
@@ -254,11 +297,17 @@ export interface UpdateProgramInput {
   endDate?: string | null;
   userLimit?: number | null;
   isActive?: boolean;
+  assessmentTemplateId?: string | null;
+  // Only with "blank": which kind of questions the new assessment holds.
+  questionKind?: QuestionKind;
+  // The name the program's own assessment is listed and reused under.
+  assessmentTemplateName?: string;
 }
 
 export async function editProgram(
   id: string,
-  input: UpdateProgramInput
+  input: UpdateProgramInput,
+  actor: Actor
 ): Promise<PublicProgram> {
   const existing = await findProgramById(id);
   if (!existing) throw ApiError.notFound("Program not found.");
@@ -299,6 +348,17 @@ export async function editProgram(
     }
   }
 
+  if (input.assessmentTemplateId !== undefined) {
+    await changeProgramTemplate(
+      existing,
+      input.assessmentTemplateId,
+      input.name?.trim() || existing.name,
+      actor,
+      input.questionKind,
+      input.assessmentTemplateName
+    );
+  }
+
   const updated = await updateProgram(id, {
     name: input.name?.trim(),
     code: input.code !== undefined ? nn(input.code) : undefined,
@@ -312,6 +372,74 @@ export async function editProgram(
   if (!updated) throw ApiError.notFound("Program not found.");
   broadcastToAdmins("programs", { programId: id });
   return updated;
+}
+
+/** The program, plus whether its assessment template may still be swapped. */
+export async function getProgramDetail(
+  id: string
+): Promise<PublicProgram & { assessment_template_changeable: boolean }> {
+  const program = await getProgramById(id);
+  return { ...program, assessment_template_changeable: !(await programHasAnswers(id)) };
+}
+
+const TEMPLATE_ANSWERED =
+  "Answers have already been given in this program, so its assessment template can no longer be changed.";
+
+// Swaps the program's copy for a fresh copy of another template, only while nothing has been answered.
+async function changeProgramTemplate(
+  program: PublicProgram,
+  templateId: string | null,
+  programName: string,
+  actor: Actor,
+  questionKind?: QuestionKind,
+  templateName?: string
+): Promise<void> {
+  const name = templateName?.trim();
+  // The program's own assessment is listed by this name, so it cannot clash with another.
+  if (name) await assertTemplateNameFree(actor, name, program.assessment_template_id);
+
+  const unchanged = (id: string): boolean =>
+    id === program.assessment_source_template_id || id === program.assessment_template_id;
+  // Picking what is already in use keeps it; a name given with it only renames it.
+  const keep = async (): Promise<void> => {
+    if (!name) return;
+    await prisma.assessment_templates.update({
+      where: { id: program.assessment_template_id },
+      data: { name, updated_at: new Date() },
+    });
+  };
+  // The template already in use is accepted as is, even if it has since been hidden, switched off or deleted.
+  if (templateId === "blank" ? program.assessment_source_template_id === null : templateId && unchanged(templateId)) {
+    return keep();
+  }
+  const source = await resolveProgramSource(templateId, actor);
+  if (source && unchanged(source.id)) return keep();
+
+  if (await programHasAnswers(program.id)) throw ApiError.conflict(TEMPLATE_ANSWERED);
+  await prisma.$transaction(async (tx) => {
+    // Saving an answer checks this row through its foreign key, so holding it keeps answers out until the swap is done.
+    await tx.$queryRaw`SELECT id FROM programs WHERE id = ${program.id}::uuid FOR UPDATE`;
+    if (await programHasAnswers(program.id, tx)) throw ApiError.conflict(TEMPLATE_ANSWERED);
+    const now = new Date();
+    // Only the program's own copy goes; a template other programs still use stays.
+    const previous = await tx.assessment_templates.findMany({
+      where: { program_id: program.id, deleted_at: null },
+      select: { id: true },
+    });
+    await softDeleteTemplates(tx, previous.map((t) => t.id), now);
+    const copyId = await createProgramCopy(
+      tx,
+      source,
+      { id: program.id, name: programName },
+      actor,
+      questionKind,
+      name
+    );
+    await tx.programs.update({
+      where: { id: program.id },
+      data: { assessment_template_id: copyId, updated_at: now },
+    });
+  }, TEMPLATE_TX);
 }
 
 /** What deleting this program would take with it, for the confirmation. */
@@ -983,7 +1111,9 @@ export interface ListSubmissionsInput {
   page: number;
   limit: number;
   programId?: string;
+  fieldId?: string;
   authorRole?: "farmer" | "assessor";
+  reviewStatus?: "in_review" | "approved";
   /** Set for a program administrator: only their own programs' submissions. */
   programOwnerId?: string;
 }
@@ -1003,6 +1133,8 @@ function toSubmission(r: SubmissionRow) {
     answered: r.answered,
     totalQuestions: r.total_questions,
     percentage: Number(r.percentage),
+    assessmentId: r.assessment_id,
+    reviewStatus: r.review_status as "in_review" | "approved",
     submittedAt: r.submitted_at ? r.submitted_at.toISOString() : null,
   };
 }
@@ -1010,7 +1142,9 @@ function toSubmission(r: SubmissionRow) {
 export async function getSubmissions(input: ListSubmissionsInput) {
   const { rows, total } = await listSubmissions({
     programId: input.programId,
+    fieldId: input.fieldId,
     authorRole: input.authorRole,
+    reviewStatus: input.reviewStatus,
     programOwnerId: input.programOwnerId,
     limit: input.limit,
     offset: (input.page - 1) * input.limit,
@@ -1026,10 +1160,18 @@ export async function getSubmissions(input: ListSubmissionsInput) {
   };
 }
 
+/** One side of a field's assessment, with the id the review screen opens on. */
+export interface EnrollmentAssessmentSide {
+  submitted: boolean;
+  percentage: number | null;
+  assessmentId: string | null;
+  reviewStatus: "in_review" | "approved" | null;
+}
+
 export interface EnrollmentFieldAssessment {
   field: { id: string; name: string; farm_name: string | null };
-  farmer: { submitted: boolean; percentage: number | null };
-  assessor: { submitted: boolean; percentage: number | null };
+  farmer: EnrollmentAssessmentSide;
+  assessor: EnrollmentAssessmentSide;
 }
 
 export interface EnrollmentAssessmentsResult {
@@ -1070,6 +1212,19 @@ export async function getProgramProgress(
   };
 }
 
+// One submission as the status table reads it, submitted or not.
+function assessmentSide(
+  row: { id: string; status: string; percentage: unknown; review_status: string | null } | null
+): EnrollmentAssessmentSide {
+  const submitted = row?.status === "submitted";
+  return {
+    submitted,
+    percentage: row ? Number(row.percentage) : null,
+    assessmentId: submitted ? row.id : null,
+    reviewStatus: submitted ? (row.review_status as "in_review" | "approved") : null,
+  };
+}
+
 export async function getEnrollmentAssessments(
   programId: string,
   enrollmentId: string
@@ -1083,22 +1238,16 @@ export async function getEnrollmentAssessments(
   for (const f of enrollment.fields) {
     const farmerSub = await prisma.field_assessments.findFirst({
       where: { field_id: f.field_id, program_id: programId, author_role: "farmer" },
-      select: { status: true, percentage: true },
+      select: { id: true, status: true, percentage: true, review_status: true },
     });
     const assessorSub = await prisma.field_assessments.findFirst({
       where: { field_id: f.field_id, program_id: programId, author_role: "assessor" },
-      select: { status: true, percentage: true },
+      select: { id: true, status: true, percentage: true, review_status: true },
     });
     fields.push({
       field: { id: f.field_id, name: f.field_name, farm_name: f.farm_name },
-      farmer: {
-        submitted: farmerSub?.status === "submitted",
-        percentage: farmerSub ? Number(farmerSub.percentage) : null,
-      },
-      assessor: {
-        submitted: assessorSub?.status === "submitted",
-        percentage: assessorSub ? Number(assessorSub.percentage) : null,
-      },
+      farmer: assessmentSide(farmerSub),
+      assessor: assessmentSide(assessorSub),
     });
   }
 

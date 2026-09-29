@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 export const MIN_VERTICES = 3;
 
 export const MIN_AREA_SQM = 10;
@@ -25,3 +27,17 @@ export const NUDGE_MIN_METERS = 0.25;
 export const NUDGE_MAX_METERS = 12;
 
 export const FIT_ZOOM = 18;
+
+/**
+ * Draw the vertex / midpoint handles as a screen-space overlay instead of as
+ * `<Marker>` children.
+ *
+ * iOS, on the New Architecture with `PROVIDER_GOOGLE`, never lays out
+ * react-native-maps' marker icon view, so a marker with React children ends up
+ * zero-sized: invisible, un-tappable and un-draggable. Native `<Polygon>` and
+ * `<Polyline>` are unaffected. Android rasterises marker children correctly, so
+ * it keeps the native markers it already ships with.
+ *
+ * See `components/BoundaryHandleLayer.tsx`.
+ */
+export const USE_OVERLAY_HANDLES = Platform.OS === 'ios';

@@ -8,9 +8,12 @@ export type NotificationType =
   | "assessor_visit_started"
   | "assessor_visit_arrived"
   | "assessment_submitted"
+  | "assessment_reviewed"
   // Admin-facing: the eligibility survey flow.
   | "survey_submitted"
-  | "contract_signed";
+  | "contract_signed"
+  // Admin-facing: somebody used the contact form in the app.
+  | "contact_enquiry";
 
 // Where the mobile app should navigate when this notification is tapped. `screen`
 // is a stable key the RN app maps to a screen; the id fields are the nav params.
@@ -31,6 +34,7 @@ const DEFAULT_SCREEN: Record<string, string> = {
   assessor_visit_started: "visit_tracking",
   assessor_visit_arrived: "visit_tracking",
   assessment_submitted: "assessment_history",
+  assessment_reviewed: "assessment_history",
   // Admin panel routes (used by the web notification dropdown, not the app).
   survey_submitted: "eligibility",
   contract_signed: "eligibility",

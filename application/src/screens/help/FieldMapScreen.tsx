@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
+import { formatAcres } from '../../maps/utils/fieldAcres';
 import { View } from 'react-native';
 import {
   useNavigation,
@@ -30,7 +31,7 @@ const farmToEntity = (farm: Farm): MapEntity<Farm> => ({
   },
   title: farm.name,
   subtitle: farm.location,
-  meta: `${farm.areaAcres} acres · ${farm.fieldsCount} ${
+  meta: `${formatAcres(farm.areaAcres)} acres · ${farm.fieldsCount} ${
     farm.fieldsCount === 1 ? 'field' : 'fields'
   }`,
   pinColor: STATUS_PIN_COLOR[farm.status],

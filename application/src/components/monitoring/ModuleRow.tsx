@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { AppIcon, ICONS } from '../AppIcon';
@@ -13,13 +13,14 @@ import {
 } from '../../constants';
 import { addAlpha, moderateScale, scale } from '../../utils';
 import type { BadgeTone } from '../../types/farm';
-import type { ModuleSummary } from '../../types/monitoring';
+import type { ModuleKey, ModuleSummary } from '../../types/monitoring';
 import type { MonitoringModuleDef } from '../../config/monitoringModules';
 
 export interface ModuleRowProps {
   def: MonitoringModuleDef;
   summary: ModuleSummary;
-  onPress: () => void;
+  locked?: boolean;
+  onPress: (module: ModuleKey) => void;
 }
 
 const TONE_COLOR: Record<BadgeTone, string> = {
@@ -77,14 +78,22 @@ const ProgressRing: React.FC<{ ratio: number; color: string; label: string }> = 
   );
 };
 
-const ModuleRow: React.FC<ModuleRowProps> = ({ def, summary, onPress }) => {
-  const color = TONE_COLOR[def.tone];
+const ModuleRow: React.FC<ModuleRowProps> = ({
+  def,
+  summary,
+  locked = false,
+  onPress,
+}) => {
+  const color = locked ? COLORS.gray500 : TONE_COLOR[def.tone];
   const { total, completed, documents } = summary;
   const ratio = total > 0 ? completed / total : 0;
   const done = total > 0 && completed === total;
   const untouched = total === 0;
 
   const state = useMemo(() => {
+    if (locked) {
+      return { label: 'Locked', tint: COLORS.gray600, icon: 'lock-outline' };
+    }
     if (untouched) {
       return { label: 'Not started', tint: COLORS.gray600, icon: 'circle-outline' };
     }
@@ -96,14 +105,24 @@ const ModuleRow: React.FC<ModuleRowProps> = ({ def, summary, onPress }) => {
       tint: COLORS.accent,
       icon: ICONS.IN_PROGRESS,
     };
-  }, [untouched, done, total, completed]);
+  }, [locked, untouched, done, total, completed]);
+
+  const handlePress = useCallback(() => onPress(summary.module), [onPress, summary.module]);
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       accessibilityRole="button"
-      accessibilityLabel={`${summary.label}, ${completed} of ${total} completed`}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
+      accessibilityLabel={
+        locked
+          ? `${summary.label}, locked until the field boundary is drawn`
+          : `${summary.label}, ${completed} of ${total} completed`
+      }
+      style={({ pressed }) => [
+        styles.card,
+        locked && styles.cardLocked,
+        pressed && styles.cardPressed,
+      ]}>
       <View style={[styles.accent, { backgroundColor: color }]} pointerEvents="none" />
 
       <View style={styles.row}>
@@ -120,11 +139,21 @@ const ModuleRow: React.FC<ModuleRowProps> = ({ def, summary, onPress }) => {
           </AppText>
         </View>
 
-        <ProgressRing
-          ratio={ratio}
-          color={untouched ? COLORS.gray500 : color}
-          label={untouched ? '—' : `${completed}/${total}`}
-        />
+        {locked ? (
+          <View style={styles.lockTile}>
+            <AppIcon
+              name="lock-outline"
+              size={moderateScale(20)}
+              color={COLORS.gray600}
+            />
+          </View>
+        ) : (
+          <ProgressRing
+            ratio={ratio}
+            color={untouched ? COLORS.gray500 : color}
+            label={untouched ? '—' : `${completed}/${total}`}
+          />
+        )}
       </View>
 
       <View style={styles.footer}>
@@ -151,11 +180,13 @@ const ModuleRow: React.FC<ModuleRowProps> = ({ def, summary, onPress }) => {
         </View>
 
         <View style={styles.open}>
-          <AppText style={styles.openText}>Open</AppText>
+          <AppText style={[styles.openText, locked && styles.openTextLocked]}>
+            {locked ? 'Why?' : 'Open'}
+          </AppText>
           <AppIcon
-            name={ICONS.CHEVRON_RIGHT}
+            name={locked ? 'information-outline' : ICONS.CHEVRON_RIGHT}
             size={moderateScale(16)}
-            color={COLORS.primary}
+            color={locked ? COLORS.gray600 : COLORS.primary}
           />
         </View>
       </View>
@@ -166,6 +197,20 @@ const ModuleRow: React.FC<ModuleRowProps> = ({ def, summary, onPress }) => {
 export default React.memo(ModuleRow);
 
 const styles = StyleSheet.create({
+  cardLocked: {
+    backgroundColor: COLORS.gray100,
+  },
+  lockTile: {
+    width: RING_SIZE,
+    height: RING_SIZE,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.gray200,
+  },
+  openTextLocked: {
+    color: COLORS.gray600,
+  },
   card: {
     backgroundColor: COLORS.white,
     borderRadius: borderRadius['2xl'],

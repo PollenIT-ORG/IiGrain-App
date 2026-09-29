@@ -9,6 +9,12 @@ export interface LatLng {
 }
 
 const EARTH_RADIUS_M = 6_371_000;
+// Area uses the equatorial radius, as the mobile and admin boundary editors do.
+const EARTH_RADIUS_AREA_M = 6_378_137;
+const SQM_PER_ACRE = 4046.8564224;
+
+/** Smallest outline the boundary editors accept. */
+export const MIN_BOUNDARY_AREA_SQM = 10;
 
 function toRad(deg: number): number {
   return (deg * Math.PI) / 180;
@@ -87,4 +93,53 @@ export function distanceToPolygonMeters(
     min = Math.min(min, distanceToSegmentMeters(point, pts[i], pts[i + 1]));
   }
   return min;
+}
+
+/** Area of the outer ring in square metres, by spherical excess. */
+export function polygonAreaSqMeters(polygon: GeoJSONPolygon | null): number {
+  const pts = outerRing(polygon);
+  if (!pts) return 0;
+  let sum = 0;
+  for (let i = 0; i < pts.length - 1; i += 1) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    sum += toRad(b.lng - a.lng) * (2 + Math.sin(toRad(a.lat)) + Math.sin(toRad(b.lat)));
+  }
+  return Math.abs((sum * EARTH_RADIUS_AREA_M * EARTH_RADIUS_AREA_M) / 2);
+}
+
+export function sqMetersToAcres(sqm: number): number {
+  return sqm / SQM_PER_ACRE;
+}
+
+function orientation(p: LatLng, q: LatLng, r: LatLng): number {
+  const val = (q.lat - p.lat) * (r.lng - q.lng) - (q.lng - p.lng) * (r.lat - q.lat);
+  if (val > 0) return 1;
+  if (val < 0) return -1;
+  return 0;
+}
+
+/** Whether two edges of the outer ring cross, judged the way the boundary editors judge it. */
+export function polygonCrossesItself(polygon: GeoJSONPolygon | null): boolean {
+  const pts = outerRing(polygon);
+  if (!pts) return false;
+  const ring = pts.slice(0, -1);
+  const n = ring.length;
+  for (let i = 0; i < n; i += 1) {
+    const a = ring[i];
+    const b = ring[(i + 1) % n];
+    for (let j = i + 2; j < n; j += 1) {
+      if (i === 0 && j === n - 1) continue;
+      const c = ring[j];
+      const d = ring[(j + 1) % n];
+      const o1 = orientation(a, b, c);
+      const o2 = orientation(a, b, d);
+      const o3 = orientation(c, d, a);
+      const o4 = orientation(c, d, b);
+      if (o1 !== o2 && o3 !== o4 && o1 !== 0 && o2 !== 0 && o3 !== 0 && o4 !== 0) {
+        return true;
+      }
+    }
+  }
+  return false;
 }

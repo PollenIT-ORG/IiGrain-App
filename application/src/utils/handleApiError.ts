@@ -42,13 +42,20 @@ const classify = (status: number | null, hasResponse: boolean): ApiErrorKind => 
   return 'unknown';
 };
 
+export const isTimeoutError = (error: unknown): boolean =>
+  isAxiosError(error) &&
+  !error.response &&
+  (error.code === 'ECONNABORTED' ||
+    error.code === 'ETIMEDOUT' ||
+    /timeout/i.test(error.message ?? ''));
+
 export const handleApiError = (error: unknown): StandardizedError => {
   const presentation = resolveError(error);
 
   if (isAxiosError(error)) {
     const status = error.response?.status ?? null;
     return {
-      message: getApiMessage(error, presentation.message),
+      message: error.response ? getApiMessage(error, presentation.message) : presentation.message,
       status,
       kind: classify(status, Boolean(error.response)),
       code: presentation.code,

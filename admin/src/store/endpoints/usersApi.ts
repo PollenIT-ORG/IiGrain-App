@@ -20,7 +20,6 @@ export interface CreateUserBody {
   fullName: string;
   email: string;
   phone: string;
-  password: string;
   role: string;
 }
 

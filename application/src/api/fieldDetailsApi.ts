@@ -1,4 +1,6 @@
 import http from '../services/http';
+import type { GeoJSONPolygon } from '../maps/boundary/types';
+import { acresFromBoundary } from '../maps/utils/fieldAcres';
 import { Endpoints } from '../config/endpoints';
 import type { ActivityEntry, BadgeTone, FieldHealth, SoilMetric } from '../types/farm';
 import type {
@@ -28,6 +30,7 @@ interface RawOverview {
   is_active: boolean;
   created_at: string | null;
   updated_at: string | null;
+  boundary?: unknown;
 }
 interface OverviewPayload {
   overview: RawOverview;
@@ -131,7 +134,9 @@ const mapOverview = (raw: RawOverview): FieldOverview => ({
   farmId: raw.farm_id,
   farmName: raw.farm_name ?? '',
   name: raw.name ?? '',
-  areaAcres: toNumber(raw.area_acres),
+  areaAcres:
+    toNumber(raw.area_acres) ||
+    (acresFromBoundary(raw.boundary as GeoJSONPolygon | null) ?? 0),
   crop: raw.crop ?? '',
   season: raw.season ?? '',
   irrigation: raw.irrigation ?? '',

@@ -38,10 +38,12 @@ class ApiError extends Error {
     return new ApiError(401, message, { code: "UNAUTHORIZED" });
   }
 
+  /** A caller that has to tell two refusals apart passes its own code. */
   static forbidden(
-    message = "You do not have permission to do this"
+    message = "You do not have permission to do this",
+    code = "FORBIDDEN"
   ): ApiError {
-    return new ApiError(403, message, { code: "FORBIDDEN" });
+    return new ApiError(403, message, { code });
   }
 
   static notFound(message = "Resource not found"): ApiError {

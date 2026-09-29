@@ -1,7 +1,8 @@
 import React, { useCallback } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppHeader, AppText, Button } from '../../components';
+import { Pressable } from 'react-native';
+import { AppStatusBar, AppText, Button } from '../../components';
 import { AppIcon, ICONS } from '../../components/AppIcon';
 import { FadeSlideIn } from '../../components/home';
 import { COLORS } from '../../constants';
@@ -13,6 +14,8 @@ import ProgramSummaryCard from './components/ProgramSummaryCard';
 import { useOnboardingData } from './useOnboardingData';
 import { styles } from './OnboardingWelcomeScreenStyle';
 import type { AppScreenProps } from '../../navigation/navigationTypes';
+
+const BACK_HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 } as const;
 
 const OnboardingWelcomeScreen: React.FC<AppScreenProps<'OnboardingWelcome'>> = ({
   navigation,
@@ -32,10 +35,30 @@ const OnboardingWelcomeScreen: React.FC<AppScreenProps<'OnboardingWelcome'>> = (
 
   return (
     <View style={styles.safe}>
-      <AppHeader variant="back" bgColor onBack={() => navigation.goBack()} />
+      <AppStatusBar />
+
+      <Pressable
+        onPress={() => navigation.goBack()}
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
+        hitSlop={BACK_HIT_SLOP}
+        style={({ pressed }) => [
+          styles.backButton,
+          { top: insets.top + moderateScale(8) },
+          pressed && styles.backPressed,
+        ]}>
+        <AppIcon
+          name={ICONS.CHEVRON_LEFT}
+          size={moderateScale(24)}
+          color={COLORS.gray900}
+        />
+      </Pressable>
 
       <ScrollView
-        contentContainerStyle={styles.body}
+        contentContainerStyle={[
+          styles.body,
+          { paddingTop: insets.top + moderateScale(58) },
+        ]}
         showsVerticalScrollIndicator={false}>
         <FadeSlideIn>
           <View style={styles.hero}>

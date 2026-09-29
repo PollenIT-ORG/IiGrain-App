@@ -3,15 +3,18 @@ import { TouchableOpacity, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { AppText, Button, Input } from '../../../components';
+import { AppText, Button, ConfirmDialog, Input } from '../../../components';
+import { ICONS } from '../../../components/AppIcon';
 import { useFormValidation } from '../../../hooks';
 import type { ValidatorMap } from '../../../hooks';
 import { emailValidator, requiredValidator } from '../../../utils/fieldValidators';
 import { useAppDispatch, useAppSelector } from '../../../redux/hooks';
 import {
+  clearAccountNotice,
   clearError,
   loginThunk,
   requestOtpThunk,
+  selectAccountNotice,
   selectAuthError,
   selectAuthLoading,
 } from '../../../redux/slices/authSlice';
@@ -30,6 +33,7 @@ const LoginForm: React.FC = () => {
   const dispatch = useAppDispatch();
   const loading = useAppSelector(selectAuthLoading);
   const serverError = useAppSelector(selectAuthError);
+  const accountNotice = useAppSelector(selectAccountNotice);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -54,15 +58,46 @@ const LoginForm: React.FC = () => {
     dispatch(clearError());
   }, [dispatch]);
 
+  const dismissAccountNotice = useCallback(() => {
+    dispatch(clearAccountNotice());
+  }, [dispatch]);
+
+  const openContactUs = useCallback(() => {
+    const prefill = accountNotice?.email ?? email.trim();
+    dispatch(clearAccountNotice());
+    requestAnimationFrame(() => {
+      navigation.navigate('ContactUs', {
+        email: prefill || undefined,
+        subject: 'Account deactivated',
+      });
+    });
+  }, [accountNotice, email, dispatch, navigation]);
+
+  const goToPasswordSetup = useCallback(
+    (address: string) => {
+      setPassword('');
+      navigation.navigate('ForgotPassword', { email: address, purpose: 'setup' });
+    },
+    [navigation],
+  );
+
   const handleLogin = useCallback(async () => {
     if (loading || !validateForm()) {
       return;
     }
-    const action = await dispatch(loginThunk({ email: email.trim(), password }));
-    if (loginThunk.rejected.match(action) && action.payload?.requiresVerification) {
-      navigation.navigate('Otp', { email: email.trim(), mode: 'login' });
+    const address = email.trim();
+    const action = await dispatch(loginThunk({ email: address, password }));
+    if (!loginThunk.rejected.match(action)) {
+      return;
     }
-  }, [loading, validateForm, dispatch, email, password, navigation]);
+    if (action.payload?.passwordChangeRequired) {
+      goToPasswordSetup(address);
+      return;
+    }
+    if (action.payload?.requiresVerification) {
+      navigation.navigate('Otp', { email: address, mode: 'login' });
+    }
+  }, [loading, validateForm, dispatch, email, password, navigation, goToPasswordSetup]);
 
   const handleOtpLogin = useCallback(async () => {
     if (loading || otpLoading) {
@@ -84,10 +119,15 @@ const LoginForm: React.FC = () => {
         code: action.payload?.code,
         mode: 'login',
       });
-    } else {
-      setOtpError(action.payload?.message ?? 'Could not send the code. Please try again.');
+      return;
     }
-  }, [loading, otpLoading, validateField, dispatch, email, navigation]);
+
+    if (action.payload?.passwordChangeRequired) {
+      goToPasswordSetup(email.trim());
+      return;
+    }
+    setOtpError(action.payload?.message ?? 'Could not send the code. Please try again.');
+  }, [loading, otpLoading, validateField, dispatch, email, navigation, goToPasswordSetup]);
 
   return (
     <KeyboardAwareScrollView
@@ -120,7 +160,11 @@ const LoginForm: React.FC = () => {
 
       <TouchableOpacity
         style={styles.forgot}
-        onPress={() => navigation.navigate('ForgotPassword')}
+        onPress={() =>
+          navigation.navigate('ForgotPassword', {
+            email: email.trim() || undefined,
+          })
+        }
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
         <AppText style={styles.forgotText}>Forgot password?</AppText>
       </TouchableOpacity>
@@ -151,6 +195,18 @@ const LoginForm: React.FC = () => {
         variant="outline"
         loading={otpLoading}
         disabled={loading}
+      />
+
+      <ConfirmDialog
+        visible={Boolean(accountNotice)}
+        tone="danger"
+        icon={ICONS.ACCOUNT_ALERT}
+        title="Account deactivated"
+        message={accountNotice?.message}
+        confirmLabel="Contact Us"
+        cancelLabel="Close"
+        onConfirm={openContactUs}
+        onClose={dismissAccountNotice}
       />
     </KeyboardAwareScrollView>
   );

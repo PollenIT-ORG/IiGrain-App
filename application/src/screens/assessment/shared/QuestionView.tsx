@@ -15,7 +15,7 @@ import { COLORS, borderRadius, spacing } from '../../../constants';
 import { moderateScale, scale } from '../../../utils';
 import SectionHeader from '../../../components/assessment/SectionHeader';
 import QuestionHeader from '../../../components/assessment/QuestionHeader';
-import ScoreSelector from '../../../components/assessment/ScoreSelector';
+import AnswerInput from '../../../components/assessment/questionTypes/AnswerInput';
 import QuestionFooter from '../../../components/assessment/QuestionFooter';
 import EvidenceUploader, {
   type EvidenceMedia,
@@ -25,17 +25,64 @@ import CategoryCompleteModal from '../../../components/assessment/CategoryComple
 import { uploadEvidenceFile } from '../../../api/assessmentApi';
 import { showSuccess, showToast } from '../../../services/toastService';
 import type {
+  AssessmentQuestionDetail,
   AssessmentQuestionListItem,
-  QuestionScore,
 } from '../../../types/assessment';
 import { buildAnswerPayload } from '../../../utils/answerPayload';
+import {
+  EMPTY_ANSWER_VALUE,
+  answerValueFromDetail,
+  hasAnswerValue,
+  type AnswerLocalValue,
+} from '../../../utils/answerValue';
 import { styles } from '../AssessmentQuestionDetailScreenStyle';
 import { useAssessmentFlow } from './useAssessmentFlow';
 import type { AssessmentRole, FlowNavigation } from './flowTypes';
 
-const COMMENT_MAX = 500;
+const COMMENT_MAX = 2000;
 
 const EMPTY_QUESTIONS: AssessmentQuestionListItem[] = [];
+
+const ANSWER_SECTION_TITLE: Record<string, { edit: string; view: string }> = {
+  scored: { edit: 'Select Score', view: 'Score' },
+  mcq: { edit: 'Select an Answer', view: 'Answer' },
+  text: { edit: 'Your Answer', view: 'Answer' },
+  long_text: { edit: 'Your Answer', view: 'Answer' },
+  number: { edit: 'Enter a Number', view: 'Answer' },
+  date: { edit: 'Select a Date', view: 'Answer' },
+  boolean: { edit: 'Select Yes or No', view: 'Answer' },
+};
+
+const MISSING_ANSWER_MESSAGE: Record<string, string> = {
+  scored: 'Please select a score to continue',
+  mcq: 'Please choose an answer to continue',
+  text: 'Please enter an answer to continue',
+  long_text: 'Please enter an answer to continue',
+  number: 'Please enter a number to continue',
+  date: 'Please select a date to continue',
+  boolean: 'Please select Yes or No to continue',
+};
+
+export const missingAnswerReason = (
+  questionDetail: AssessmentQuestionDetail | null,
+  answerValue: AnswerLocalValue,
+  comment: string,
+  evidenceUrls: string[],
+): string => {
+  if (!questionDetail) {
+    return 'Please answer to continue';
+  }
+  if (!hasAnswerValue(questionDetail.questionType, answerValue)) {
+    return MISSING_ANSWER_MESSAGE[questionDetail.questionType] ?? 'Please answer to continue';
+  }
+  if (questionDetail.commentMode === 'required' && !comment.trim()) {
+    return 'Please add a description to continue';
+  }
+  if (questionDetail.evidenceMode === 'required' && evidenceUrls.length === 0) {
+    return 'Please add a photo to continue';
+  }
+  return 'Please answer to continue';
+};
 
 type SavingAction = 'draft' | 'next' | null;
 
@@ -75,11 +122,12 @@ const QuestionView: React.FC<QuestionViewProps> = ({ role, params, navigation })
     goToFieldSummary,
   } = flow;
 
-  const [score, setScore] = useState<QuestionScore | null>(null);
+  const [answerValue, setAnswerValue] = useState<AnswerLocalValue>(EMPTY_ANSWER_VALUE);
   const [comment, setComment] = useState('');
   const [evidenceUrls, setEvidenceUrls] = useState<string[]>([]);
   const [evidenceUploading, setEvidenceUploading] = useState(false);
   const [savingAction, setSavingAction] = useState<SavingAction>(null);
+  const [conflictNonce, setConflictNonce] = useState(0);
   const [completionVisible, setCompletionVisible] = useState(false);
   const [lockedOpen, setLockedOpen] = useState(false);
 
@@ -119,14 +167,14 @@ const QuestionView: React.FC<QuestionViewProps> = ({ role, params, navigation })
   const detailReady = !!questionDetail && questionDetail.id === questionId;
 
   useEffect(() => {
-    setScore(null);
+    setAnswerValue(EMPTY_ANSWER_VALUE);
     setComment('');
     setEvidenceUrls([]);
   }, [questionId]);
 
   useEffect(() => {
     if (questionDetail && questionDetail.id === questionId) {
-      setScore(questionDetail.answerScore);
+      setAnswerValue(answerValueFromDetail(questionDetail));
       setComment(questionDetail.answerComment ?? '');
     }
   }, [questionDetail, questionId]);
@@ -156,7 +204,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({ role, params, navigation })
   type NextStep =
     | { kind: 'question'; id: string }
     | { kind: 'finish' }
-    | { kind: 'needsScore' };
+    | { kind: 'needsAnswer' };
 
   const resolveNextStep = useCallback(
     (currentAnswered: boolean): NextStep | null => {
@@ -170,7 +218,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({ role, params, navigation })
         if (next) {
           return { kind: 'question', id: next.id };
         }
-        return currentAnswered ? { kind: 'finish' } : { kind: 'needsScore' };
+        return currentAnswered ? { kind: 'finish' } : { kind: 'needsAnswer' };
       }
 
       const answeredIds = new Set(questions.filter(q => q.answered).map(q => q.id));
@@ -184,15 +232,22 @@ const QuestionView: React.FC<QuestionViewProps> = ({ role, params, navigation })
         return { kind: 'question', id: target.id };
       }
 
-      return currentAnswered ? { kind: 'finish' } : { kind: 'needsScore' };
+      return currentAnswered ? { kind: 'finish' } : { kind: 'needsAnswer' };
     },
     [questions, questionId, categoryAlreadyComplete],
   );
 
+  const currentValueFilled =
+    detailReady && !!questionDetail
+      ? hasAnswerValue(questionDetail.questionType, answerValue) &&
+        (questionDetail.commentMode !== 'required' || comment.trim().length > 0) &&
+        (questionDetail.evidenceMode !== 'required' || evidenceUrls.length > 0)
+      : false;
+
   const willBeAnswered =
     detailReady &&
     !!questionDetail &&
-    ((score !== null && !questionDetail.locked) || questionDetail.answered);
+    ((currentValueFilled && !questionDetail.locked) || questionDetail.answered);
 
   const primaryLabel = useMemo(() => {
     if (!categoryReady) {
@@ -222,8 +277,10 @@ const QuestionView: React.FC<QuestionViewProps> = ({ role, params, navigation })
       showToast('This assessment is locked and can no longer be edited.', { type: 'error' });
       return false;
     }
-    if (score === null) {
-      showToast('Please select a score to continue', { type: 'error' });
+    if (!questionDetail || !currentValueFilled) {
+      showToast(missingAnswerReason(questionDetail, answerValue, comment, evidenceUrls), {
+        type: 'error',
+      });
       return false;
     }
     if (evidenceUploading) {
@@ -231,7 +288,8 @@ const QuestionView: React.FC<QuestionViewProps> = ({ role, params, navigation })
       return false;
     }
     const body = buildAnswerPayload(
-      score,
+      questionDetail.questionType,
+      answerValue,
       comment,
       evidenceUrls,
       detailReady && questionDetail
@@ -241,21 +299,40 @@ const QuestionView: React.FC<QuestionViewProps> = ({ role, params, navigation })
           }
         : null,
     );
-    if (__DEV__) {
-      console.log('[assessment] saveAnswer body →', JSON.stringify(body, null, 2));
+    const result = await saveAnswer({ programId, fieldId, questionId, input: body });
+    if (result.conflict) {
+      setConflictNonce(n => n + 1);
+      loadCategoryQuestions({ programId, fieldId, categoryId });
+      loadQuestionDetail({ programId, fieldId, categoryId, questionId });
     }
-    return saveAnswer({ programId, fieldId, questionId, input: body });
+    if (result.closed) {
+      showToast(
+        "This program's assessment is not open yet. It opens once the program office locks the survey.",
+        { type: 'error' },
+      );
+      loadSummary({ programId, fieldId });
+    } else if (!result.ok && !result.conflict) {
+      showToast(result.message ?? 'Could not save this answer. Please try again.', {
+        type: 'error',
+      });
+    }
+    return result.ok;
   }, [
     saveAnswer,
     detailReady,
     questionDetail,
-    score,
+    answerValue,
+    currentValueFilled,
     comment,
     evidenceUrls,
     evidenceUploading,
     programId,
     fieldId,
+    categoryId,
     questionId,
+    loadCategoryQuestions,
+    loadQuestionDetail,
+    loadSummary,
   ]);
 
   const handleSaveDraft = useCallback(async () => {
@@ -269,7 +346,7 @@ const QuestionView: React.FC<QuestionViewProps> = ({ role, params, navigation })
 
   const handleNext = useCallback(async () => {
     let savedNow = false;
-    if (score !== null && !questionDetail?.locked) {
+    if (currentValueFilled && !questionDetail?.locked) {
       if (evidenceUploading) {
         showToast('Please wait for evidence to finish uploading.', { type: 'error' });
         return;
@@ -296,8 +373,10 @@ const QuestionView: React.FC<QuestionViewProps> = ({ role, params, navigation })
       return;
     }
 
-    if (step?.kind === 'needsScore') {
-      showToast('Please select a score to continue', { type: 'error' });
+    if (step?.kind === 'needsAnswer') {
+      showToast(missingAnswerReason(questionDetail, answerValue, comment, evidenceUrls), {
+        type: 'error',
+      });
       return;
     }
 
@@ -308,8 +387,11 @@ const QuestionView: React.FC<QuestionViewProps> = ({ role, params, navigation })
 
     setCompletionVisible(true);
   }, [
-    score,
+    currentValueFilled,
     questionDetail,
+    answerValue,
+    comment,
+    evidenceUrls,
     detailReady,
     evidenceUploading,
     persist,
@@ -348,8 +430,9 @@ const QuestionView: React.FC<QuestionViewProps> = ({ role, params, navigation })
             <AppIcon name={ICONS.LOCK} size={moderateScale(30)} color={COLORS.accent} />
           </View>
           <AppText style={styles.stateTitle}>
-            You can answer this once you are on{' '}
-            {summary?.field.name ?? 'the field'} and the visit is marked as arrived.
+            {access.state === 'program_not_open'
+              ? "This assessment opens once the program office locks the survey — you'll be notified."
+              : `You can answer this once you are on ${summary?.field.name ?? 'the field'} and the visit is marked as arrived.`}
           </AppText>
           <Button
             title="What do I need to do?"
@@ -472,56 +555,81 @@ const QuestionView: React.FC<QuestionViewProps> = ({ role, params, navigation })
         ) : null}
 
         <View style={styles.section}>
-          <SectionHeader title={locked ? 'Score' : 'Select Score'} />
-          <ScoreSelector
-            value={score}
-            onChange={setScore}
+          <SectionHeader
+            title={ANSWER_SECTION_TITLE[questionDetail.questionType]?.[locked ? 'view' : 'edit'] ??
+              (locked ? 'Answer' : 'Select Score')}
+          />
+          <AnswerInput
+            questionType={questionDetail.questionType}
+            value={answerValue}
+            onChange={setAnswerValue}
+            options={questionDetail.options}
+            scoreDescriptions={questionDetail.scoreDescriptions}
             readOnly={locked}
-            descriptions={questionDetail.scoreDescriptions}
           />
         </View>
 
-        <View style={styles.section}>
-          <SectionHeader title={locked ? 'Comments' : 'Evidence / Comments'} />
-          {locked ? (
-            <View style={styles.readonlyBox}>
-              <AppText
-                style={styles.readonlyText}
-                color={hasComment ? COLORS.gray900 : COLORS.gray500}>
-                {hasComment ? comment.trim() : 'No comment was added.'}
-              </AppText>
-            </View>
-          ) : (
-            <View style={styles.commentBox}>
-              <AppTextInput
-                style={styles.commentInput}
-                placeholder="Describe the evidence or add context…"
-                placeholderTextColor={COLORS.gray500}
-                value={comment}
-                onChangeText={setComment}
-                multiline
-                maxLength={COMMENT_MAX}
-                textAlignVertical="top"
-              />
-              <AppText style={styles.charCount} color={COLORS.gray500}>
-                {comment.length}/{COMMENT_MAX}
-              </AppText>
-            </View>
-          )}
-        </View>
+        {questionDetail.commentMode !== 'off' ? (
+          <View style={styles.section}>
+            <SectionHeader
+              title={
+                locked
+                  ? 'Comments'
+                  : questionDetail.commentMode === 'required'
+                    ? 'Description (required)'
+                    : 'Description (optional)'
+              }
+            />
+            {locked ? (
+              <View style={styles.readonlyBox}>
+                <AppText
+                  style={styles.readonlyText}
+                  color={hasComment ? COLORS.gray900 : COLORS.gray500}>
+                  {hasComment ? comment.trim() : 'No comment was added.'}
+                </AppText>
+              </View>
+            ) : (
+              <View style={styles.commentBox}>
+                <AppTextInput
+                  style={styles.commentInput}
+                  placeholder="Describe the evidence or add context…"
+                  placeholderTextColor={COLORS.gray500}
+                  value={comment}
+                  onChangeText={setComment}
+                  multiline
+                  maxLength={COMMENT_MAX}
+                  textAlignVertical="top"
+                />
+                <AppText style={styles.charCount} color={COLORS.gray500}>
+                  {comment.length}/{COMMENT_MAX}
+                </AppText>
+              </View>
+            )}
+          </View>
+        ) : null}
 
-        <View style={styles.section}>
-          <SectionHeader title={locked ? 'Evidence' : 'Upload Evidence'} />
-          <EvidenceUploader
-            key={questionId}
-            initialUrls={questionDetail.answerEvidenceUrls}
-            onChange={handleEvidence}
-            upload={uploadEvidence}
-            disabled={locked}
-            maxSelection={5}
-            maxSizeMB={50}
-          />
-        </View>
+        {questionDetail.evidenceMode !== 'off' ? (
+          <View style={styles.section}>
+            <SectionHeader
+              title={
+                locked
+                  ? 'Evidence'
+                  : questionDetail.evidenceMode === 'required'
+                    ? 'Evidence (required)'
+                    : 'Evidence (optional)'
+              }
+            />
+            <EvidenceUploader
+              key={`${questionId}-${conflictNonce}`}
+              initialUrls={questionDetail.answerEvidenceUrls}
+              onChange={handleEvidence}
+              upload={uploadEvidence}
+              disabled={locked}
+              maxSelection={5}
+              maxSizeMB={50}
+            />
+          </View>
+        ) : null}
       </KeyboardAwareScrollView>
 
       <View style={{ paddingBottom: insets.bottom + scale(8) }}>

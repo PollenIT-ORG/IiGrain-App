@@ -7,15 +7,15 @@ import {
 import { useListFieldsQuery } from "../store/endpoints/fieldsApi";
 import { showSuccess, showError } from "../lib/toast";
 import { useConfirmCascadeDelete } from "../lib/confirmDelete";
+import { useHere } from "../lib/returnTo";
 import { useDialog } from "../components/ui/DialogProvider";
 import Loader from "../components/Loader";
+import Breadcrumbs from "../components/ui/Breadcrumbs";
 import {
-  ChevronLeftIcon,
   EditIcon,
   RefreshIcon,
   TrashIcon,
 } from "../components/icons";
-import FarmMonitoringCard from "../components/fieldMonitoring/FarmMonitoringCard";
 
 function errMsg(err: unknown): string {
   return (
@@ -34,6 +34,7 @@ export default function FarmDetail() {
   const navigate = useNavigate();
   const { confirm } = useDialog();
   const { id = "" } = useParams();
+  const here = useHere();
 
   const { data: farm, isLoading, isError, error } = useGetFarmQuery(id, {
     skip: !id,
@@ -91,13 +92,7 @@ export default function FarmDetail() {
   if (isError || !farm) {
     return (
       <div className="space-y-4">
-        <button
-          onClick={() => navigate("/farms")}
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to farms
-        </button>
+        <Breadcrumbs items={[{ label: "Farms", to: "/farms" }, { label: "Farm" }]} />
         <div className="card px-5 py-16 text-center text-sm text-gray-500">
           {errMsg(error) || "Farm not found."}
         </div>
@@ -108,13 +103,10 @@ export default function FarmDetail() {
   return (
     <div className="space-y-6">
       <div>
-        <button
-          onClick={() => navigate("/farms")}
-          className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to farms
-        </button>
+        <Breadcrumbs
+          className="mb-2"
+          items={[{ label: "Farms", to: "/farms" }, { label: farm.name }]}
+        />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{farm.name}</h1>
@@ -139,7 +131,7 @@ export default function FarmDetail() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => navigate(`/farms/${farm.id}/edit`)}
+              onClick={() => navigate(`/farms/${farm.id}/edit`, { state: here })}
               className="btn-secondary"
             >
               <EditIcon width={16} height={16} />
@@ -233,7 +225,6 @@ export default function FarmDetail() {
         )}
       </div>
 
-      <FarmMonitoringCard farmId={id ?? ""} />
     </div>
   );
 }

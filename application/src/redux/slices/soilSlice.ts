@@ -4,18 +4,54 @@ import * as soilApi from '../../api/soilApi';
 import type { SoilRecordResult } from '../../api/soilApi';
 import type { SaveSoilInput, SoilRecord } from '../../types/fieldDetails';
 import { handleApiError, StandardizedError } from '../../utils/handleApiError';
+import { asOwnerUserId, isDatabaseReady } from '../../services/db';
+import type { OwnerUserId } from '../../services/db/types';
+import {
+  cacheFieldSoil,
+  readCachedFieldSoil,
+  resolveFieldRow,
+  soilFromRow,
+} from '../../services/sync/farmCache';
+import { saveSoilOffline } from '../../services/sync';
+import { getSoil } from '../../repositories/fieldSoilRepository';
 
 type ThunkConfig = { rejectValue: StandardizedError };
+
+interface AuthStateSlice {
+  auth?: { user?: { id?: string } | null } | null;
+}
+
+const ownerFrom = (getState: () => unknown): OwnerUserId | null => {
+  if (!isDatabaseReady()) {
+    return null;
+  }
+  const userId = (getState() as AuthStateSlice).auth?.user?.id;
+  return userId ? asOwnerUserId(userId) : null;
+};
 
 export const fetchFieldSoilRecordThunk = createAsyncThunk<
   SoilRecordResult,
   string,
   ThunkConfig
->('soil/fetch', async (fieldId, { rejectWithValue }) => {
+>('soil/fetch', async (fieldId, { getState, rejectWithValue }) => {
+  const owner = ownerFrom(getState);
   try {
-    return await soilApi.getFieldSoilRecord(fieldId);
+    const result = await soilApi.getFieldSoilRecord(fieldId);
+    if (owner) {
+      await cacheFieldSoil(owner, fieldId, result.record, result.locked).catch(
+        () => undefined,
+      );
+    }
+    return result;
   } catch (error) {
-    return rejectWithValue(handleApiError(error));
+    const standardized = handleApiError(error);
+    if (owner && standardized.kind === 'offline') {
+      const cached = await readCachedFieldSoil(owner, fieldId).catch(() => null);
+      if (cached) {
+        return cached;
+      }
+    }
+    return rejectWithValue(standardized);
   }
 });
 
@@ -28,11 +64,33 @@ export const saveFieldSoilThunk = createAsyncThunk<
   SoilRecordResult,
   SaveSoilArg,
   ThunkConfig
->('soil/save', async ({ fieldId, input }, { rejectWithValue }) => {
+>('soil/save', async ({ fieldId, input }, { getState, rejectWithValue }) => {
+  const owner = ownerFrom(getState);
   try {
-    return await soilApi.saveFieldSoil(fieldId, input);
+    const result = await soilApi.saveFieldSoil(fieldId, input);
+    if (owner) {
+      await cacheFieldSoil(owner, fieldId, result.record, result.locked).catch(
+        () => undefined,
+      );
+    }
+    return result;
   } catch (error) {
-    return rejectWithValue(handleApiError(error));
+    const standardized = handleApiError(error);
+    if (owner && standardized.kind === 'offline') {
+      const field = await resolveFieldRow(owner, fieldId).catch(() => null);
+      if (field) {
+        try {
+          await saveSoilOffline(owner, field.local_id, input);
+          const row = await getSoil(owner, field.local_id);
+          if (row) {
+            return { record: soilFromRow(row), locked: row.locked === 1 };
+          }
+        } catch {
+          return rejectWithValue(standardized);
+        }
+      }
+    }
+    return rejectWithValue(standardized);
   }
 });
 

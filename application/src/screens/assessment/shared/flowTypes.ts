@@ -6,9 +6,11 @@ import type {
   AssessmentReview,
   AssessmentSubmitResult,
   CategoryQuestionList,
+  CategoryQuestionSet,
   FieldAssessmentSummary,
   FieldRegenIndex,
   SaveAnswerInput,
+  SaveFormAnswerInput,
 } from '../../../types/assessment';
 import type { ResumePoint } from '../../../redux/slices/assessmentProgressSlice';
 
@@ -36,6 +38,31 @@ export interface FlowSaveAnswerArg extends FlowScope {
   input: SaveAnswerInput;
 }
 
+export interface SaveAnswerResult {
+  ok: boolean;
+  conflict: boolean;
+  closed: boolean;
+  message: string | null;
+}
+
+export interface FlowSaveCategoryAnswersArg extends FlowCategoryScope {
+  answers: SaveFormAnswerInput[];
+}
+
+export interface FlowRecordScope extends FlowCategoryScope {
+  recordId: string;
+}
+
+export interface FlowSaveRecordArg extends FlowRecordScope {
+  answers: SaveFormAnswerInput[];
+}
+
+export interface SaveCategoryAnswersResult {
+  ok: boolean;
+  closed: boolean;
+  message: string | null;
+}
+
 export interface FlowNavigation {
   navigate: (screen: string, params?: object) => void;
   setParams: (params: object) => void;
@@ -50,7 +77,12 @@ export interface FlowRoutes {
   review: string;
 }
 
-export type AssessmentAccessState = 'open' | 'no_visit' | 'other_field' | 'en_route';
+export type AssessmentAccessState =
+  | 'open'
+  | 'no_visit'
+  | 'other_field'
+  | 'en_route'
+  | 'program_not_open';
 
 export interface AssessmentAccess {
   locked: boolean;
@@ -80,6 +112,7 @@ export interface AssessmentFlow {
   categories: AssessmentCategorySummary[];
   categoryList: CategoryQuestionList | null;
   questions: AssessmentQuestionListItem[];
+  categoryForm: CategoryQuestionSet | null;
   questionDetail: AssessmentQuestionDetail | null;
   review: AssessmentReview | null;
   submitResult: AssessmentSubmitResult | null;
@@ -95,6 +128,8 @@ export interface AssessmentFlow {
 
   loadingSummary: boolean;
   loadingQuestions: boolean;
+  loadingCategoryForm: boolean;
+  savingCategoryForm: boolean;
   loadingQuestion: boolean;
   loadingReview: boolean;
   loadingRegenIndex: boolean;
@@ -106,9 +141,15 @@ export interface AssessmentFlow {
   loadSummary: (scope: FlowScope) => void;
   refreshSummary: (scope: FlowScope) => void;
   loadCategoryQuestions: (scope: FlowCategoryScope) => Promise<void>;
+  loadCategoryForm: (scope: FlowCategoryScope) => Promise<void>;
+  saveCategoryAnswers: (arg: FlowSaveCategoryAnswersArg) => Promise<SaveCategoryAnswersResult>;
+  addCategoryRecord: (arg: FlowSaveCategoryAnswersArg) => Promise<SaveCategoryAnswersResult>;
+  saveCategoryRecord: (arg: FlowSaveRecordArg) => Promise<SaveCategoryAnswersResult>;
+  deleteCategoryRecord: (arg: FlowRecordScope) => Promise<SaveCategoryAnswersResult>;
   loadQuestionDetail: (scope: FlowQuestionScope) => void;
-  saveAnswer: (arg: FlowSaveAnswerArg) => Promise<boolean>;
+  saveAnswer: (arg: FlowSaveAnswerArg) => Promise<SaveAnswerResult>;
   loadReview: (scope: FlowScope) => void;
+  loadFieldHistory: (scope: FlowScope) => void;
   submitAssessment: (scope: FlowScope) => Promise<boolean>;
   clearSubmitResult: () => void;
   loadRegenIndex: (scope: FlowScope) => void;

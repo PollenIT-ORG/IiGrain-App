@@ -135,10 +135,16 @@ export const fieldsApi = apiSlice.injectEndpoints({
       providesTags: (_r, _e, id) => [{ type: "FieldDocuments", id }],
     }),
 
-    getAssessmentComparison: build.query<AssessmentComparison, string>({
-      query: (id) => ({ url: `/fields/${id}/assessment-comparison` }),
+    getAssessmentComparison: build.query<
+      AssessmentComparison,
+      { id: string; programId?: string }
+    >({
+      query: ({ id, programId }) => ({
+        url: `/fields/${id}/assessment-comparison`,
+        params: programId ? { programId } : undefined,
+      }),
       transformResponse: (r: { data: AssessmentComparison }) => r.data,
-      providesTags: (_r, _e, id) => [{ type: "Field", id }],
+      providesTags: (_r, _e, { id }) => [{ type: "Field", id }],
     }),
   }),
 });

@@ -7,18 +7,26 @@ import { useAppSelector } from '../../redux/hooks';
 import { selectAuthUser } from '../../redux/slices/authSlice';
 import { MAX_PAGE_LIMIT } from '../../types/pagination';
 import type { AvailableProgram } from '../../types/enrollment';
-import type { Farm, Field } from '../../types/farm';
+import type { Field } from '../../types/farm';
 import { handleApiError } from '../../utils/handleApiError';
 
 export interface FarmRef {
   id: string;
   name: string;
+  location: string;
+  fieldCount: number;
 }
 
 export interface FieldRef {
   id: string;
   farmId: string;
+  farmName: string;
   name: string;
+  crop: string;
+  areaAcres: number;
+  hasBoundary: boolean;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface OnboardingSnapshot {
@@ -28,7 +36,8 @@ export interface OnboardingSnapshot {
   boundaryCount: number;
   enrolledAcres: number | null;
   firstFarm: FarmRef | null;
-  firstField: FieldRef | null;
+  farms: FarmRef[];
+  fields: FieldRef[];
 }
 
 export interface OnboardingData {
@@ -46,7 +55,8 @@ const EMPTY: OnboardingSnapshot = {
   boundaryCount: 0,
   enrolledAcres: null,
   firstFarm: null,
-  firstField: null,
+  farms: [],
+  fields: [],
 };
 
 const MAX_FARMS_SCANNED = 10;
@@ -54,7 +64,7 @@ const MAX_FARMS_SCANNED = 10;
 const pickProgram = (programs: readonly AvailableProgram[]): AvailableProgram | null =>
   programs.find(p => p.alreadyEnrolled) ?? programs.find(p => p.canEnroll) ?? null;
 
-const enrolledAcresOf = (
+export const enrolledAcresOf = (
   program: AvailableProgram | null,
   fields: readonly Field[],
 ): number | null => {
@@ -62,52 +72,90 @@ const enrolledAcresOf = (
     return null;
   }
   const enrolled = new Set(program.fields.filter(f => f.enrolled).map(f => f.id));
-  if (enrolled.size === 0) {
-    return null;
+  if (enrolled.size > 0) {
+    const acres = fields
+      .filter(f => enrolled.has(f.id))
+      .reduce((sum, f) => sum + (f.areaAcres || 0), 0);
+    if (acres > 0) {
+      return acres;
+    }
   }
-  const acres = fields
-    .filter(f => enrolled.has(f.id))
-    .reduce((sum, f) => sum + (f.areaAcres || 0), 0);
-  return acres > 0 ? acres : null;
+  return program.surveyAcres;
 };
 
 const settled = <T>(result: PromiseSettledResult<T>, fallback: T): T =>
   result.status === 'fulfilled' ? result.value : fallback;
 
-const loadSnapshot = async (): Promise<OnboardingSnapshot> => {
+const loadSnapshot = async (
+  withProgram: boolean,
+  carried: OnboardingSnapshot,
+): Promise<OnboardingSnapshot> => {
   const [programsResult, farmsResult] = await Promise.allSettled([
-    getAvailablePrograms(),
+    withProgram ? getAvailablePrograms() : Promise.resolve<AvailableProgram[]>([]),
     getMyFarms({ page: 1, limit: MAX_PAGE_LIMIT }),
   ]);
-  if (programsResult.status === 'rejected' && farmsResult.status === 'rejected') {
-    throw programsResult.reason;
+  if (farmsResult.status === 'rejected') {
+    throw farmsResult.reason;
   }
 
   const programs = settled<AvailableProgram[]>(programsResult, []);
-  const farms = settled<{ farms: Farm[] }>(farmsResult, { farms: [] }).farms;
-  const program = pickProgram(programs);
+  const farms = farmsResult.value.farms;
+  const program = withProgram ? pickProgram(programs) : carried.program;
 
-  const scanned = farms.filter(f => f.fieldsCount > 0).slice(0, MAX_FARMS_SCANNED);
+  const scanned = farms.slice(0, MAX_FARMS_SCANNED);
+  const farmNames = new Map(scanned.map(f => [f.id, f.name]));
   const fieldResults = await Promise.allSettled(scanned.map(f => getFarmFields(f.id)));
   const fields = fieldResults.flatMap(r => settled<Field[]>(r, []));
 
-  const firstFarm = farms[0] ? { id: farms[0].id, name: farms[0].name } : null;
-  const first = fields[0];
+  const refs: FieldRef[] = fields.map(field => ({
+    id: field.id,
+    farmId: field.farmId,
+    farmName: farmNames.get(field.farmId) ?? '',
+    name: field.name,
+    crop: field.crop ?? '',
+    areaAcres: field.areaAcres ?? 0,
+    hasBoundary: field.hasBoundary === true,
+    latitude: field.latitude ?? null,
+    longitude: field.longitude ?? null,
+  }));
+
+  const countByFarm = new Map<string, number>();
+  for (const ref of refs) {
+    countByFarm.set(ref.farmId, (countByFarm.get(ref.farmId) ?? 0) + 1);
+  }
+
+  const farmRefs: FarmRef[] = farms.map(farm => ({
+    id: farm.id,
+    name: farm.name,
+    location: farm.location ?? '',
+    fieldCount: Math.max(countByFarm.get(farm.id) ?? 0, farm.fieldsCount || 0),
+  }));
+
+  const reported = farms.reduce((sum, f) => sum + (f.fieldsCount || 0), 0);
 
   return {
     program,
     farmCount: farms.length,
-    fieldCount: farms.reduce((sum, f) => sum + (f.fieldsCount || 0), 0),
-    boundaryCount: fields.filter(f => f.hasBoundary).length,
-    enrolledAcres: enrolledAcresOf(program, fields),
-    firstFarm,
-    firstField: first ? { id: first.id, farmId: first.farmId, name: first.name } : null,
+    fieldCount: Math.max(reported, refs.length),
+    boundaryCount: refs.filter(f => f.hasBoundary).length,
+    enrolledAcres: withProgram
+      ? enrolledAcresOf(program, fields)
+      : carried.enrolledAcres,
+    firstFarm: farmRefs[0] ?? null,
+    farms: farmRefs,
+    fields: refs,
   };
 };
 
 let cache: { userId: string; data: OnboardingSnapshot } | null = null;
 
-export const useOnboardingData = (): OnboardingData => {
+export interface OnboardingDataOptions {
+  withProgram?: boolean;
+}
+
+export const useOnboardingData = ({
+  withProgram = true,
+}: OnboardingDataOptions = {}): OnboardingData => {
   const userId = useAppSelector(selectAuthUser)?.id ?? '';
   const fresh = cache && cache.userId === userId ? cache : null;
 
@@ -135,7 +183,7 @@ export const useOnboardingData = (): OnboardingData => {
     }
     inFlight.current = true;
     setLoading(true);
-    loadSnapshot()
+    loadSnapshot(withProgram, cache?.userId === userId ? cache.data : EMPTY)
       .then(data => {
         cache = { userId, data };
         if (alive.current) {
@@ -155,7 +203,7 @@ export const useOnboardingData = (): OnboardingData => {
           setLoading(false);
         }
       });
-  }, [userId]);
+  }, [userId, withProgram]);
 
   useFocusEffect(
     useCallback(() => {

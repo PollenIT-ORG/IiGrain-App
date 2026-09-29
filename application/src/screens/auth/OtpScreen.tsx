@@ -1,8 +1,15 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AppStatusBar, AppText, AuthHeader, Button, OtpInput } from '../../components';
+import {
+  AppStatusBar,
+  AppText,
+  AuthHeader,
+  AuthStepBar,
+  Button,
+  OtpInput,
+} from '../../components';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
   clearError,
@@ -16,6 +23,7 @@ import {
 } from '../../redux/slices/authSlice';
 import { showSuccess } from '../../services/toastService';
 import type { AuthScreenProps } from '../../navigation/navigationTypes';
+import { PASSWORD_FLOW_STEPS, passwordFlowCopy } from './passwordFlowCopy';
 import { styles } from './OtpScreenStyle';
 
 const OTP_LENGTH = 6;
@@ -63,9 +71,16 @@ const formatMmSs = (totalSeconds: number): string => {
 };
 
 const OtpScreen: React.FC<AuthScreenProps<'Otp'>> = ({ route, navigation }) => {
-  const { email, code: prefillCode, mode = 'verify' } = route.params;
-  const copy = OTP_COPY[mode];
+  const { email, code: prefillCode, mode = 'verify', purpose = 'reset' } = route.params;
   const isReset = mode === 'reset';
+  const copy = useMemo(() => {
+    const base = OTP_COPY[mode];
+    if (!isReset) {
+      return base;
+    }
+    const flow = passwordFlowCopy(purpose).code;
+    return { ...base, title: flow.title, intro: flow.intro, submit: flow.submit };
+  }, [mode, isReset, purpose]);
   const dispatch = useAppDispatch();
   const loading = useAppSelector(selectAuthLoading);
   const serverError = useAppSelector(selectAuthError);
@@ -97,7 +112,7 @@ const OtpScreen: React.FC<AuthScreenProps<'Otp'>> = ({ route, navigation }) => {
       if (isReset) {
         const action = await dispatch(verifyResetCodeThunk({ email, code: otp }));
         if (verifyResetCodeThunk.fulfilled.match(action)) {
-          navigation.navigate('ResetPassword', { email, code: otp });
+          navigation.navigate('ResetPassword', { email, code: otp, purpose });
         } else {
           setCodeError(action.payload?.presentation.message);
         }
@@ -118,10 +133,14 @@ const OtpScreen: React.FC<AuthScreenProps<'Otp'>> = ({ route, navigation }) => {
       }
       const action = await dispatch(verifyOtpThunk({ email, code: otp }));
       if (!verifyOtpThunk.fulfilled.match(action)) {
+        if (action.payload?.passwordChangeRequired) {
+          navigation.navigate('ForgotPassword', { email, purpose: 'setup' });
+          return;
+        }
         setCodeError(action.payload?.presentation.message);
       }
     },
-    [loading, isReset, mode, navigation, dispatch, email],
+    [loading, isReset, mode, purpose, navigation, dispatch, email],
   );
 
   const handleChange = useCallback(
@@ -175,6 +194,10 @@ const OtpScreen: React.FC<AuthScreenProps<'Otp'>> = ({ route, navigation }) => {
         showsVerticalScrollIndicator={false}
         bottomOffset={24}>
         <AuthHeader title={copy.title} subtitle={`${copy.intro}\n${email}`} />
+
+        {isReset ? (
+          <AuthStepBar steps={PASSWORD_FLOW_STEPS} current={2} />
+        ) : null}
 
         <OtpInput
           value={code}

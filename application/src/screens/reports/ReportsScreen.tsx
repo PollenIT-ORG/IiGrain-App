@@ -11,17 +11,17 @@ import { moderateScale, scale } from '../../utils';
 import { metricColor } from '../home/dashboardPresenters';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
-  fetchDashboardFarmsThunk,
-  fetchFarmDashboardThunk,
+  fetchDashboardProgramsThunk,
+  fetchProgramDashboardThunk,
   selectDashboardError,
-  selectDashboardFarms,
-  selectDashboardFarmsError,
-  selectDashboardFarmsLoading,
+  selectDashboardPrograms,
+  selectDashboardProgramsError,
+  selectDashboardProgramsLoading,
   selectDashboardLoading,
-  selectFarmDashboard,
+  selectProgramDashboard,
   selectDashboardYear,
-  selectSelectedFarmId,
-  setSelectedFarmId,
+  selectSelectedProgramId,
+  setSelectedProgramId,
 } from '../../redux/slices/dashboardSlice';
 import type { AppStackParamList } from '../../navigation/navigationTypes';
 import { styles } from './ReportsScreenStyle';
@@ -33,68 +33,68 @@ const ReportsScreen: React.FC = () => {
   const route = useRoute<RouteProp<AppStackParamList, 'Reports'>>();
   const dispatch = useAppDispatch();
 
-  const farms = useAppSelector(selectDashboardFarms);
-  const farmsLoading = useAppSelector(selectDashboardFarmsLoading);
-  const farmsError = useAppSelector(selectDashboardFarmsError);
-  const selectedFarmId = useAppSelector(selectSelectedFarmId);
-  const dashboard = useAppSelector(selectFarmDashboard);
+  const programs = useAppSelector(selectDashboardPrograms);
+  const programsLoading = useAppSelector(selectDashboardProgramsLoading);
+  const programsError = useAppSelector(selectDashboardProgramsError);
+  const selectedProgramId = useAppSelector(selectSelectedProgramId);
+  const dashboard = useAppSelector(selectProgramDashboard);
   const loading = useAppSelector(selectDashboardLoading);
   const error = useAppSelector(selectDashboardError);
   const selectedYear = useAppSelector(selectDashboardYear);
 
-  const routeFarmId = route.params?.farmId;
-  const appliedRouteFarmRef = useRef<string | null>(null);
+  const routeProgramId = route.params?.programId;
+  const appliedRouteProgramRef = useRef<string | null>(null);
   useEffect(() => {
-    if (routeFarmId && appliedRouteFarmRef.current !== routeFarmId) {
-      appliedRouteFarmRef.current = routeFarmId;
-      dispatch(setSelectedFarmId(routeFarmId));
+    if (routeProgramId && appliedRouteProgramRef.current !== routeProgramId) {
+      appliedRouteProgramRef.current = routeProgramId;
+      dispatch(setSelectedProgramId(routeProgramId));
     }
-  }, [dispatch, routeFarmId]);
+  }, [dispatch, routeProgramId]);
 
   useEffect(() => {
-    if (farms.length === 0) {
-      dispatch(fetchDashboardFarmsThunk());
+    if (programs.length === 0) {
+      dispatch(fetchDashboardProgramsThunk());
     }
-  }, [dispatch, farms.length]);
+  }, [dispatch, programs.length]);
 
   useEffect(() => {
-    if (selectedFarmId) {
-      dispatch(fetchFarmDashboardThunk({ farmId: selectedFarmId }));
+    if (selectedProgramId) {
+      dispatch(fetchProgramDashboardThunk({ programId: selectedProgramId }));
     }
-  }, [dispatch, selectedFarmId]);
+  }, [dispatch, selectedProgramId]);
 
   const onRefresh = useCallback(() => {
-    if (selectedFarmId) {
+    if (selectedProgramId) {
       dispatch(
-        fetchFarmDashboardThunk({
-          farmId: selectedFarmId,
+        fetchProgramDashboardThunk({
+          programId: selectedProgramId,
           year: selectedYear ?? undefined,
         }),
       );
     }
-  }, [dispatch, selectedFarmId, selectedYear]);
+  }, [dispatch, selectedProgramId, selectedYear]);
 
   const handleSelectYear = useCallback(
     (value: string) => {
       const year = Number(value);
-      if (!selectedFarmId || !Number.isFinite(year) || year === selectedYear) {
+      if (!selectedProgramId || !Number.isFinite(year) || year === selectedYear) {
         return;
       }
-      dispatch(fetchFarmDashboardThunk({ farmId: selectedFarmId, year }));
+      dispatch(fetchProgramDashboardThunk({ programId: selectedProgramId, year }));
     },
-    [dispatch, selectedFarmId, selectedYear],
+    [dispatch, selectedProgramId, selectedYear],
   );
 
-  const handleSelectFarm = useCallback(
+  const handleSelectProgram = useCallback(
     (id: string) => {
-      dispatch(setSelectedFarmId(id));
+      dispatch(setSelectedProgramId(id));
     },
     [dispatch],
   );
 
-  const farmOptions = useMemo(
-    () => farms.map(f => ({ value: f.id, label: f.name })),
-    [farms],
+  const programOptions = useMemo(
+    () => programs.map(p => ({ value: p.id, label: p.name })),
+    [programs],
   );
 
   const yearOptions = useMemo(() => {
@@ -121,36 +121,24 @@ const ReportsScreen: React.FC = () => {
     [dashboard?.categories],
   );
 
-  console.log('[Reports] dashboard payload', {
-    farmId: selectedFarmId,
-    year: dashboard?.year,
-    availableYears: dashboard?.availableYears,
-    trend: dashboard?.trend,
-    regenHealthIndex: dashboard?.regenHealthIndex,
-    trendVsLastYear: dashboard?.trendVsLastYear,
-    categories: dashboard?.categories?.length,
-    loading,
-    error,
-  });
-
-  const contentKey = `${selectedFarmId ?? ''}:${dashboard?.year ?? ''}`;
+  const contentKey = `${selectedProgramId ?? ''}:${dashboard?.year ?? ''}`;
   const switchingYear = loading && !!dashboard;
 
-  const noFarms = !farmsLoading && !farmsError && farms.length === 0;
-  const showFirstError = !dashboard && !noFarms && !loading && Boolean(error || farmsError);
-  const showFirstLoading = !dashboard && !noFarms && !showFirstError;
+  const noPrograms = !programsLoading && !programsError && programs.length === 0;
+  const showFirstError = !dashboard && !noPrograms && !loading && Boolean(error || programsError);
+  const showFirstLoading = !dashboard && !noPrograms && !showFirstError;
 
   const header = (
     <AppHeader variant="back" title="Reports" onBack={() => navigation.goBack()} />
   );
 
-  if (noFarms) {
+  if (noPrograms) {
     return (
       <View style={styles.safe}>
         {header}
         <FarmerEmptyState
-          title="No farms yet"
-          message="Add a farm and complete an assessment to see your regen report."
+          title="No programs yet"
+          message="Enroll in a program and complete an assessment to see your regen report."
           actionLabel="Go back"
           onAction={() => navigation.goBack()}
         />
@@ -236,11 +224,11 @@ const ReportsScreen: React.FC = () => {
           ) : null}
           <View style={styles.pickerFarm}>
             <AppDropdown
-              value={selectedFarmId}
-              options={farmOptions}
-              onSelect={handleSelectFarm}
-              placeholder="Farm"
-              loading={farmsLoading}
+              value={selectedProgramId}
+              options={programOptions}
+              onSelect={handleSelectProgram}
+              placeholder="Program"
+              loading={programsLoading}
             />
           </View>
         </FadeSlideIn>
@@ -249,7 +237,7 @@ const ReportsScreen: React.FC = () => {
           <View style={styles.stateWrap}>
             <AppIcon name={ICONS.ERROR} size={moderateScale(44)} color={COLORS.gray500} />
             <AppText style={styles.stateTitle}>Couldn't load report</AppText>
-            <AppText style={styles.stateMsg}>{error || farmsError}</AppText>
+            <AppText style={styles.stateMsg}>{error || programsError}</AppText>
             <Button title="Retry" onPress={onRefresh} fullWidth={false} style={styles.retry} />
           </View>
         ) : dashboard ? (

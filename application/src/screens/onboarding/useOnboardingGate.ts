@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
+import { InteractionManager } from 'react-native';
 import { useNavigation, type NavigationProp } from '@react-navigation/native';
-import { useAppDispatch, useAppSelector } from '../../redux/hooks';
+import { useAppSelector } from '../../redux/hooks';
 import { selectAuthUser } from '../../redux/slices/authSlice';
 import {
-  markOnboardingSeen,
   selectOnboardingSeen,
   selectRegisteredOnThisDevice,
 } from '../../redux/slices/onboardingSlice';
@@ -11,7 +11,6 @@ import type { AppStackParamList } from '../../navigation/navigationTypes';
 
 export const useOnboardingGate = (): void => {
   const navigation = useNavigation<NavigationProp<AppStackParamList>>();
-  const dispatch = useAppDispatch();
   const user = useAppSelector(selectAuthUser);
   const userId = user?.id ?? '';
   const seen = useAppSelector(state => selectOnboardingSeen(state, userId));
@@ -20,12 +19,14 @@ export const useOnboardingGate = (): void => {
   );
 
   const fired = useRef(false);
+
   useEffect(() => {
     if (fired.current || !userId || seen || !registeredHere) {
       return;
     }
     fired.current = true;
-    dispatch(markOnboardingSeen(userId));
-    navigation.navigate('OnboardingWelcome');
-  }, [dispatch, navigation, registeredHere, seen, userId]);
+    InteractionManager.runAfterInteractions(() => {
+      navigation.navigate('OnboardingChecklist');
+    });
+  }, [navigation, registeredHere, seen, userId]);
 };

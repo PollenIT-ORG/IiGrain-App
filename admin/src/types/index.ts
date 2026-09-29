@@ -91,6 +91,8 @@ export interface User {
   role: string;
   is_active: boolean;
   is_email_verified: boolean;
+  /** True while the temporary password we emailed is still in place. */
+  must_change_password: boolean;
   last_login_at: string | null;
   created_at: string;
   updated_at: string;
@@ -161,6 +163,15 @@ export interface AssessmentComparison {
       id: string;
       questionCode: string | null;
       questionText: string;
+      maxScore: number;
+      // What each side answered, written out by the server.
+      farmerAnswer: string | null;
+      assessorAnswer: string | null;
+      // How many records each side filled in for this form.
+      farmerRecords: number;
+      assessorRecords: number;
+      farmerAnswered: boolean;
+      assessorAnswered: boolean;
       farmerScore: number | null;
       assessorScore: number | null;
       difference: number | null;
@@ -186,6 +197,13 @@ export interface Program {
   has_survey: boolean;
   created_by: string | null;
   enrolled_count: number;
+  // The program's own copy of an assessment template, and the template it was copied from.
+  assessment_template_id: string;
+  assessment_template_name: string;
+  // Null when the program started blank.
+  assessment_source_template_id: string | null;
+  // Only on the single program read: false once anything has been answered.
+  assessment_template_changeable?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -220,6 +238,8 @@ export interface ProgramEnrollment {
 }
 
 export interface Submission {
+  assessmentId: string;
+  reviewStatus: "in_review" | "approved";
   fieldId: string;
   fieldName: string;
   farmName: string | null;
@@ -236,6 +256,14 @@ export interface Submission {
   submittedAt: string | null;
 }
 
+/** One side of a field's assessment, with the id its review screen opens on. */
+export interface EnrollmentAssessmentSide {
+  submitted: boolean;
+  percentage: number | null;
+  assessmentId: string | null;
+  reviewStatus: "in_review" | "approved" | null;
+}
+
 export interface EnrollmentAssessments {
   enrollment: {
     id: string;
@@ -246,13 +274,141 @@ export interface EnrollmentAssessments {
   };
   fields: Array<{
     field: { id: string; name: string; farm_name: string | null };
-    farmer: { submitted: boolean; percentage: number | null };
-    assessor: { submitted: boolean; percentage: number | null };
+    farmer: EnrollmentAssessmentSide;
+    assessor: EnrollmentAssessmentSide;
   }>;
+}
+
+// "scored" is the 0 to 3 question older templates hold. A new question is
+// either multiple choice, or one of the fields an input based form asks for.
+export type QuestionType =
+  | "scored"
+  | "mcq"
+  | "text"
+  | "long_text"
+  | "number"
+  | "date"
+  | "boolean";
+
+/** What a template holds, and what a question asks for alongside the answer. */
+export type QuestionKind = "mcq" | "input";
+
+export type AnswerExtra = "off" | "optional" | "required";
+
+export interface QuestionOption {
+  id: string;
+  option_text: string;
+  score: number;
+  sort_order: number;
+}
+
+export interface AssessmentTemplate {
+  id: string;
+  owner_id: string | null;
+  is_global: boolean;
+  // Set only on a program's own copy.
+  program_id: string | null;
+  program_name: string | null;
+  copied_from_id: string | null;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  category_count: number;
+  question_count: number;
+  active_question_count: number;
+  linked_program_count: number;
+  // What the template was set up to hold, and what it holds right now.
+  question_kind: QuestionKind | null;
+  kind: QuestionKind | "mixed" | null;
+  // True once an assessment was submitted in a program using it, or an admin locked it.
+  locked: boolean;
+  has_submissions: boolean;
+  locked_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssessmentReview {
+  id: string;
+  field: { id: string; name: string; farmName: string };
+  program: { id: string; name: string };
+  author: { id: string | null; name: string | null; role: "farmer" | "assessor" };
+  totalQuestions: number;
+  answered: number;
+  // Answers still waiting for a score.
+  unscored: number;
+  // Everything this assessment can score, for a score given as a whole.
+  possibleScore: number;
+  totalScore: number;
+  maxScore: number;
+  percentage: number;
+  reviewStatus: "in_review" | "approved";
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  reviewerName: string | null;
+}
+
+export interface AssessmentReviewAnswer {
+  id: string;
+  // Which filling of the form the answer is from; null for multiple choice.
+  recordId: string | null;
+  questionCode: string | null;
+  questionText: string;
+  guidanceNote: string | null;
+  questionType: QuestionType;
+  maxScore: number;
+  evidenceMode: AnswerExtra;
+  commentMode: AnswerExtra;
+  options: { id: string; text: string; score: number }[];
+  answered: boolean;
+  answerScore: number | null;
+  answerOptionId: string | null;
+  answerOptionText: string | null;
+  answerText: string | null;
+  answerNumber: number | null;
+  answerDate: string | null;
+  answerBoolean: boolean | null;
+  answerComment: string | null;
+  answerEvidenceUrls: string[];
+  reviewScore: number | null;
+  finalScore: number | null;
+}
+
+export interface AssessmentReviewDetail {
+  review: AssessmentReview;
+  categories: Array<{
+    id: string;
+    name: string;
+    // Everything this category can score, for a score given per category.
+    possibleScore: number;
+    // Each filling of the form; one with no id for a multiple choice category.
+    records: Array<{
+      id: string | null;
+      number: number | null;
+      // The evidence uploaded at the end of the form.
+      evidenceUrls: string[];
+      questions: AssessmentReviewAnswer[];
+    }>;
+    questions: AssessmentReviewAnswer[];
+  }>;
+}
+
+export interface AssessmentImportProblem {
+  // Where it went wrong: "Row 7", or "Trainings, column B" in a form.
+  where: string;
+  message: string;
+}
+
+export interface AssessmentImportResult {
+  created: number;
+  skipped: number;
+  problems: AssessmentImportProblem[];
 }
 
 export interface AssessmentCategory {
   id: string;
+  template_id: string;
   name: string;
   description: string | null;
   sort_order: number;
@@ -264,10 +420,16 @@ export interface AssessmentCategory {
 
 export interface AssessmentQuestion {
   id: string;
+  template_id: string;
   category_id: string;
   category_name: string;
   question_code: string | null;
   question_text: string;
+  question_type: QuestionType;
+  max_score: number;
+  evidence_mode: AnswerExtra;
+  comment_mode: AnswerExtra;
+  options: QuestionOption[];
   guidance_note: string | null;
   score0_description: string | null;
   score1_description: string | null;
@@ -351,85 +513,40 @@ export interface Assignment {
   updated_at: string;
 }
 
-// ---------------------------------------------------------------------------
-// Field monitoring modules
-// ---------------------------------------------------------------------------
-
-/** The nine monitoring modules a field carries. */
-export type ModuleKey =
-  | "training"
-  | "soil_samples"
-  | "irrigation"
-  | "pesticide"
-  | "fertilizer"
-  | "tillage"
-  | "amendment"
-  | "crop"
-  | "nutrient"
-  | "crop_intensification"
-  | "animal_integration";
-
-export type ModuleStatus = "in_progress" | "completed";
-
-export type DocumentModule = ModuleKey | "other";
-
-export type DocumentKind = "document" | "photo" | "lab_report" | "certificate";
-
-/** Who and what the records on screen belong to. */
-export interface FieldModuleContext {
-  fieldId: string;
-  fieldName: string;
-  farmName: string;
-  ownerId: string;
-}
-
-/** A record from any field of a farm, carrying which field it came from. */
-export interface FarmModuleRecord extends ModuleRecord {
-  field_name: string;
-}
-
-/** One field of a farm, as the workbook lists it. */
-export interface FarmField {
-  fieldId: string;
-  fieldName: string;
-  areaAcres: number | null;
-}
-
-export interface ModuleSummary {
-  module: ModuleKey;
-  label: string;
-  total: number;
-  completed: number;
-  documents: number;
-}
-
-/**
- * A record in any module. The shared columns are typed; the rest differ per
- * module and are read through the column registry rather than by name here.
- */
-export interface ModuleRecord {
+// Help screen: the questions the app shows, written here.
+export interface Faq {
   id: string;
-  field_id: string;
-  status: ModuleStatus;
-  notes: string | null;
-  created_by: string | null;
+  question: string;
+  answer: string;
+  sort_order: number;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
-  /** Present on list responses, not on a single record. */
-  document_count?: number;
-  [column: string]: unknown;
 }
 
-export interface ModuleDocument {
+// A reply the office emailed back, kept so the thread reads in order.
+export interface ContactEnquiryReply {
   id: string;
-  field_id: string;
-  module: DocumentModule;
-  record_id: string | null;
-  kind: DocumentKind;
-  name: string;
-  url: string;
-  mime_type: string | null;
-  size_bytes: number | null;
-  uploaded_by: string | null;
+  enquiry_id: string;
+  to_email: string;
+  subject: string;
+  message: string;
+  sent_by: string | null;
+  sent_by_name: string | null;
   created_at: string;
+}
+
+// What somebody sent through the Contact Us form in the app.
+export interface ContactEnquiry {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  subject: string | null;
+  message: string;
+  is_read: boolean;
+  is_resolved: boolean;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
 }

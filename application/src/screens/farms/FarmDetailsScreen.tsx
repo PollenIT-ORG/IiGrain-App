@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSyncedFetch } from '../../hooks/useSyncedFetch';
+import { Tags } from '../../redux/syncTags';
 import {
   ActivityIndicator,
   Animated,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  Pressable,
   ScrollView,
   View,
 } from 'react-native';
@@ -109,6 +110,20 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
     }, [dispatch, farmId]),
   );
 
+  const refreshLiveFarm = useCallback(() => {
+    if (deletedRef.current) {
+      return;
+    }
+    dispatch(refreshFarmDetailThunk(farmId));
+    dispatch(refreshFarmFieldsThunk(farmId));
+  }, [dispatch, farmId]);
+
+  useSyncedFetch({
+    tags: [Tags.farm(farmId), Tags.fields(farmId)],
+    run: refreshLiveFarm,
+    hasData: farm?.id === farmId,
+  });
+
   const goToEditFarm = useCallback(
     () => navigation.navigate('AddFarm', { farmId }),
     [navigation, farmId],
@@ -203,27 +218,6 @@ const FarmDetailsScreen: React.FC<AppScreenProps<'FarmDetails'>> = ({
       setFabVisible(delta < 0 || offset <= 0);
     },
     [setFabVisible],
-  );
-
-  const fabStyle = useMemo(
-    () => ({
-      transform: [
-        {
-          translateY: fabAnim.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0, FAB_METRICS.hideOffset],
-          }),
-        },
-        {
-          scale: fabAnim.interpolate({
-            inputRange: [0, 1],
-            outputRange: [1, FAB_METRICS.hideScale],
-          }),
-        },
-      ],
-      opacity: fabAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-    }),
-    [fabAnim],
   );
 
   if (loading) {

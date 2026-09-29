@@ -1,5 +1,12 @@
 export type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
 
+// Plain (non-readonly) mirror of maps/boundary/types#GeoJSONPolygon — kept separate so
+// this shape stays Immer-draft-friendly when a Field is stored in redux state.
+export interface FieldBoundaryGeoJSON {
+  type: 'Polygon';
+  coordinates: Array<Array<[number, number]>>;
+}
+
 export type FarmStatus = 'active' | 'pending' | 'inactive';
 export type FieldHealth = 'healthy' | 'monitor' | 'critical';
 
@@ -24,6 +31,8 @@ export interface Farm {
   orgId?: string;
   orgName?: string;
   createdAt?: string;
+
+  pendingSync?: boolean;
 }
 
 export interface Field {
@@ -43,6 +52,11 @@ export interface Field {
   latitude?: number | null;
   longitude?: number | null;
   hasBoundary?: boolean;
+  areaFromOutline?: boolean;
+  boundary?: FieldBoundaryGeoJSON | null;
+  boundaryUpdatedAt?: string | null;
+
+  pendingSync?: boolean;
 }
 
 export interface ActivityEntry {

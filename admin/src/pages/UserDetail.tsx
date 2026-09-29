@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   useGetUserQuery,
@@ -7,13 +6,13 @@ import {
 } from "../store/endpoints/usersApi";
 import { useListFarmsQuery } from "../store/endpoints/farmsApi";
 import Loader from "../components/Loader";
-import { ChevronLeftIcon, EditIcon, TrashIcon } from "../components/icons";
+import Breadcrumbs from "../components/ui/Breadcrumbs";
+import { EditIcon, TrashIcon } from "../components/icons";
 import { ROLE_LABELS, type User, type UserRole } from "../types";
 import { showSuccess, showError } from "../lib/toast";
 import { useConfirmCascadeDelete } from "../lib/confirmDelete";
 import { fmtDateTime } from "../lib/datetime";
-import { useFarmWorkbook } from "../lib/useFarmWorkbook";
-import { useDialog } from "../components/ui/DialogProvider";
+import { useHere } from "../lib/returnTo";
 
 function errMsg(err: unknown): string {
   return (
@@ -29,6 +28,7 @@ function formatDate(iso: string | null): string {
 export default function UserDetail() {
   const navigate = useNavigate();
   const { id = "" } = useParams();
+  const here = useHere();
 
   const { data: user, isLoading, isError, error } = useGetUserQuery(id, {
     skip: !id,
@@ -76,10 +76,6 @@ export default function UserDetail() {
     { skip: !id || !isFarmer }
   );
   const farms = farmsData?.farms ?? [];
-  const { download, downloadMany, countExportable, busyFarmId } =
-    useFarmWorkbook();
-  const { confirm } = useDialog();
-  const [exportingAll, setExportingAll] = useState(false);
 
   if (isLoading) {
     return <Loader variant="fullPage" message="Loading user..." />;
@@ -87,13 +83,7 @@ export default function UserDetail() {
   if (isError || !user) {
     return (
       <div className="space-y-4">
-        <button
-          onClick={() => navigate("/users")}
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to users
-        </button>
+        <Breadcrumbs items={[{ label: "Users", to: "/users" }, { label: "User" }]} />
         <div className="card px-5 py-16 text-center text-sm text-gray-500">
           {errMsg(error) || "User not found."}
         </div>
@@ -104,13 +94,13 @@ export default function UserDetail() {
   return (
     <div className="space-y-6">
       <div>
-        <button
-          onClick={() => navigate("/users")}
-          className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to users
-        </button>
+        <Breadcrumbs
+          className="mb-2"
+          items={[
+            { label: "Users", to: "/users" },
+            { label: user.full_name || user.email },
+          ]}
+        />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
@@ -142,7 +132,7 @@ export default function UserDetail() {
               {user.is_active ? "Deactivate" : "Activate"}
             </button>
             <button
-              onClick={() => navigate(`/users/${user.id}/edit`)}
+              onClick={() => navigate(`/users/${user.id}/edit`, { state: here })}
               className="btn-secondary"
             >
               <EditIcon width={16} height={16} />
@@ -182,41 +172,6 @@ export default function UserDetail() {
             <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
               Farms ({farms.length})
             </h2>
-            {farms.length > 0 && (
-              <button
-                onClick={async () => {
-                  setExportingAll(true);
-                  try {
-                    const list = farms.map((f) => ({ id: f.id, name: f.name }));
-                    const ready = await countExportable(list);
-                    if (ready === 0) {
-                      showError(
-                        "None of these farms have fields enrolled in a program yet."
-                      );
-                      return;
-                    }
-                    // Their workbook holds one Farm ID, so each farm is its own
-                    // file. Better said before the downloads start than after.
-                    const yes = await confirm({
-                      title: `Download ${ready} file${ready === 1 ? "" : "s"}?`,
-                      message:
-                        ready === 1
-                          ? "One farm has monitoring data, so one workbook will be downloaded."
-                          : `${ready} farms have monitoring data. The client's workbook covers one farm, so this downloads ${ready} separate files.`,
-                      confirmLabel: "Download",
-                    });
-                    if (!yes) return;
-                    await downloadMany(list);
-                  } finally {
-                    setExportingAll(false);
-                  }
-                }}
-                disabled={exportingAll}
-                className="btn-secondary shrink-0 py-2 text-sm"
-              >
-                {exportingAll ? "Preparing..." : "Export All Farm Report"}
-              </button>
-            )}
           </div>
           {farmsLoading ? (
             <Loader message="Loading farms..." />
@@ -262,16 +217,6 @@ export default function UserDetail() {
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-end gap-3">
-                          <button
-                            onClick={() =>
-                              void download(f.id, { farmName: f.name })
-                            }
-                            disabled={busyFarmId === f.id}
-                            className="text-sm font-medium text-gray-600 hover:text-primary disabled:opacity-50"
-                            title="Download this farm's full workbook"
-                          >
-                            {busyFarmId === f.id ? "Preparing..." : "Export"}
-                          </button>
                           <button
                             onClick={() => navigate(`/farms/${f.id}`)}
                             className="text-sm font-medium text-primary hover:underline"

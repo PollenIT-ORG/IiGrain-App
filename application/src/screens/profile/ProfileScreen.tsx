@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -40,7 +39,8 @@ import {
   uploadAvatarThunk,
 } from '../../redux/slices/userSlice';
 import { selectCurrentProfile } from '../../redux/selectors/profileSelectors';
-import { logoutThunk } from '../../redux/slices/authSlice';
+import { useSignOut } from '../../hooks/useSignOut';
+import SignOutGuardModal from '../../components/SignOutGuardModal';
 import { getMyOrganization } from '../../api/OrganizationApi';
 import type { UserProfile } from '../../api/profileApi';
 import type { Organization } from '../../types/organization';
@@ -212,8 +212,7 @@ const ProfileScreen: React.FC = () => {
   const error = useAppSelector(selectProfileError);
 
   const [refreshing, setRefreshing] = useState(false);
-  const [confirmLogout, setConfirmLogout] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
+  const signOut = useSignOut(undefined, { alwaysConfirm: true });
   const [photoSheetVisible, setPhotoSheetVisible] = useState(false);
   const [photoViewerVisible, setPhotoViewerVisible] = useState(false);
   const [pickerLoading, setPickerLoading] = useState(false);
@@ -260,11 +259,6 @@ const ProfileScreen: React.FC = () => {
     },
     [goToEdit],
   );
-
-  const handleLogout = useCallback(async () => {
-    setLoggingOut(true);
-    await dispatch(logoutThunk());
-  }, [dispatch]);
 
   const uploadPhoto = useCallback(async (file: MediaFile) => {
     const action = await dispatch(uploadAvatarThunk(file));
@@ -448,7 +442,9 @@ const ProfileScreen: React.FC = () => {
         <TouchableOpacity
           style={styles.logoutBtn}
           activeOpacity={0.8}
-          onPress={() => setConfirmLogout(true)}>
+          onPress={() => {
+            signOut.requestSignOut().catch(() => undefined);
+          }}>
           <AppIcon name={ICONS.LOGOUT} size={moderateScale(20)} color={COLORS.danger} />
           <AppText style={styles.logoutText}>Logout</AppText>
         </TouchableOpacity>
@@ -505,34 +501,7 @@ const ProfileScreen: React.FC = () => {
         {renderBody()}
       </ScrollView>
 
-      <Modal
-        visible={confirmLogout}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setConfirmLogout(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <AppText style={styles.modalTitle}>Log out?</AppText>
-            <AppText style={styles.modalMessage}>
-              Are you sure you want to logout?
-            </AppText>
-            <View style={styles.modalActions}>
-              <Button
-                title="Cancel"
-                variant="outline"
-                onPress={() => setConfirmLogout(false)}
-                style={styles.modalBtn}
-              />
-              <Button
-                title="Logout"
-                onPress={handleLogout}
-                loading={loggingOut}
-                style={styles.modalBtnDanger}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <SignOutGuardModal guard={signOut} />
 
       <ImagePickerBottomSheet
         visible={photoSheetVisible}

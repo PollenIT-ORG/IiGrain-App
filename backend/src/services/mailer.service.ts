@@ -19,6 +19,7 @@ import {
   visitStartedEmail,
   assessmentSubmittedEmail,
   assessmentSubmittedNoticeEmail,
+  contactReplyEmail,
   type EmailContent,
 } from "./emailTemplates.js";
 
@@ -331,4 +332,22 @@ export async function sendAssessmentSubmittedNoticeEmail(params: {
   percentage: number;
 }): Promise<boolean> {
   return send(params.to, assessmentSubmittedNoticeEmail(params));
+}
+
+/**
+ * The office answering a contact enquiry. What happened is returned rather than
+ * swallowed, because the reply is recorded only when it actually left.
+ */
+export async function sendContactReplyEmail(params: {
+  to: string;
+  name: string;
+  subject: string;
+  message: string;
+  enquirySubject: string | null;
+  enquiryMessage: string;
+  enquiryDate: string;
+}): Promise<{ sent: boolean; error?: string }> {
+  const { to, ...content } = params;
+  const { sent, error } = await deliver({ to, ...contactReplyEmail(content) });
+  return { sent, error };
 }

@@ -228,6 +228,159 @@ kickoff.
 
 ---
 
+## ADR-B09 — Draw the handles as a screen-space overlay on iOS, not as map markers
+
+**Status:** Accepted · 2026-08-22
+
+**Decision.** The vertex and midpoint handles are rendered by
+`BoundaryHandleLayer`, a plain React Native overlay positioned above the map, on
+iOS. Android keeps the `<Marker>`-based `VertexMarker` / `MidpointHandle`. The
+choice is one constant, `USE_OVERLAY_HANDLES`.
+
+**Context.** [UX §9](./UX.md#9-what-we-reuse-so-this-isnt-built-from-scratch) and
+[DRAWING_ENGINE §7](./DRAWING_ENGINE.md#7-performance) both assume the handles are
+custom marker views with a `tracksViewChanges` latch. That assumption does not
+hold on iOS: with the New Architecture and `PROVIDER_GOOGLE`, react-native-maps
+1.29 never lays out the marker's icon container, so a marker with children is
+zero-sized — invisible and un-hittable. The editor was therefore unusable on
+iOS while being correct on Android. There is no JS-level workaround: `style`,
+`flat`, and a permanently-true `tracksViewChanges` were all tested and all fail.
+
+**Alternatives.**
+- *Patch the pod* (`patch-package` over `AIRGoogleMapMarker`). Fixes every
+  custom marker in the app at once, and is the true root-cause fix — but adds a
+  patch to maintain across upgrades, forces a native rebuild on every machine
+  and in CI, and the sizing hook has to guess when Fabric has laid the children
+  out. Worth revisiting as a follow-up; too much surface for this fix.
+- *Switch iOS to Apple MapKit*, where marker children render correctly. One line,
+  but it silently drops Google tiles and the custom style on one platform —
+  exactly the divergence [TROUBLESHOOTING #10](../TROUBLESHOOTING.md#10-ios-renders-apple-maps-instead-of-google)
+  calls the most dangerous failure in the integration.
+- *Use the overlay on both platforms.* Preferable — one path, no divergence —
+  and the component is written for it. Not done here only because Android could
+  not be tested from this machine, and Android currently works.
+
+**Trade-offs.**
+- ✅ iOS works, with no native change and no new dependency. ✅ Hit areas, halos
+  and numbering are ours, not the SDK's. ✅ Drag no longer depends on the SDK's
+  marker-drag semantics. ✅ Identical behaviour is available on Android by
+  flipping one constant.
+- ❌ Two rendering paths for the same handles until the flag is unified.
+- ❌ The handles are positioned from `onRegionChange`, so during a fast pan they
+  trail the tiles by a frame or two; the native `<Polygon>` does not. They snap
+  back the moment the camera settles.
+- ❌ The linear region→screen projection is an approximation of Mercator. At the
+  editor's working zoom the error is well under a centimetre (test 3), but it
+  would grow if the editor were ever used zoomed far out.
+
+**Future impact.** The engine, validation and persistence are untouched — this is
+purely how handles are drawn and how a gesture becomes a coordinate. If the pod
+is ever patched, deleting `USE_OVERLAY_HANDLES` and the overlay restores the
+original design with no other change.
+
+---
+
+## ADR-B10 — Pad the iOS polygon ring so its coordinate count always changes
+
+**Status:** Accepted · 2026-08-24
+
+**Decision.** `BoundaryPolygon` appends one or two repeats of the ring's last
+vertex before handing coordinates to the native polygon on iOS, choosing the
+number so the length is never the length sent on the previous render.
+
+**Context.** react-native-maps 1.29's Fabric polygon for Google-on-iOS rebuilds
+its `GMSMutablePath` only when the coordinate *count* changes. Moving a vertex
+changes values, not count, so the shape froze during editing while the handles
+moved — the visible half of the "editing does nothing" report. Drawing was
+unaffected because every tap appends a point.
+
+**Alternatives.**
+- *Draw the outline and fill in the SVG overlay* alongside the handles
+  ([`BoundaryVectorOverlay`](../../../src/maps/boundary/components/BoundaryVectorOverlay.tsx)
+  already does this). No hack, and shape and handles would be guaranteed in
+  sync — but the shape would then be positioned from `onRegionChange` like the
+  handles, so it would trail the satellite tiles during a pan. The native
+  polygon is GPU-drawn and pixel-locked to the imagery; giving that up for a
+  redraw bug is the wrong trade.
+- *Remount the polygon on every change* (`key={counter}`). Also forces a fresh
+  path, but tears down and rebuilds a `GMSPolygon` per frame — far more
+  expensive than one extra coordinate, and it flickers.
+- *Patch the pod.* The true fix, and a two-line one (compare the coordinates,
+  not just the size). Same objection as ADR-B09: a patch to carry across
+  upgrades and a native rebuild everywhere. Worth doing together with the marker
+  patch if we ever take that on.
+
+**Trade-offs.**
+- ✅ Two lines of effect, no native change, no rebuild, no new dependency.
+  ✅ Keeps the native polygon and its exact registration with the tiles.
+  ✅ Fixes every boundary surface at once, since they all draw through this one
+  component.
+- ❌ It is a workaround for someone else's bug, and it looks strange without the
+  comment that explains it — hence the comment, the tests, and this ADR.
+- ❌ One redundant coordinate in the native path (a zero-length segment). No
+  visual or measurement effect: area, perimeter and validation are computed in
+  JS from the real ring, never from the native polygon.
+
+**Future impact.** Confined to `BoundaryPolygon`. When the SDK compares
+coordinates properly, delete `usePathNudge` and pass `ring` through; the tests
+in `__tests__/boundaryPolygon.test.tsx` are the only other thing to remove.
+
+---
+
+## ADR-B11 — First-draw coach mark: a live demo, blocking, once per device
+
+**Status:** Accepted · 2026-08-24
+
+**Decision.** The first time a device opens DRAW mode, a full-screen coach mark
+plays a looping demo of the tap-tap-tap gesture — using the real dot/line
+styling and the real `BOUNDARY_HINTS` copy — before the farmer draws for real.
+It blocks the map underneath (scrim intercepts touches) and is dismissed
+(Skip, or the CTA after one loop) exactly once per device, tracked in
+`boundarySlice.drawTutorialSeen`.
+
+**Context.** Reported directly: first-time users had no idea what to do on the
+DRAW screen. Unlike a form, a satellite photo carries no affordance — nothing
+on a field says "tap here" the way placeholder text does in an input. The
+existing `BOUNDARY_HINTS.drawEmpty` status line ("Tap each corner of your
+field on the map.") already says this, but a first-time user has no reason to
+notice or trust a small status line before they've done anything.
+
+**Alternatives.**
+- *Text-only hint, louder* (bigger banner, arrow glyphs). Cheap, but still only
+  tells you *that* to tap, not *what happens* — the exact gap the report named.
+- *Static illustration* (three numbered dots and a drawn triangle as one image).
+  Better than text, but a still image can't show the one thing that's actually
+  hard to predict: that a line grows between your taps in real time. Screenshots
+  from this exact investigation reinforced that — the animation *is* the
+  information.
+- *Non-blocking overlay* (demo plays in a corner while the real map stays
+  interactive). Rejected: a stray tap during the demo drops a real point at an
+  arbitrary spot before the farmer has seen the whole gesture, compounding the
+  very confusion this exists to fix.
+- *Per-field instead of per-device.* Rejected — the lesson is about the gesture,
+  which doesn't change field to field; repeating it per field would be the
+  nagging, not the teaching.
+
+**Trade-offs.**
+- ✅ Teaches the actual mechanic, not just its existence. ✅ Reuses real
+  visuals/copy, so it can't drift out of sync with the real screen. ✅ Zero new
+  dependencies — built on RN's built-in `Animated`. ✅ Blocking prevents the
+  exact confused-stray-tap scenario a non-blocking demo would risk.
+- ❌ One more thing a first-time farmer has to sit through before drawing —
+  mitigated by Skip being visible from the first frame and the loop being short
+  (~7.5 s).
+- ❌ The line-growth tween is JS-driven (native driver can't animate `width`),
+  so on a very low-end device it could show minor jank during that one ~400ms
+  segment per edge. Everything else (hand movement, dot pop, ripple, fades) is
+  native-driven and unaffected.
+
+**Future impact.** Confined to `BoundaryDrawTutorial` and the one boolean flag.
+A "replay the tutorial" affordance (e.g. a `?` button in the toolbar) is a
+natural Phase-E addition — the component already takes `visible`/`onDismiss` as
+plain props, so triggering it a second time needs no rework, only a new caller.
+
+---
+
 ## Template
 
 ```markdown

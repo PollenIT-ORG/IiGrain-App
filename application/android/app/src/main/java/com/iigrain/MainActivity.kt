@@ -29,7 +29,7 @@ class MainActivity : ReactActivity() {
     // Must run before super.onCreate() — it is what swaps the launch theme
     // (Theme.App.SplashScreen) for AppTheme.
     val splashScreen = installSplashScreen()
-    super.onCreate(savedInstanceState)
+    super.onCreate(null)
 
     // Without this the OS drops the splash as soon as the activity window is
     // ready, which on a cold start is well before React Native has laid out

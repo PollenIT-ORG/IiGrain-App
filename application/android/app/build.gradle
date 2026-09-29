@@ -72,6 +72,30 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+def resolveEnvValue(String name) {
+    def fromProcessEnv = System.getenv(name)
+    if (fromProcessEnv?.trim()) {
+        return fromProcessEnv.trim()
+    }
+    def envFile = rootProject.file("../.env")
+    if (!envFile.exists()) {
+        return ""
+    }
+    def match = envFile.readLines()
+        .collect { it.trim() }
+        .findAll { it && !it.startsWith("#") && it.contains("=") }
+        .find { it.substring(0, it.indexOf("=")).trim() == name }
+    if (match == null) {
+        return ""
+    }
+    return match.substring(match.indexOf("=") + 1).trim().replaceAll(/^["']|["']$/, "")
+}
+
+def mapsApiKeyAndroid = resolveEnvValue("MAPS_API_KEY_ANDROID")
+if (!mapsApiKeyAndroid) {
+    logger.warn("⚠️  MAPS_API_KEY_ANDROID is not set (checked \$MAPS_API_KEY_ANDROID and .env). Android maps will render blank.")
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -84,6 +108,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        manifestPlaceholders["MAPS_API_KEY_ANDROID"] = mapsApiKeyAndroid
     }
     signingConfigs {
         debug {

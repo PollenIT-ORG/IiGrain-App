@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import Logo from "../Logo";
 import {
   DashboardIcon,
+  InboxIcon,
   FarmIcon,
   FieldsIcon,
   BuildingIcon,
@@ -57,6 +58,8 @@ interface NavItem {
   label: string;
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
   saasOnly?: boolean;
+  /** Writing the help content is the platform team's, so this hides it. */
+  adminOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -67,13 +70,15 @@ const NAV_ITEMS: NavItem[] = [
   // A program, what its farmers and assessors submitted, then its own survey
   // and the producers who applied through it: the order they are worked in.
   { to: "/programs", label: "Programs", Icon: LinkIcon },
+  { to: "/assessments", label: "Assessments", Icon: ChartIcon },
   { to: "/submissions", label: "Submissions", Icon: FileIcon },
   { to: "/surveys", label: "Surveys", Icon: LinkIcon },
   { to: "/survey-submissions", label: "Survey Submissions", Icon: FileIcon },
   { to: "/live-visits", label: "Live visits", Icon: MapPinIcon },
-  { to: "/assessments", label: "Assessments", Icon: ChartIcon },
   // Reports are not in use yet.
   // { to: "/reports", label: "Reports", Icon: FileIcon },
+  { to: "/contact-enquiries", label: "Contact enquiries", Icon: InboxIcon },
+  { to: "/faqs", label: "Help & FAQs", Icon: FileIcon, adminOnly: true },
   { to: "/login-logs", label: "Login activity", Icon: FileIcon },
   { to: "/settings", label: "Settings", Icon: SettingsIcon },
 ];
@@ -102,6 +107,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const { user } = useAuth();
   // Only the modules this role works with, and only the people they look after.
   const visible = (to: string) => canOpen(user?.role, to);
+  const isAdminLevel = user?.role === "super_admin" || user?.role === "admin";
   const userGroups = managedRoles(user?.role, USER_ROLES);
 
   const onPasSubmissions = location.pathname.startsWith("/survey-submissions");
@@ -215,7 +221,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
           {NAV_ITEMS.filter(
             (i) =>
-              i.to !== "/dashboard" && (!i.saasOnly || saasEnabled) && visible(i.to)
+              i.to !== "/dashboard" &&
+              (!i.saasOnly || saasEnabled) &&
+              (!i.adminOnly || isAdminLevel) &&
+              visible(i.to)
           ).map(({ to, label, Icon }) =>
             to === "/survey-submissions" ? (
               <div key={to}>

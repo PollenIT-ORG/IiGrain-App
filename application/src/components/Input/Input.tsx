@@ -40,6 +40,7 @@ export interface InputProps
   onValidate?: (value: string) => void;
   validateOnChange?: boolean;
   validateOnBlur?: boolean;
+  trailingIcon?: string;
 }
 
 const Input = forwardRef<TextInput, InputProps>(
@@ -61,6 +62,8 @@ const Input = forwardRef<TextInput, InputProps>(
       validateOnBlur = true,
       value,
       multiline = false,
+      editable,
+      trailingIcon,
       ...rest
     },
     ref,
@@ -69,6 +72,7 @@ const Input = forwardRef<TextInput, InputProps>(
     const [hidden, setHidden] = useState(secureTextEntry);
 
     const hasError = !!error;
+    const readOnly = editable === false;
 
     const handleFocus: NonNullable<TextInputProps['onFocus']> = e => {
       setFocused(true);
@@ -95,7 +99,7 @@ const Input = forwardRef<TextInput, InputProps>(
           <AppText
             style={[
               styles.label,
-              focused && styles.labelFocused,
+              focused && !readOnly && styles.labelFocused,
               hasError && styles.labelError,
             ]}>
             {label}
@@ -107,7 +111,8 @@ const Input = forwardRef<TextInput, InputProps>(
           style={[
             styles.field,
             multiline && styles.fieldMultiline,
-            focused && styles.fieldFocused,
+            readOnly && styles.fieldReadOnly,
+            focused && !readOnly && styles.fieldFocused,
             hasError && styles.fieldError,
           ]}>
           <AppTextInput
@@ -121,6 +126,7 @@ const Input = forwardRef<TextInput, InputProps>(
             autoCorrect={false}
             value={value}
             multiline={multiline}
+            editable={editable}
             textAlignVertical={multiline ? 'top' : undefined}
             onChangeText={handleChangeText}
             onFocus={handleFocus}
@@ -135,6 +141,16 @@ const Input = forwardRef<TextInput, InputProps>(
               accessibilityRole="button">
               <AppText style={styles.reveal}>{hidden ? 'Show' : 'Hide'}</AppText>
             </TouchableOpacity>
+          ) : null}
+
+          {trailingIcon ? (
+            <View style={styles.trailing}>
+              <AppIcon
+                name={trailingIcon}
+                size={moderateScale(18)}
+                color={readOnly ? COLORS.primary : COLORS.gray500}
+              />
+            </View>
           ) : null}
         </View>
 

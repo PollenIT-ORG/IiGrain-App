@@ -1,28 +1,43 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import {
-  KeyboardAwareScrollView,
-  KeyboardStickyView,
-} from 'react-native-keyboard-controller';
+import { KeyboardAwareScrollView, KeyboardStickyView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon, ICONS } from '../../components/AppIcon';
-import { AppHeader, AppText, Button, ConfirmationModal, Input } from '../../components';
+import {
+  AppHeader,
+  AppProgressBar,
+  AppText,
+  Button,
+  ConfirmationModal,
+  Input,
+} from '../../components';
 import { parseISODate } from '../../components/AppDatePicker';
 import MonitoringContextCard from '../../components/monitoring/MonitoringContextCard';
 import MonitoringFormField from '../../components/monitoring/MonitoringFormField';
+import MonitoringAttachments from '../../components/monitoring/MonitoringAttachments';
+import AttachmentPickerSheet from '../../components/monitoring/AttachmentPickerSheet';
 import { COLORS, borderRadius, borderWidth, presets, shadows, spacing } from '../../constants';
 import { addAlpha, moderateScale, scale } from '../../utils';
 import {
   NOTES_MAX_LENGTH,
   moduleDef,
+  takesFieldPoints,
   type MonitoringFieldDef,
 } from '../../config/monitoringModules';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
   createRecordThunk,
+  deleteDocumentThunk,
+  documentBucketKey,
+  fetchDocumentsThunk,
   fetchModuleRecordThunk,
   fetchModuleRecordsThunk,
   seedFieldPointsThunk,
+  selectDeletingDocumentId,
+  selectDocuments,
+  selectDocumentsError,
+  selectDocumentsLoaded,
+  selectDocumentsLoading,
   selectModuleRecords,
   selectMonitoringContext,
   selectMonitoringSaving,
@@ -38,6 +53,7 @@ import {
 import FieldPointsSummary from '../../components/monitoring/FieldPointsSummary';
 import { useBoundaryPersistence } from '../../maps/boundary';
 import { showSuccess, showToast } from '../../services/toastService';
+import { useMonitoringAttachments } from '../../hooks/useMonitoringAttachments';
 import {
   buildPayload,
   emptyForm,
@@ -50,16 +66,28 @@ import {
   type FormValue,
   type FormValues,
 } from '../../utils/monitoringValues';
-import type { ModuleStatus, MonitoringFieldErrors } from '../../types/monitoring';
+import { deleteDocumentFailure } from '../../utils/monitoringErrors';
+import type {
+  DocumentKind,
+  ModuleStatus,
+  MonitoringDocument,
+  MonitoringFieldErrors,
+  UploadFile,
+} from '../../types/monitoring';
 import type { AppScreenProps } from '../../navigation/navigationTypes';
 
 const GPS_DECIMALS = 6;
 
 const NO_AUTOFILL: FormValues = {};
 
-type FormRow =
-  | { kind: 'fields'; fields: MonitoringFieldDef[] }
-  | { kind: 'position' };
+const NO_DOCUMENTS: MonitoringDocument[] = [];
+
+const attachQueuedMessage = (queued: number, saved: string): string =>
+  queued === 1
+    ? `${saved}. Your file uploads in the background.`
+    : `${saved}. Your ${queued} files upload in the background.`;
+
+type FormRow = { kind: 'fields'; fields: MonitoringFieldDef[] } | { kind: 'position' };
 
 const toRows = (fields: readonly MonitoringFieldDef[]): FormRow[] => {
   const rows: FormRow[] = [];
@@ -113,16 +141,15 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
   route,
   navigation,
 }) => {
-  const { programId, fieldId, module, recordId, farmId, fieldName, programName } =
-    route.params;
+  const { fieldId, module, recordId, farmId, fieldName } = route.params;
   const isEdit = !!recordId;
   const dispatch = useAppDispatch();
   const insets = useSafeAreaInsets();
   const def = moduleDef(module);
 
   useEffect(() => {
-    dispatch(setMonitoringScope({ programId, fieldId }));
-  }, [dispatch, programId, fieldId]);
+    dispatch(setMonitoringScope({ fieldId }));
+  }, [dispatch, fieldId]);
 
   const existing = useAppSelector(state =>
     recordId ? selectRecordById(state, module, recordId) : undefined,
@@ -139,6 +166,36 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
 
   const [autoFilled, setAutoFilled] = useState<FormValues>(NO_AUTOFILL);
 
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const attachments = useMonitoringAttachments({
+    fieldId,
+    module,
+    recordId: recordId ?? null,
+  });
+  const pending = attachments.queued;
+  const pendingRows = useMemo(
+    () =>
+      pending.map(item => ({
+        id: item.localId,
+        name: item.name,
+        sizeBytes: item.sizeBytes,
+        status: item.status,
+      })),
+    [pending],
+  );
+  const unsaved = useMemo(
+    () => pending.filter(item => item.status === 'queued').length,
+    [pending],
+  );
+
+  const bucket = documentBucketKey(module, recordId ?? null);
+  const bucketDocuments = useAppSelector(state => selectDocuments(state, bucket));
+  const documents = isEdit ? bucketDocuments : NO_DOCUMENTS;
+  const docsLoaded = useAppSelector(state => selectDocumentsLoaded(state, bucket));
+  const docsLoading = useAppSelector(state => selectDocumentsLoading(state, bucket));
+  const docsError = useAppSelector(state => selectDocumentsError(state, bucket));
+  const deletingDocId = useAppSelector(selectDeletingDocumentId);
+
   const boundary = useBoundaryPersistence({ fieldId, farmId: farmId ?? '' });
 
   const fieldPoints = useMemo(
@@ -153,7 +210,7 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
 
   const existingRecords = useAppSelector(state => selectModuleRecords(state, module));
   const pointsSeeded = useAppSelector(state =>
-    selectFieldPointsSeeded(state, fieldPointsScopeKey(programId, fieldId)),
+    selectFieldPointsSeeded(state, fieldPointsScopeKey(fieldId, module)),
   );
 
   const gpsKeys = useMemo(
@@ -172,21 +229,38 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
   const statusRef = useRef(status);
   statusRef.current = status;
 
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
+
   const baseline = useRef<string>('');
   const hydrated = useRef(false);
   const leaving = useRef(false);
 
   useEffect(() => {
     if (!isEdit && existingRecords === undefined) {
-      dispatch(fetchModuleRecordsThunk({ programId, fieldId, module }));
+      dispatch(fetchModuleRecordsThunk({ fieldId, module }));
     }
-  }, [dispatch, isEdit, existingRecords, programId, fieldId, module]);
+  }, [dispatch, isEdit, existingRecords, fieldId, module]);
 
   useEffect(() => {
     if (isEdit && !existing) {
-      dispatch(fetchModuleRecordThunk({ programId, fieldId, module, recordId }));
+      dispatch(fetchModuleRecordThunk({ fieldId, module, recordId }));
     }
-  }, [dispatch, isEdit, existing, programId, fieldId, module, recordId]);
+  }, [dispatch, isEdit, existing, fieldId, module, recordId]);
+
+  const loadDocuments = useCallback(() => {
+    if (recordId) {
+      dispatch(fetchDocumentsThunk({ fieldId, module, recordId }));
+    }
+  }, [dispatch, fieldId, module, recordId]);
+
+  const docsRequested = useRef(false);
+  useEffect(() => {
+    if (isEdit && !docsLoaded && !docsRequested.current) {
+      docsRequested.current = true;
+      loadDocuments();
+    }
+  }, [isEdit, docsLoaded, loadDocuments]);
 
   useEffect(() => {
     if (hydrated.current) {
@@ -208,8 +282,10 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
   }, [isEdit, existing, module]);
 
   const dirty = useMemo(
-    () => hydrated.current && JSON.stringify([values, notes, status]) !== baseline.current,
-    [values, notes, status],
+    () =>
+      hydrated.current &&
+      (JSON.stringify([values, notes, status]) !== baseline.current || unsaved > 0),
+    [values, notes, status, unsaved],
   );
 
   useEffect(() => {
@@ -226,8 +302,13 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
   const leave = useCallback(() => {
     leaving.current = true;
     setConfirmLeave(false);
+    Promise.all(
+      pendingRef.current
+        .filter(item => item.status === 'queued')
+        .map(item => attachments.remove(item.localId)),
+    ).catch(() => undefined);
     navigation.goBack();
-  }, [navigation]);
+  }, [navigation, attachments]);
 
   const handleChange = useCallback((key: string, value: FormValue) => {
     setValues(current => ({ ...current, [key]: value }));
@@ -289,10 +370,7 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
 
     const free =
       fieldPoints.find(
-        p =>
-          !taken.has(
-            `${p.latitude.toFixed(GPS_DECIMALS)},${p.longitude.toFixed(GPS_DECIMALS)}`,
-          ),
+        p => !taken.has(`${p.latitude.toFixed(GPS_DECIMALS)},${p.longitude.toFixed(GPS_DECIMALS)}`),
       ) ?? fieldPoints[0];
 
     stampedRef.current = true;
@@ -323,34 +401,79 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
     baseline.current = JSON.stringify([next, notesRef.current, statusRef.current]);
   }, [isEdit, fieldPoints, existingRecords, gpsKeys, def.titleKey]);
 
+  const queueAttachment = useCallback(
+    (file: UploadFile, kind: DocumentKind) => {
+      setFormMessage(null);
+      attachments.add(file, kind).then(
+        stored => {
+          if (!stored) {
+            showToast('Could not keep that file on this device. Try again.', {
+              type: 'error',
+            });
+          }
+        },
+        () => {
+          showToast('Could not keep that file on this device. Try again.', {
+            type: 'error',
+          });
+        },
+      );
+    },
+    [attachments],
+  );
+
+  const removePending = useCallback(
+    (localId: string) => {
+      attachments.remove(localId).catch(() => undefined);
+    },
+    [attachments],
+  );
+
+  const handleDeleteDocument = useCallback(
+    async (documentId: string) => {
+      if (!recordId) {
+        return;
+      }
+      const action = await dispatch(deleteDocumentThunk({ fieldId, documentId, module, recordId }));
+      if (deleteDocumentThunk.fulfilled.match(action) || action.payload?.status === 404) {
+        showSuccess('File removed');
+        return;
+      }
+      showToast(deleteDocumentFailure(action.payload), { type: 'error' });
+    },
+    [dispatch, fieldId, module, recordId],
+  );
+
+  const commitAttachments = useCallback(
+    (targetRecordId: string): Promise<number> => attachments.commit(targetRecordId),
+    [attachments],
+  );
+
+  const seedsFieldPoints = takesFieldPoints(module);
+
   const sendFieldPoints = useCallback(async () => {
-    if (pointsSeeded || fieldPoints.length === 0) {
+    if (!seedsFieldPoints || pointsSeeded || fieldPoints.length === 0) {
       return;
     }
-    const action = await dispatch(
-      seedFieldPointsThunk({ programId, fieldId, module, points: fieldPoints }),
-    );
+    const action = await dispatch(seedFieldPointsThunk({ fieldId, module, points: fieldPoints }));
     if (seedFieldPointsThunk.fulfilled.match(action) && action.payload.complete) {
-      dispatch(markFieldPointsSeeded(fieldPointsScopeKey(programId, fieldId)));
+      dispatch(markFieldPointsSeeded(fieldPointsScopeKey(fieldId, module)));
     }
-  }, [dispatch, pointsSeeded, fieldPoints, programId, fieldId, module]);
+  }, [dispatch, seedsFieldPoints, pointsSeeded, fieldPoints, fieldId, module]);
 
   const filled = useMemo(
     () => filledFieldCount(module, values, isEdit ? undefined : autoFilled),
     [module, values, isEdit, autoFilled],
   );
 
-  const answerable = useMemo(
-    () => def.fields.filter(f => !f.gpsPair).length,
-    [def.fields],
-  );
+  const answerable = useMemo(() => def.fields.filter(f => !f.gpsPair).length, [def.fields]);
 
   const blank = useMemo(
     () => !isEdit && isFormEmpty(module, values, notes, autoFilled),
     [isEdit, module, values, notes, autoFilled],
   );
 
-  const save = useCallback(async () => {
+  const runSave = useCallback(async () => {
     setFormMessage(null);
 
     const { errors: found, ok } = validateRecordForm(module, values, notes);
@@ -370,11 +493,16 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
 
     if (isEdit && recordId) {
       const action = await dispatch(
-        updateRecordThunk({ programId, fieldId, module, recordId, patch: payload }),
+        updateRecordThunk({ fieldId, module, recordId, patch: payload }),
       );
       if (updateRecordThunk.fulfilled.match(action)) {
         await sendFieldPoints();
-        showSuccess('Record saved');
+        const queued = await commitAttachments(recordId);
+        if (queued > 0) {
+          showSuccess(attachQueuedMessage(queued, 'Record saved'));
+        } else {
+          showSuccess('Record saved');
+        }
         navigation.goBack();
         return;
       }
@@ -392,20 +520,21 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
       return;
     }
 
-    const action = await dispatch(
-      createRecordThunk({ programId, fieldId, module, payload }),
-    );
+    const action = await dispatch(createRecordThunk({ fieldId, module, payload }));
     if (createRecordThunk.fulfilled.match(action)) {
       await sendFieldPoints();
-      showSuccess('Record added');
+      const queued = await commitAttachments(action.payload.id);
+      if (queued > 0) {
+        showSuccess(attachQueuedMessage(queued, 'Record added'));
+      } else {
+        showSuccess('Record added');
+      }
       navigation.replace('MonitoringRecord', {
-        programId,
         fieldId,
         module,
         recordId: action.payload.id,
         farmId,
         fieldName,
-        programName,
       });
       return;
     }
@@ -422,15 +551,27 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
     isEdit,
     blank,
     recordId,
-    programId,
     fieldId,
     navigation,
     farmId,
     fieldName,
-    programName,
     def.noun,
     sendFieldPoints,
+    commitAttachments,
   ]);
+
+  const savingRef = useRef(false);
+  const save = useCallback(async () => {
+    if (savingRef.current) {
+      return;
+    }
+    savingRef.current = true;
+    try {
+      await runSave();
+    } finally {
+      savingRef.current = false;
+    }
+  }, [runSave]);
 
   const cancel = useCallback(() => {
     navigation.goBack();
@@ -453,10 +594,10 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
     (gpsKeys.longitude ? errors[gpsKeys.longitude] : undefined) ??
     null;
 
+  const busy = saving || attachments.busy;
   const notesLength = notes.length;
   const notesNearLimit = notesLength >= NOTES_MAX_LENGTH * 0.7;
-  const meterPercent =
-    answerable > 0 ? Math.min(100, Math.round((filled / answerable) * 100)) : 0;
+  const meterPercent = answerable > 0 ? Math.min(100, Math.round((filled / answerable) * 100)) : 0;
 
   return (
     <View style={styles.safe}>
@@ -475,7 +616,9 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
         <MonitoringContextCard
           title={context?.fieldName || fieldName || 'Field'}
           subtitle={context?.farmName}
-          caption={context?.programName || programName}
+          caption={isEdit ? `Editing ${def.noun}` : `New ${def.noun}`}
+          captionIcon={isEdit ? 'pencil-outline' : 'plus-circle-outline'}
+          meta={def.label}
           icon={def.icon}
         />
 
@@ -486,15 +629,7 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
               {filled} of {answerable}
             </AppText>
           </View>
-          <View style={styles.meterTrack}>
-            <View
-              style={[
-                styles.meterFill,
-                filled > 0 && styles.meterFillOn,
-                { width: `${Math.max(meterPercent, filled > 0 ? 6 : 0)}%` },
-              ]}
-            />
-          </View>
+          <AppProgressBar percent={meterPercent} height={scale(8)} />
           <AppText style={styles.meterHint}>
             {blank
               ? `Nothing entered yet — fill in at least one detail to save this ${def.noun}.`
@@ -591,21 +726,41 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
           />
         </View>
 
+        <MonitoringAttachments
+          title="Attachments"
+          subtitle={
+            isEdit
+              ? 'Photos and documents kept against this record.'
+              : `Pick files now — they are kept on this device and upload after you save this ${def.noun}.`
+          }
+          documents={documents}
+          loading={isEdit && docsLoading}
+          error={isEdit ? docsError : null}
+          uploading={attachments.busy}
+          deletingId={deletingDocId}
+          emptyMessage={
+            isEdit
+              ? 'Nothing attached to this record yet.'
+              : 'Nothing picked yet. Photos and documents can be added before you save.'
+          }
+          addLabel={pending.length > 0 || documents.length > 0 ? 'Attach another file' : undefined}
+          pending={pendingRows}
+          onRemovePending={removePending}
+          onAdd={() => setPickerOpen(true)}
+          onDelete={handleDeleteDocument}
+          onRetry={loadDocuments}
+        />
+
         <View style={styles.card}>
           <View style={styles.cardHead}>
             <View style={styles.cardHeadIcon}>
-              <AppIcon
-                name={ICONS.IN_PROGRESS}
-                size={moderateScale(16)}
-                color={COLORS.primary}
-              />
+              <AppIcon name={ICONS.IN_PROGRESS} size={moderateScale(16)} color={COLORS.primary} />
             </View>
             <AppText style={styles.cardTitle}>Status</AppText>
           </View>
 
           <AppText style={styles.statusHint}>
-            Mark it completed once this {def.noun} is finished. You can change it
-            later.
+            Mark it completed once this {def.noun} is finished. You can change it later.
           </AppText>
 
           <View style={styles.statusRow}>
@@ -624,8 +779,7 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
                     size={moderateScale(16)}
                     color={active ? COLORS.white : COLORS.gray600}
                   />
-                  <AppText
-                    style={[styles.statusText, active && styles.statusTextActive]}>
+                  <AppText style={[styles.statusText, active && styles.statusTextActive]}>
                     {option.label}
                   </AppText>
                 </Pressable>
@@ -639,31 +793,24 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
         <View style={[styles.footer, { paddingBottom: insets.bottom + spacing[3] }]}>
           {blank ? (
             <View style={styles.footerNotice}>
-              <AppIcon
-                name="information-outline"
-                size={moderateScale(14)}
-                color={COLORS.gray600}
-              />
+              <AppIcon name="information-outline" size={moderateScale(14)} color={COLORS.gray600} />
               <AppText style={styles.footerNoticeText}>
-                Enter at least one detail to save.
+                {unsaved > 0
+                  ? 'Enter at least one detail — your files attach on save.'
+                  : 'Enter at least one detail to save.'}
               </AppText>
             </View>
           ) : null}
 
           <View style={styles.footerRow}>
             <View style={styles.footerCancel}>
-              <Button
-                title="Cancel"
-                variant="outline"
-                disabled={saving}
-                onPress={cancel}
-              />
+              <Button title="Cancel" variant="outline" disabled={busy} onPress={cancel} />
             </View>
             <View style={styles.footerSave}>
               <Button
                 title={isEdit ? 'Save changes' : def.addLabel}
-                loading={saving}
-                disabled={blank}
+                loading={busy}
+                disabled={blank || busy}
                 onPress={save}
               />
             </View>
@@ -671,11 +818,22 @@ const MonitoringRecordFormScreen: React.FC<AppScreenProps<'MonitoringRecordForm'
         </View>
       </KeyboardStickyView>
 
+      <AttachmentPickerSheet
+        visible={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        documentKind={def.defaultDocumentKind}
+        onPicked={queueAttachment}
+      />
+
       <ConfirmationModal
         visible={confirmLeave}
         icon="content-save-alert-outline"
         title="Leave without saving?"
-        message="This record has changes that have not been saved. Leaving now discards them."
+        message={
+          unsaved > 0
+            ? 'This record has changes and picked files that have not been saved. Leaving now discards them.'
+            : 'This record has changes that have not been saved. Leaving now discards them.'
+        }
         confirmLabel="Discard changes"
         cancelLabel="Keep editing"
         tone="danger"
@@ -724,20 +882,6 @@ const styles = StyleSheet.create({
   meterCount: {
     ...presets.labelMD,
     color: COLORS.primary,
-  },
-  meterTrack: {
-    height: scale(6),
-    borderRadius: borderRadius.full,
-    backgroundColor: COLORS.gray200,
-    overflow: 'hidden',
-  },
-  meterFill: {
-    height: '100%',
-    borderRadius: borderRadius.full,
-    backgroundColor: 'transparent',
-  },
-  meterFillOn: {
-    backgroundColor: COLORS.primary,
   },
   meterHint: {
     ...presets.bodyXS,

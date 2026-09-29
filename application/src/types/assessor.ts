@@ -1,8 +1,11 @@
 import type { Field } from './farm';
 import type {
+  AnswerExtra,
   AssessmentStatus,
   FieldAssessmentSummary,
+  QuestionOption,
   QuestionScore,
+  QuestionType,
 } from './assessment';
 
 export type SubmitterRole = 'farmer' | 'assessor';
@@ -123,7 +126,18 @@ export interface FarmerAssessmentAnswer {
   id: string;
   code: string;
   text: string;
+  questionType: QuestionType;
+  maxScore: number;
+  options: QuestionOption[];
+  evidenceMode: AnswerExtra;
+  commentMode: AnswerExtra;
   score: QuestionScore | null;
+  optionId: string | null;
+  optionText: string | null;
+  answerText: string | null;
+  answerNumber: number | null;
+  answerDate: string | null;
+  answerBoolean: boolean | null;
   comment: string;
   evidenceUrls: string[];
   answered: boolean;
@@ -148,6 +162,8 @@ export interface ComparisonQuestion {
   text: string;
   farmerScore: QuestionScore | null;
   assessorScore: QuestionScore | null;
+  farmerAnswered: boolean;
+  assessorAnswered: boolean;
   difference: number | null;
 }
 

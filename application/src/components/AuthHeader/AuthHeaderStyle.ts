@@ -1,6 +1,5 @@
 import { StyleSheet } from 'react-native';
 import { COLORS, presets, spacing } from '../../constants';
-import { scale } from '../../utils';
 import { styles as commonStyles } from '../../styles/index';
 
 

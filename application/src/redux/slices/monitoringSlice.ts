@@ -5,11 +5,9 @@ import type {
   ModuleSummary,
   MonitoringContext,
   MonitoringDocument,
-  MonitoringProgram,
   MonitoringRecord,
 } from '../../types/monitoring';
 import {
-  fetchFarmProgramsThunk,
   fetchModulesThunk,
   fetchModuleRecordsThunk,
   fetchModuleRecordThunk,
@@ -22,8 +20,6 @@ import {
   deleteDocumentThunk,
 } from '../thunks/monitoringThunks';
 
-
-const scopeOf = (programId: string, fieldId: string): string => `${programId}:${fieldId}`;
 
 const moduleBucket = (module: string): string => `mod:${module}`;
 
@@ -40,12 +36,6 @@ type FlagMap = Partial<Record<ModuleKey, boolean>>;
 type ErrorMap = Partial<Record<ModuleKey, string | null>>;
 
 export interface MonitoringState {
-  programsByFarm: Record<string, MonitoringProgram[]>;
-  programsFarmId: string | null;
-  programsLoading: boolean;
-  programsError: string | null;
-  programByField: Record<string, string>;
-
   scope: string | null;
   context: MonitoringContext | null;
 
@@ -69,12 +59,6 @@ export interface MonitoringState {
 }
 
 const initialState: MonitoringState = {
-  programsByFarm: {},
-  programsFarmId: null,
-  programsLoading: false,
-  programsError: null,
-  programByField: {},
-
   scope: null,
   context: null,
 
@@ -97,7 +81,7 @@ const initialState: MonitoringState = {
   deletingDocumentId: null,
 };
 
-const resetScope = (state: MonitoringState, scope: string | null): void => {
+const resetScope = (state: MonitoringState, scope: string): void => {
   state.scope = scope;
   state.context = null;
   state.modules = null;
@@ -116,8 +100,8 @@ const resetScope = (state: MonitoringState, scope: string | null): void => {
   state.deletingDocumentId = null;
 };
 
-const inScope = (state: MonitoringState, arg: { programId: string; fieldId: string }): boolean =>
-  state.scope === scopeOf(arg.programId, arg.fieldId);
+const inScope = (state: MonitoringState, arg: { fieldId: string }): boolean =>
+  state.scope === arg.fieldId;
 
 const adjustSummary = (
   state: MonitoringState,
@@ -158,43 +142,15 @@ const monitoringSlice = createSlice({
   name: 'monitoring',
   initialState,
   reducers: {
-    setMonitoringScope(
-      state,
-      action: PayloadAction<{ programId: string; fieldId: string }>,
-    ) {
-      const next = scopeOf(action.payload.programId, action.payload.fieldId);
+    setMonitoringScope(state, action: PayloadAction<{ fieldId: string }>) {
+      const next = action.payload.fieldId;
       if (state.scope !== next) {
         resetScope(state, next);
       }
     },
-    selectFieldProgram(
-      state,
-      action: PayloadAction<{ fieldId: string; programId: string }>,
-    ) {
-      state.programByField[action.payload.fieldId] = action.payload.programId;
-    },
-    invalidateModuleRecords(state, action: PayloadAction<ModuleKey>) {
-      delete state.records[action.payload];
-      delete state.recordsError[action.payload];
-    },
-    clearMonitoring: () => initialState,
   },
   extraReducers: builder => {
     builder
-      .addCase(fetchFarmProgramsThunk.pending, (state, action) => {
-        state.programsLoading = true;
-        state.programsFarmId = action.meta.arg.farmId;
-        state.programsError = null;
-      })
-      .addCase(fetchFarmProgramsThunk.fulfilled, (state, action) => {
-        state.programsLoading = false;
-        state.programsByFarm[action.meta.arg.farmId] = action.payload;
-      })
-      .addCase(fetchFarmProgramsThunk.rejected, (state, action) => {
-        state.programsLoading = false;
-        state.programsError = action.payload?.message ?? 'Failed to load programs';
-      })
-
       .addCase(fetchModulesThunk.pending, (state, action) => {
         if (!inScope(state, action.meta.arg)) {
           return;
@@ -451,17 +407,11 @@ const monitoringSlice = createSlice({
   },
 });
 
-export const {
-  setMonitoringScope,
-  selectFieldProgram,
-  invalidateModuleRecords,
-  clearMonitoring,
-} = monitoringSlice.actions;
+export const { setMonitoringScope } = monitoringSlice.actions;
 
 export default monitoringSlice.reducer;
 
 export {
-  fetchFarmProgramsThunk,
   fetchModulesThunk,
   fetchModuleRecordsThunk,
   fetchModuleRecordThunk,
@@ -479,30 +429,10 @@ interface HasMonitoring {
   monitoring: MonitoringState;
 }
 
-const EMPTY_PROGRAMS: MonitoringProgram[] = [];
 const EMPTY_DOCUMENTS: MonitoringDocument[] = [];
-
-export const selectMonitoringScope = (s: HasMonitoring): string | null => s.monitoring.scope;
 
 export const selectMonitoringContext = (s: HasMonitoring): MonitoringContext | null =>
   s.monitoring.context;
-
-export const selectFarmPrograms = (
-  s: HasMonitoring,
-  farmId: string,
-): MonitoringProgram[] => s.monitoring.programsByFarm[farmId] ?? EMPTY_PROGRAMS;
-
-export const selectFarmProgramsLoaded = (s: HasMonitoring, farmId: string): boolean =>
-  s.monitoring.programsByFarm[farmId] !== undefined;
-
-export const selectProgramsLoading = (s: HasMonitoring): boolean =>
-  s.monitoring.programsLoading;
-
-export const selectProgramsError = (s: HasMonitoring): string | null =>
-  s.monitoring.programsError;
-
-export const selectChosenProgramId = (s: HasMonitoring, fieldId: string): string | undefined =>
-  s.monitoring.programByField[fieldId];
 
 export const selectModules = (s: HasMonitoring): ModuleSummary[] | null =>
   s.monitoring.modules;

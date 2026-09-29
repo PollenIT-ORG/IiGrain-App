@@ -30,3 +30,16 @@ export const projectRing = (
 
 export const pointsToSvg = (points: readonly ScreenPoint[]): string =>
   points.map(p => `${p.x},${p.y}`).join(' ');
+
+export const unprojectFromScreen = (
+  point: ScreenPoint,
+  region: MapRegion,
+  size: ViewSize,
+): LatLng => {
+  const west = region.longitude - region.longitudeDelta / 2;
+  const north = region.latitude + region.latitudeDelta / 2;
+  return {
+    longitude: west + (point.x / size.width) * region.longitudeDelta,
+    latitude: north - (point.y / size.height) * region.latitudeDelta,
+  };
+};

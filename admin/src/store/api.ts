@@ -29,10 +29,14 @@ export const apiSlice = createApi({
     "FieldSoil",
     "FieldDocuments",
     "FieldHistory",
+    "AssessmentTemplates",
+    "AssessmentTemplate",
     "AssessmentCategories",
     "AssessmentCategory",
     "AssessmentQuestions",
     "AssessmentQuestion",
+    "AssessmentReviews",
+    "AssessmentReview",
     "Assignments",
     "Programs",
     "Program",
@@ -50,12 +54,10 @@ export const apiSlice = createApi({
     "PasSubmissions",
     "PasSubmission",
     "PasContracts",
-    // Field monitoring: the module list, the records inside a module, and the
-    // files attached to either.
-    "FieldModules",
-    "FieldModuleRecords",
-    "FieldModuleDocuments",
     "PasContract",
+    // Help screen content and the messages the contact form brings in.
+    "Faqs",
+    "ContactEnquiries",
   ],
   endpoints: () => ({}),
 });

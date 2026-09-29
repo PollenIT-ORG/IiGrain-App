@@ -1,4 +1,4 @@
-import { createSelector, createSlice } from '@reduxjs/toolkit';
+import { createSelector, createSlice, isAnyOf } from '@reduxjs/toolkit';
 import type {
   AssessmentCategorySummary,
   AssessmentQuestionDetail,
@@ -6,6 +6,7 @@ import type {
   AssessmentReview,
   AssessmentSubmitResult,
   CategoryQuestionList,
+  CategoryQuestionSet,
   FieldAssessmentSummary,
 } from '../../types/assessment';
 import type {
@@ -28,6 +29,11 @@ import {
   fetchAssessorSummaryThunk,
   refreshAssessorSummaryThunk,
   fetchAssessorCategoryQuestionsThunk,
+  fetchAssessorCategoryFormThunk,
+  saveAssessorCategoryAnswersThunk,
+  addAssessorCategoryRecordThunk,
+  saveAssessorCategoryRecordThunk,
+  deleteAssessorCategoryRecordThunk,
   fetchAssessorQuestionDetailThunk,
   saveAssessorAnswerThunk,
   fetchAssessorReviewThunk,
@@ -39,6 +45,7 @@ import {
 export interface AssessorState {
   fieldsOverview: AssessorFieldsOverview | null;
   fieldsRequestId: string | null;
+  fieldsCapturedAt: string | null;
 
   summary: FieldAssessmentSummary | null;
   requestedSummaryFieldId: string | null;
@@ -47,6 +54,10 @@ export interface AssessorState {
   submittedBy: SubmittedBy | null;
   categoryQuestions: CategoryQuestionList | null;
   requestedCategoryScope: string | null;
+  categoryForm: CategoryQuestionSet | null;
+  requestedCategoryFormScope: string | null;
+  loadingCategoryForm: boolean;
+  savingCategoryForm: boolean;
   questionDetail: AssessmentQuestionDetail | null;
   requestedQuestionId: string | null;
   review: AssessmentReview | null;
@@ -75,6 +86,7 @@ export interface AssessorState {
 
 const initialState: AssessorState = {
   fieldsOverview: null,
+  fieldsCapturedAt: null,
   fieldsRequestId: null,
   summary: null,
   requestedSummaryFieldId: null,
@@ -83,6 +95,10 @@ const initialState: AssessorState = {
   submittedBy: null,
   categoryQuestions: null,
   requestedCategoryScope: null,
+  categoryForm: null,
+  requestedCategoryFormScope: null,
+  loadingCategoryForm: false,
+  savingCategoryForm: false,
   questionDetail: null,
   requestedQuestionId: null,
   review: null,
@@ -146,6 +162,7 @@ const assessorSlice = createSlice({
         }
         state.loadingFieldsOverview = false;
         state.fieldsOverview = action.payload;
+        state.fieldsCapturedAt = action.meta.capturedAt ?? null;
       })
       .addCase(fetchAssessorFieldsThunk.rejected, (state, action) => {
         if (action.meta.requestId !== state.fieldsRequestId) {
@@ -217,6 +234,38 @@ const assessorSlice = createSlice({
         state.loadingQuestions = false;
         state.error = action.payload?.message ?? 'Failed to load questions';
       })
+      .addCase(fetchAssessorCategoryFormThunk.pending, (state, action) => {
+        state.loadingCategoryForm = true;
+        state.error = null;
+        state.requestedCategoryFormScope = categoryScopeKey(action.meta.arg);
+      })
+      .addCase(fetchAssessorCategoryFormThunk.fulfilled, (state, action) => {
+        if (categoryScopeKey(action.meta.arg) !== state.requestedCategoryFormScope) {
+          return;
+        }
+        state.loadingCategoryForm = false;
+        state.categoryForm = action.payload;
+      })
+      .addCase(fetchAssessorCategoryFormThunk.rejected, (state, action) => {
+        if (categoryScopeKey(action.meta.arg) !== state.requestedCategoryFormScope) {
+          return;
+        }
+        state.loadingCategoryForm = false;
+        state.error = action.payload?.message ?? 'Failed to load the form';
+      })
+      .addCase(saveAssessorCategoryAnswersThunk.pending, state => {
+        state.savingCategoryForm = true;
+        state.error = null;
+      })
+      .addCase(saveAssessorCategoryAnswersThunk.fulfilled, (state, action) => {
+        state.savingCategoryForm = false;
+        state.answerVersion += 1;
+        state.categoryForm = action.payload;
+      })
+      .addCase(saveAssessorCategoryAnswersThunk.rejected, (state, action) => {
+        state.savingCategoryForm = false;
+        state.error = action.payload?.message ?? 'Failed to save the form';
+      })
       .addCase(fetchAssessorQuestionDetailThunk.pending, (state, action) => {
         state.loadingQuestion = true;
         state.error = null;
@@ -261,10 +310,16 @@ const assessorSlice = createSlice({
         const isNewAnswer = !previouslyAnswered;
 
         if (state.questionDetail?.id === qId) {
-          state.questionDetail.answerScore = saved.score;
-          state.questionDetail.answerComment = saved.comment;
-          state.questionDetail.answerEvidenceUrls = saved.evidenceUrls;
-          state.questionDetail.answered = true;
+          const qd = state.questionDetail;
+          qd.answerScore = saved.score;
+          qd.answerOptionId = saved.optionId;
+          qd.answerText = saved.answerText;
+          qd.answerNumber = saved.answerNumber;
+          qd.answerDate = saved.answerDate;
+          qd.answerBoolean = saved.answerBoolean;
+          qd.answerComment = saved.comment;
+          qd.answerEvidenceUrls = saved.evidenceUrls;
+          qd.answered = true;
         }
         if (listItem) {
           listItem.answered = true;
@@ -361,6 +416,8 @@ const assessorSlice = createSlice({
         if (state.review) {
           state.review.submission.status = action.payload.result.status;
           state.review.submission.submittedAtISO = action.payload.submittedAtISO;
+          state.review.submission.reviewStatus = action.payload.result.reviewStatus;
+          state.review.submission.reviewNote = action.payload.result.reviewNote;
         }
         if (state.fieldsOverview) {
           const { programId, fieldId } = action.meta.arg;
@@ -420,7 +477,41 @@ const assessorSlice = createSlice({
         state.loadingComparison = false;
         state.error = action.payload?.message ?? 'Failed to load the comparison';
       })
-      .addCase(logout, () => initialState);
+      .addCase(logout, () => initialState)
+      .addMatcher(
+        isAnyOf(
+          addAssessorCategoryRecordThunk.pending,
+          saveAssessorCategoryRecordThunk.pending,
+          deleteAssessorCategoryRecordThunk.pending,
+        ),
+        state => {
+          state.savingCategoryForm = true;
+          state.error = null;
+        },
+      )
+      .addMatcher(
+        isAnyOf(
+          addAssessorCategoryRecordThunk.fulfilled,
+          saveAssessorCategoryRecordThunk.fulfilled,
+          deleteAssessorCategoryRecordThunk.fulfilled,
+        ),
+        (state, action) => {
+          state.savingCategoryForm = false;
+          state.answerVersion += 1;
+          state.categoryForm = action.payload;
+        },
+      )
+      .addMatcher(
+        isAnyOf(
+          addAssessorCategoryRecordThunk.rejected,
+          saveAssessorCategoryRecordThunk.rejected,
+          deleteAssessorCategoryRecordThunk.rejected,
+        ),
+        (state, action) => {
+          state.savingCategoryForm = false;
+          state.error = action.payload?.message ?? 'Failed to save the form';
+        },
+      );
   },
 });
 
@@ -436,6 +527,11 @@ export {
   fetchAssessorSummaryThunk,
   refreshAssessorSummaryThunk,
   fetchAssessorCategoryQuestionsThunk,
+  fetchAssessorCategoryFormThunk,
+  saveAssessorCategoryAnswersThunk,
+  addAssessorCategoryRecordThunk,
+  saveAssessorCategoryRecordThunk,
+  deleteAssessorCategoryRecordThunk,
   fetchAssessorQuestionDetailThunk,
   saveAssessorAnswerThunk,
   fetchAssessorReviewThunk,
@@ -455,6 +551,8 @@ const EMPTY_QUESTIONS: AssessmentQuestionListItem[] = [];
 
 export const selectAssessorFieldsOverview = (s: HasAssessor): AssessorFieldsOverview | null =>
   s.assessor.fieldsOverview;
+export const selectAssessorFieldsCapturedAt = (s: HasAssessor): string | null =>
+  s.assessor.fieldsCapturedAt;
 export const selectAssessorFieldsOverviewLoading = (s: HasAssessor): boolean =>
   s.assessor.loadingFieldsOverview;
 
@@ -488,6 +586,9 @@ export const selectAssessorRefreshing = (s: HasAssessor): boolean => s.assessor.
 export const selectAssessorCategoryQuestionList = (s: HasAssessor): CategoryQuestionList | null => s.assessor.categoryQuestions;
 export const selectAssessorQuestionList = (s: HasAssessor): AssessmentQuestionListItem[] => s.assessor.categoryQuestions?.questions ?? EMPTY_QUESTIONS;
 export const selectAssessorQuestionsLoading = (s: HasAssessor): boolean => s.assessor.loadingQuestions;
+export const selectAssessorCategoryForm = (s: HasAssessor): CategoryQuestionSet | null => s.assessor.categoryForm;
+export const selectAssessorCategoryFormLoading = (s: HasAssessor): boolean => s.assessor.loadingCategoryForm;
+export const selectAssessorCategoryFormSaving = (s: HasAssessor): boolean => s.assessor.savingCategoryForm;
 export const selectAssessorQuestionDetail = (s: HasAssessor): AssessmentQuestionDetail | null => s.assessor.questionDetail;
 export const selectAssessorQuestionLoading = (s: HasAssessor): boolean => s.assessor.loadingQuestion;
 export const selectAssessorReview = (s: HasAssessor): AssessmentReview | null =>

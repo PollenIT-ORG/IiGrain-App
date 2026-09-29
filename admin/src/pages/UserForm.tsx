@@ -7,17 +7,17 @@ import {
 } from "../store/endpoints/usersApi";
 import { showSuccess, showError } from "../lib/toast";
 import { applyServerFieldErrors } from "../lib/serverErrors";
+import { useReturnTo } from "../lib/returnTo";
 import {
   required,
   requiredEmail,
-  password as validatePassword,
   phone as validatePhone,
   isClean,
 } from "../lib/validation";
 import Loader from "../components/Loader";
+import Breadcrumbs from "../components/ui/Breadcrumbs";
 import Select from "../components/ui/Select";
 import PhoneInput from "../components/ui/PhoneInput";
-import { EyeIcon, EyeOffIcon, ChevronLeftIcon } from "../components/icons";
 import { ROLE_LABELS, type UserRole } from "../types";
 import { useAuth } from "../store/useAuth";
 
@@ -54,12 +54,11 @@ export default function UserForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const back = useReturnTo("/users");
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<UserRole>("farmer");
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const { user } = useAuth();
@@ -96,7 +95,6 @@ export default function UserForm() {
       fullName: required(fullName, "Full name"),
       phone: validatePhone(phone, { req: true }),
       email: isEdit ? null : requiredEmail(email),
-      password: isEdit ? null : validatePassword(password),
     };
     setErrors(next);
     return isClean(next);
@@ -117,12 +115,11 @@ export default function UserForm() {
           fullName: fullName.trim(),
           email: email.trim(),
           phone: phone.trim(),
-          password,
           role,
         }).unwrap();
         showSuccess("User created.");
       }
-      navigate("/users");
+      back.go();
     } catch (err) {
       const placed = applyServerFieldErrors(err, setErrors, [
         { field: "email", test: /email/i },
@@ -139,20 +136,28 @@ export default function UserForm() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <button
-          onClick={() => navigate("/users")}
-          className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to users
-        </button>
+        <Breadcrumbs
+          className="mb-2"
+          items={[
+            { label: "Users", to: "/users" },
+            ...(isEdit
+              ? [
+                  {
+                    label: existingUser?.full_name || existingUser?.email || "User",
+                    to: `/users/${id}`,
+                  },
+                  { label: "Edit" },
+                ]
+              : [{ label: "Add user" }]),
+          ]}
+        />
         <h1 className="text-2xl font-bold text-gray-900">
           {isEdit ? "Edit user" : "Add user"}
         </h1>
         <p className="mt-1 text-sm text-gray-500">
           {isEdit
             ? "Update the user's details and role."
-            : "Create a new user. They will be active and verified immediately."}
+            : "Create a new user. They set their own password from the email we send before they can sign in."}
         </p>
       </div>
 
@@ -219,42 +224,14 @@ export default function UserForm() {
           </div>
 
           {!isEdit && (
-            <div>
-              <label htmlFor="password" className="label">
-                Password <span className="text-danger">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  className={`input-field pr-11 ${
-                    errors.password ? "input-error" : ""
-                  }`}
-                  placeholder="At least 8 characters"
-                  value={password}
-                  maxLength={64}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((s) => !s)}
-                  className="absolute inset-y-0 right-0 grid w-11 place-items-center text-gray-500 hover:text-gray-700"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? (
-                    <EyeOffIcon width={18} height={18} />
-                  ) : (
-                    <EyeIcon width={18} height={18} />
-                  )}
-                </button>
-              </div>
-              {errors.password ? (
-                <p className="field-error">{errors.password}</p>
-              ) : (
-                <p className="mt-1.5 text-xs text-gray-500">
-                  At least 8 characters, with one letter and one number.
-                </p>
-              )}
+            <div className="rounded-lg border border-gray-300 bg-gray-50 px-4 py-3">
+              <p className="text-sm font-medium text-gray-800">
+                A temporary password is emailed to them
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                Nobody here sets or sees it. They cannot use the app until they
+                replace it with their own through Forgot password.
+              </p>
             </div>
           )}
 
@@ -274,7 +251,7 @@ export default function UserForm() {
             <button
               type="button"
               className="btn-secondary"
-              onClick={() => navigate("/users")}
+              onClick={() => back.go()}
             >
               Cancel
             </button>

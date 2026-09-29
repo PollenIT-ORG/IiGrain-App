@@ -113,6 +113,7 @@ export default function SurveyAssessment() {
 
   const [submittedToken, setSubmittedToken] = useState<string | null>(null);
   const [checkingEmail, setCheckingEmail] = useState(false);
+  const [detailsLocked, setDetailsLocked] = useState(false);
 
   // Email verification (OTP) before a new producer can save.
   const [emailVerified, setEmailVerified] = useState(false);
@@ -161,12 +162,7 @@ export default function SurveyAssessment() {
   }
 
   // Send a verification code to the entered email and open the OTP popup.
-  async function startVerify() {
-    const email = details.email.trim().toLowerCase();
-    if (!EMAIL_RE.test(email)) {
-      setErrors((e) => ({ ...e, email: "Enter a valid email address." }));
-      return;
-    }
+  async function sendOtp(email: string) {
     setOtpSending(true);
     try {
       const { code } = await surveyApi.sendOtp(email);
@@ -181,6 +177,24 @@ export default function SurveyAssessment() {
     } finally {
       setOtpSending(false);
     }
+  }
+
+  // Verify looks the email up first. Somebody already on file carries on where
+  // they left off, and only an email new to this survey is sent a code.
+  async function startVerify() {
+    const email = details.email.trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) {
+      setErrors((e) => ({ ...e, email: "Enter a valid email address." }));
+      return;
+    }
+    const state = await resumeFromEmail(email, true);
+    if (state === null) {
+      showError("Could not check that email. Please try again.");
+      return;
+    }
+    // Resumed, or already completed: there is nothing to send a code for.
+    if (state !== "new") return;
+    await sendOtp(email);
   }
 
   // Confirm the code the producer typed in the popup.
@@ -217,15 +231,41 @@ export default function SurveyAssessment() {
     };
   }
 
-  // Look up an email: resume a draft (straight into the survey), or flag a
-  // completed submission. Returns true when a draft was resumed.
-  async function resumeFromEmail(email: string, jump: boolean): Promise<boolean> {
+  // Look up an email: resume a draft or a producer already on file (straight
+  // into the survey), or flag a completed submission. Returns what was found,
+  // or null when the lookup itself could not be made.
+  async function resumeFromEmail(
+    email: string,
+    jump: boolean
+  ): Promise<"new" | "draft" | "returning" | "submitted" | null> {
     setCheckingEmail(true);
     try {
       const res = await surveyApi.checkEmail(email.trim().toLowerCase());
       if (res.state === "submitted") {
         setSubmittedToken(res.statusToken);
-        return false;
+        return "submitted";
+      }
+      // Already holds an Enrollment ID, so the details are on file and the
+      // survey opens straight at the questions.
+      if (res.state === "returning" && res.profile) {
+        const p = res.profile;
+        setDetails((prev) => ({
+          ...prev,
+          firstName: p.firstName ?? "",
+          lastName: p.lastName ?? "",
+          phone: p.phone ?? prev.phone,
+          farmName: p.farmName ?? "",
+          referralSource: p.referralSource ?? "",
+          state: p.state ?? "",
+          totalAcres: p.totalAcres ?? "",
+        }));
+        setDetailsLocked(true);
+        setSubmittedToken(null);
+        if (jump) {
+          setStep("categories");
+          showSuccess("Welcome back. Using the details from your earlier survey.");
+        }
+        return "returning";
       }
       if (res.state === "draft" && res.draft) {
         const d = res.draft;
@@ -244,12 +284,12 @@ export default function SurveyAssessment() {
           setStep("categories");
           showSuccess("Welcome back - resuming your survey.");
         }
-        return true;
+        return "draft";
       }
       setSubmittedToken(null);
-      return false;
+      return "new";
     } catch {
-      return false;
+      return null;
     } finally {
       setCheckingEmail(false);
     }
@@ -414,10 +454,6 @@ export default function SurveyAssessment() {
           details={details}
           errors={errors}
           set={set}
-          onEmailBlur={() => {
-            const email = details.email.trim().toLowerCase();
-            if (EMAIL_RE.test(email)) void resumeFromEmail(email, true);
-          }}
           onPhoneBlur={(rawInput) =>
             setErrors((e) => {
               const next = { ...e };
@@ -449,7 +485,7 @@ export default function SurveyAssessment() {
           email={details.email.trim().toLowerCase()}
           devCode={devCode}
           verifying={otpVerifying}
-          onResend={startVerify}
+          onResend={() => void sendOtp(details.email.trim().toLowerCase())}
           onVerify={confirmOtp}
           onClose={() => setOtpOpen(false)}
         />
@@ -462,6 +498,7 @@ export default function SurveyAssessment() {
           onOpen={openCategory}
           onReview={() => setStep("review")}
           onEditDetails={() => setStep("details")}
+          detailsLocked={detailsLocked}
         />
       )}
 
@@ -511,7 +548,6 @@ function DetailsStep({
   details,
   errors,
   set,
-  onEmailBlur,
   onPhoneBlur,
   submittedToken,
   busy,
@@ -526,7 +562,6 @@ function DetailsStep({
   details: Details;
   errors: Record<string, string>;
   set: <K extends keyof Details>(k: K, v: Details[K]) => void;
-  onEmailBlur: () => void;
   onPhoneBlur: (rawInput: string) => void;
   submittedToken: string | null;
   busy: boolean;
@@ -620,31 +655,16 @@ function DetailsStep({
             }
           >
             <div className="flex items-stretch gap-2">
-              <div className="relative flex-1">
-                <input
-                  type="email"
-                  className={`input-field w-full ${errors.email ? "input-error" : ""} ${
-                    checkingEmail ? "pr-10" : ""
-                  }`}
-                  value={details.email}
-                  onChange={(e) => set("email", e.target.value)}
-                  onBlur={onEmailBlur}
-                  placeholder="Enter email address"
-                  maxLength={255}
-                />
-                {checkingEmail && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <svg
-                      className="h-5 w-5 animate-spin text-primary"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                    >
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
-                    </svg>
-                  </span>
-                )}
-              </div>
+              {/* Nothing is looked up while they type. The check runs when they
+                  press Verify, which is where the spinner belongs. */}
+              <input
+                type="email"
+                className={`input-field w-full flex-1 ${errors.email ? "input-error" : ""}`}
+                value={details.email}
+                onChange={(e) => set("email", e.target.value)}
+                placeholder="Enter email address"
+                maxLength={255}
+              />
               {emailVerified ? (
                 <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-success/30 bg-success/5 px-3 text-sm font-semibold text-success">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -656,16 +676,20 @@ function DetailsStep({
                 <button
                   type="button"
                   onClick={onVerify}
-                  disabled={otpSending || !EMAIL_RE.test(details.email.trim())}
+                  disabled={
+                    checkingEmail ||
+                    otpSending ||
+                    !EMAIL_RE.test(details.email.trim())
+                  }
                   className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-primary/40 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/5 disabled:opacity-50"
                 >
-                  {otpSending ? (
+                  {checkingEmail || otpSending ? (
                     <>
                       <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
                       </svg>
-                      Sending...
+                      {checkingEmail ? "Checking..." : "Sending..."}
                     </>
                   ) : (
                     "Verify"
@@ -870,12 +894,14 @@ function CategoriesStep({
   onOpen,
   onReview,
   onEditDetails,
+  detailsLocked,
 }: {
   categories: SurveyCategoryNode[];
   answers: Record<string, number>;
   onOpen: (i: number) => void;
   onReview: () => void;
   onEditDetails: () => void;
+  detailsLocked: boolean;
 }) {
   const allDone = categories.every((c) =>
     c.questions.every((q) => answers[q.id] !== undefined)
@@ -891,12 +917,18 @@ function CategoriesStep({
             its questions - your progress is saved automatically.
           </p>
         </div>
-        <button
-          onClick={onEditDetails}
-          className="shrink-0 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          Edit details
-        </button>
+        {detailsLocked ? (
+          <p className="shrink-0 text-sm text-gray-500">
+            Using your details from an earlier survey.
+          </p>
+        ) : (
+          <button
+            onClick={onEditDetails}
+            className="shrink-0 text-sm font-medium text-gray-500 hover:text-primary"
+          >
+            Edit details
+          </button>
+        )}
       </div>
 
       <div className="grid gap-4 p-6 sm:grid-cols-2 sm:p-8 lg:grid-cols-3">

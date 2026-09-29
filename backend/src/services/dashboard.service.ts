@@ -11,6 +11,22 @@ import {
   getFarmRhiTrend,
   getFarmCategoryScoresByYear,
   getFarmSummaryByYear,
+  listDashboardPrograms,
+  getDefaultDashboardProgramId,
+  findDashboardProgram,
+  getProgramStartYear,
+  getProgramRhiTrend,
+  getProgramCategoryScoresByYear,
+  getProgramSummaryByYear,
+  getProgramRecentActivity,
+  getProgramUpcomingPrograms,
+  type ActivityRow,
+  type UpcomingProgramRow,
+  type CategoryScoreRow,
+  type FarmSummaryRow,
+  type RhiTrendRow,
+  type DashboardProgramRow,
+  type DashboardProgramStatus,
 } from "../models/dashboard.model.js";
 
 function toInt(n: number | string | null | undefined): number | null {
@@ -64,6 +80,52 @@ export async function getMyDashboardFarms(input: DashboardFarmsInput): Promise<{
   };
 }
 
+export interface DashboardUpcoming {
+  hasUpcoming: boolean;
+  programs: Array<{
+    programId: string;
+    programName: string;
+    startDate: string;
+    endDate: string | null;
+    alreadyEnrolled: boolean;
+    status: "upcoming";
+  }>;
+}
+
+export type DashboardActivity = Array<{
+  type: string;
+  title: string;
+  detail: string | null;
+  at: string;
+  fieldId: string | null;
+  fieldName: string | null;
+}>;
+
+function toUpcoming(rows: UpcomingProgramRow[]): DashboardUpcoming {
+  return {
+    hasUpcoming: rows.length > 0,
+    programs: rows.map((p) => ({
+      programId: p.program_id,
+      programName: p.program_name,
+      startDate: p.start_date,
+      endDate: p.end_date,
+      alreadyEnrolled: p.already_enrolled,
+      status: "upcoming" as const,
+    })),
+  };
+}
+
+function toActivity(rows: ActivityRow[]): DashboardActivity {
+  return rows.map((a) => ({
+    type: a.type,
+    title: a.title,
+    detail: a.detail,
+    at: a.at.toISOString(),
+    fieldId: a.field_id,
+    fieldName: a.field_name,
+  }));
+}
+
 export interface FarmDashboard {
   farm: { id: string; name: string };
   regenHealthIndex: number | null;
@@ -75,25 +137,8 @@ export interface FarmDashboard {
     answered: number;
     totalQuestions: number;
   }>;
-  upcoming: {
-    hasUpcoming: boolean;
-    programs: Array<{
-      programId: string;
-      programName: string;
-      startDate: string;
-      endDate: string | null;
-      alreadyEnrolled: boolean;
-      status: "upcoming";
-    }>;
-  };
-  recentActivity: Array<{
-    type: string;
-    title: string;
-    detail: string | null;
-    at: string;
-    fieldId: string | null;
-    fieldName: string | null;
-  }>;
+  upcoming: DashboardUpcoming;
+  recentActivity: DashboardActivity;
   summary: {
     assessmentsCompleted: number;
     averageScore: number | null;
@@ -143,25 +188,8 @@ export async function getFarmDashboard(
     regenHealthIndex,
     trendVsLastYear: null,
     categories,
-    upcoming: {
-      hasUpcoming: upcomingPrograms.length > 0,
-      programs: upcomingPrograms.map((p) => ({
-        programId: p.program_id,
-        programName: p.program_name,
-        startDate: p.start_date,
-        endDate: p.end_date,
-        alreadyEnrolled: p.already_enrolled,
-        status: "upcoming" as const,
-      })),
-    },
-    recentActivity: activityRows.map((a) => ({
-      type: a.type,
-      title: a.title,
-      detail: a.detail,
-      at: a.at.toISOString(),
-      fieldId: a.field_id,
-      fieldName: a.field_name,
-    })),
+    upcoming: toUpcoming(upcomingPrograms),
+    recentActivity: toActivity(activityRows),
     summary: {
       assessmentsCompleted: summaryRow.assessments_completed,
       averageScore: toInt(summaryRow.average_score),
@@ -181,8 +209,8 @@ export async function getFarmDashboard(
 const DEFAULT_TREND_YEARS = 5;
 const MAX_TREND_YEARS = 20;
 
-export interface FarmSummaryReport {
-  farm: { id: string; name: string };
+/** The year-by-year part shared by the farm and program summaries. */
+interface YearlyReport {
   year: number;
   availableYears: number[];
   regenHealthIndex: number | null;
@@ -202,6 +230,10 @@ export interface FarmSummaryReport {
   };
 }
 
+export interface FarmSummaryReport extends YearlyReport {
+  farm: { id: string; name: string };
+}
+
 export interface FarmSummaryOptions {
   year?: number;
   trendYears?: number;
@@ -215,27 +247,18 @@ function ratingFor(index: number): string {
   return "Poor";
 }
 
-export async function getFarmSummaryReport(
-  farmId: string,
-  farmerId: string,
-  options: FarmSummaryOptions = {}
-): Promise<FarmSummaryReport> {
-  const farm = await findOwnedFarm(farmId, farmerId);
-  if (!farm) throw ApiError.notFound("Farm not found.");
-
-  // Selectable years run from the farm's first activity (never before the farmer
-  // registered) up to the current year.
+async function buildYearlyReport(
+  startYear: number,
+  allTrend: RhiTrendRow[],
+  options: FarmSummaryOptions,
+  loadYear: (year: number) => Promise<[CategoryScoreRow[], FarmSummaryRow]>
+): Promise<YearlyReport> {
+  // Selectable years run from the first activity, never before the farmer registered, up to this year.
   const currentYear = new Date().getFullYear();
-  const [startYear, allTrend] = await Promise.all([
-    getFarmStartYear(farmId, farmerId),
-    getFarmRhiTrend(farmId, farmerId),
-  ]);
-
   const availableYears: number[] = [];
   for (let y = currentYear; y >= startYear; y -= 1) availableYears.push(y);
 
-  // Default to the most recent year that actually has a submitted assessment, so
-  // the screen never opens on an empty year.
+  // Default to the latest year with a submitted assessment, so the screen never opens on an empty year.
   const latestWithData =
     allTrend.length > 0 ? allTrend[allTrend.length - 1].year : null;
   const defaultYear =
@@ -259,10 +282,7 @@ export async function getFarmSummaryReport(
     .slice(-trendYears)
     .map((t) => ({ year: t.year, score: t.score }));
 
-  const [catRows, summaryRow] = await Promise.all([
-    getFarmCategoryScoresByYear(farmId, farmerId, year),
-    getFarmSummaryByYear(farmId, farmerId, year),
-  ]);
+  const [catRows, summaryRow] = await loadYear(year);
 
   const categories = catRows.map((c) => ({
     id: c.id,
@@ -287,7 +307,6 @@ export async function getFarmSummaryReport(
       : null;
 
   return {
-    farm: { id: farm.id, name: farm.name },
     year,
     availableYears,
     regenHealthIndex,
@@ -300,5 +319,124 @@ export async function getFarmSummaryReport(
       averageScore: toInt(summaryRow.average_score),
       topCategory,
     },
+  };
+}
+
+export async function getFarmSummaryReport(
+  farmId: string,
+  farmerId: string,
+  options: FarmSummaryOptions = {}
+): Promise<FarmSummaryReport> {
+  const farm = await findOwnedFarm(farmId, farmerId);
+  if (!farm) throw ApiError.notFound("Farm not found.");
+
+  const [startYear, allTrend] = await Promise.all([
+    getFarmStartYear(farmId, farmerId),
+    getFarmRhiTrend(farmId, farmerId),
+  ]);
+  const report = await buildYearlyReport(startYear, allTrend, options, (year) =>
+    Promise.all([
+      getFarmCategoryScoresByYear(farmId, farmerId, year),
+      getFarmSummaryByYear(farmId, farmerId, year),
+    ])
+  );
+  return { farm: { id: farm.id, name: farm.name }, ...report };
+}
+
+// Program dashboard: the farm summary's figures, worked out from the farmer's fields in one program.
+
+export interface DashboardProgram {
+  id: string;
+  name: string;
+  code: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  status: DashboardProgramStatus;
+  fieldsEnrolled: number;
+  assessmentsCompleted: number;
+  assessmentsPending: number;
+}
+
+const dateOnly = (d: Date | null): string | null =>
+  d === null ? null : d.toISOString().slice(0, 10);
+
+function toDashboardProgram(row: DashboardProgramRow): DashboardProgram {
+  return {
+    id: row.id,
+    name: row.name,
+    code: row.code,
+    startDate: dateOnly(row.start_date),
+    endDate: dateOnly(row.end_date),
+    status: row.status,
+    fieldsEnrolled: row.fields_enrolled,
+    assessmentsCompleted: row.assessments_completed,
+    assessmentsPending: Math.max(0, row.fields_enrolled - row.assessments_completed),
+  };
+}
+
+export interface DashboardProgramsInput {
+  farmerId: string;
+  page: number;
+  limit: number;
+  search?: string;
+}
+
+export async function getMyDashboardPrograms(input: DashboardProgramsInput): Promise<{
+  programs: DashboardProgram[];
+  defaultProgramId: string | null;
+  meta: { page: number; limit: number; total: number; totalPages: number };
+}> {
+  const [{ rows, total }, defaultProgramId] = await Promise.all([
+    listDashboardPrograms({
+      farmerId: input.farmerId,
+      search: input.search,
+      limit: input.limit,
+      offset: (input.page - 1) * input.limit,
+    }),
+    getDefaultDashboardProgramId(input.farmerId),
+  ]);
+  return {
+    programs: rows.map(toDashboardProgram),
+    defaultProgramId,
+    meta: {
+      page: input.page,
+      limit: input.limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / input.limit)),
+    },
+  };
+}
+
+export interface ProgramSummaryReport extends YearlyReport {
+  program: DashboardProgram;
+  upcoming: DashboardUpcoming;
+  recentActivity: DashboardActivity;
+}
+
+export async function getProgramSummaryReport(
+  programId: string,
+  farmerId: string,
+  options: FarmSummaryOptions = {}
+): Promise<ProgramSummaryReport> {
+  const row = await findDashboardProgram(programId, farmerId);
+  if (!row) throw ApiError.notFound("Program not found.");
+
+  const [startYear, allTrend, activityRows, upcomingRows] = await Promise.all([
+    getProgramStartYear(programId, farmerId),
+    getProgramRhiTrend(programId, farmerId),
+    getProgramRecentActivity(programId, farmerId, 10),
+    getProgramUpcomingPrograms(programId, farmerId),
+  ]);
+  const report = await buildYearlyReport(startYear, allTrend, options, (year) =>
+    Promise.all([
+      getProgramCategoryScoresByYear(programId, farmerId, year),
+      getProgramSummaryByYear(programId, farmerId, year),
+    ])
+  );
+  return {
+    program: toDashboardProgram(row),
+    ...report,
+    upcoming: toUpcoming(upcomingRows),
+    recentActivity: toActivity(activityRows),
   };
 }

@@ -16,11 +16,9 @@ export const Tags = {
   programs: 'available-programs',
   enrollableFields: 'enrollable-fields',
 
-  monitoring: (programId: string, fieldId: string): string =>
-    `monitoring:${programId}:${fieldId}`,
-  monitoringModule: (programId: string, fieldId: string, module: string): string =>
-    `monitoring:${programId}:${fieldId}:${module}`,
-  monitoringPrograms: (farmId: string): string => `monitoring-programs:${farmId}`,
+  monitoring: (fieldId: string): string => `monitoring:${fieldId}`,
+  monitoringModule: (fieldId: string, module: string): string =>
+    `monitoring:${fieldId}:${module}`,
 
   notifications: 'notifications',
   assessorOverview: 'assessor-overview',
@@ -92,7 +90,6 @@ export const tagsForSync = (p: SyncPayload): string[] => {
         Tags.dashboard,
         p.fieldId ? Tags.field(p.fieldId) : null,
         p.fieldId ? Tags.soil(p.fieldId) : null,
-        p.farmId ? Tags.monitoringPrograms(p.farmId) : null,
       ]);
 
     case 'document':
@@ -100,10 +97,8 @@ export const tagsForSync = (p: SyncPayload): string[] => {
 
     case 'monitoring':
       return compact([
-        p.programId && p.fieldId ? Tags.monitoring(p.programId, p.fieldId) : null,
-        p.programId && p.fieldId && p.module
-          ? Tags.monitoringModule(p.programId, p.fieldId, p.module)
-          : null,
+        p.fieldId ? Tags.monitoring(p.fieldId) : null,
+        p.fieldId && p.module ? Tags.monitoringModule(p.fieldId, p.module) : null,
       ]);
 
     default:

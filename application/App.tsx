@@ -1,5 +1,5 @@
-import React from 'react';
-import { StatusBar, StyleSheet , LogBox } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { AppState, StatusBar, StyleSheet , LogBox } from 'react-native';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -16,6 +16,10 @@ import SplashOverlay from './src/components/splash/SplashOverlay';
 import { COLORS } from './src/constants';
 import { SPLASH } from './src/config/splash';
 import { store, persistor } from './src/redux/store';
+import { initializeDatabase, isDatabaseReady } from './src/services/db';
+import { getSyncSubsystem } from './src/services/sync';
+import SyncOwnerBridge from './src/components/SyncOwnerBridge';
+import SyncStatusBanner from './src/components/SyncStatusBanner';
 
 
 
@@ -24,6 +28,41 @@ LogBox.ignoreLogs(['Require cycle:']);
 LogBox.ignoreAllLogs(true);
 
 const App = () => {
+  const [databaseReady, setDatabaseReady] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+
+    const bootstrapDatabase = async (): Promise<void> => {
+      if (!alive || isDatabaseReady()) {
+        return;
+      }
+      try {
+        await initializeDatabase();
+        if (!alive) {
+          return;
+        }
+        await getSyncSubsystem().recoverForCurrentOwner();
+        setDatabaseReady(true);
+      } catch (error) {
+        console.error('[db] initialization failed', error);
+      }
+    };
+
+    bootstrapDatabase();
+
+    const subscription = AppState.addEventListener('change', nextState => {
+      if (nextState === 'active') {
+        bootstrapDatabase();
+      }
+    });
+
+    return () => {
+      alive = false;
+      subscription.remove();
+    };
+  }, []);
+
   return (
     <GestureHandlerRootView style={styles.root}>
       <Provider store={store}>
@@ -35,12 +74,14 @@ const App = () => {
                 backgroundColor={COLORS.primary}
                 barStyle="light-content"
               />
+              <SyncOwnerBridge databaseReady={databaseReady} />
               <AppShimmerProvider>
                 <RootNavigator />
                 <VisitTrackingFab />
                 <GlobalErrorModal />
                 <GlobalConfirmModal />
                 <GlobalToast />
+                <SyncStatusBanner />
               </AppShimmerProvider>
             </SafeAreaProvider>
           </KeyboardProvider>

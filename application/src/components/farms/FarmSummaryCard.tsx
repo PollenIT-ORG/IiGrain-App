@@ -9,11 +9,12 @@ import {
   shadows,
   spacing,
 } from '../../constants';
-import { formatNumber, moderateScale, scale } from '../../utils';
+import { moderateScale, scale } from '../../utils';
+import { formatAcres } from '../../maps/utils/fieldAcres';
 import AppText from '../AppText/AppText';
-import StatusBadge from './StatusBadge';
+import PendingSyncChip from '../PendingSyncChip';
 import InfoRow from './InfoRow';
-import { FARM_STATUS_META, type Farm } from '../../types/farm';
+import { type Farm } from '../../types/farm';
 
 export interface FarmSummaryCardProps {
   farm: Farm;
@@ -21,7 +22,6 @@ export interface FarmSummaryCardProps {
 }
 
 const FarmSummaryCard: React.FC<FarmSummaryCardProps> = ({ farm, fieldsCount }) => {
-  const statusMeta = FARM_STATUS_META[farm.status];
   const resolved = fieldsCount ?? (farm.fieldsCount || undefined);
   const fieldsValue = resolved === undefined ? '—' : `${resolved}`;
 
@@ -38,6 +38,7 @@ const FarmSummaryCard: React.FC<FarmSummaryCardProps> = ({ farm, fieldsCount }) 
           <AppText style={styles.owner} numberOfLines={1}>
             {farm.ownerName}
           </AppText>
+          <PendingSyncChip visible={farm.pendingSync} style={styles.pendingChip} />
         </View>
       </View>
 
@@ -49,7 +50,7 @@ const FarmSummaryCard: React.FC<FarmSummaryCardProps> = ({ farm, fieldsCount }) 
         <InfoRow
           icon="vector-square"
           label="Total Area"
-          value={`${formatNumber(farm.areaAcres)} acres`}
+          value={`${formatAcres(farm.areaAcres)} acres`}
         />
         <InfoRow icon="view-grid-outline" label="Fields" value={fieldsValue} last />
       </View>
@@ -96,6 +97,9 @@ const styles = StyleSheet.create({
   badgeRow: {
     flexDirection: 'row',
     marginTop: spacing[3],
+  },
+  pendingChip: {
+    marginTop: spacing[1.5],
   },
   info: {
     marginTop: spacing[2],

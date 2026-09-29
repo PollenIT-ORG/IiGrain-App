@@ -1,7 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { RefreshControl, ScrollView, TouchableOpacity, View } from 'react-native';
 import {
-  useFocusEffect,
   useNavigation,
   type CompositeNavigationProp,
 } from '@react-navigation/native';
@@ -9,14 +8,15 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppIcon, ICONS } from '../../components/AppIcon';
 import { AppHeader, AppText, Button } from '../../components';
+import StaleDataNote from '../../components/StaleDataNote';
 import {
   FadeSlideIn,
   FarmerEmptyState,
   FarmerLoader,
-  FarmSelectorCard,
-  FarmSelectorSheet,
   NextAssessmentCard,
   PerformanceSummaryCard,
+  ProgramSelectorCard,
+  ProgramSelectorSheet,
   RecentActivityCard,
   RegenHealthCard,
 } from '../../components/home';
@@ -25,26 +25,29 @@ import { moderateScale } from '../../utils';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import { selectAuthUser } from '../../redux/slices/authSlice';
 import {
-  fetchDashboardFarmsThunk,
-  fetchFarmDashboardThunk,
+  fetchDashboardProgramsThunk,
+  fetchProgramDashboardThunk,
   selectDashboardError,
-  selectDashboardFarms,
-  selectDashboardDefaultFarmId,
-  selectDashboardFarmsError,
-  selectDashboardFarmsHasMore,
-  selectDashboardFarmsLoading,
-  selectDashboardFarmsLoadingMore,
-  selectDashboardFarmsPage,
-  selectDashboardFarmsTotal,
+  selectDashboardPrograms,
+  selectDashboardDefaultProgramId,
+  selectDashboardProgramsError,
+  selectDashboardProgramsHasMore,
+  selectDashboardProgramsLoading,
+  selectDashboardProgramsLoadingMore,
+  selectDashboardProgramsLoaded,
+  selectDashboardProgramsPage,
+  selectDashboardProgramsTotal,
   selectDashboardLoading,
-  selectFarmDashboard,
-  selectSelectedDashboardFarm,
-  selectSelectedFarmId,
-  selectSelectedFarmIsStale,
-  setSelectedFarmId,
+  selectDashboardCapturedAt,
+  selectProgramDashboard,
+  selectSelectedDashboardProgram,
+  selectSelectedProgramId,
+  setSelectedProgramId,
 } from '../../redux/slices/dashboardSlice';
 import { selectIncomingVisit } from '../../redux/slices/visitSlice';
 import { useOnboardingGate } from '../onboarding/useOnboardingGate';
+import { useSyncedFetch } from '../../hooks/useSyncedFetch';
+import { Tags } from '../../redux/syncTags';
 import type { AppStackParamList, AppTabParamList } from '../../navigation/navigationTypes';
 import {
   regenStatusLabel,
@@ -56,6 +59,8 @@ import {
   toUpcomingPrograms,
 } from './dashboardPresenters';
 import { styles } from './HomeScreenStyle';
+
+const DASHBOARD_LIST_TTL_MS = 60_000;
 
 const HomeScreen: React.FC = () => {
   const navigation =
@@ -71,56 +76,59 @@ const HomeScreen: React.FC = () => {
 
   useOnboardingGate();
 
-  const farms = useAppSelector(selectDashboardFarms);
-  const selectedFarmId = useAppSelector(selectSelectedFarmId);
-  const selectedFarm = useAppSelector(selectSelectedDashboardFarm);
-  const farmsLoading = useAppSelector(selectDashboardFarmsLoading);
-  const farmsLoadingMore = useAppSelector(selectDashboardFarmsLoadingMore);
-  const farmsHasMore = useAppSelector(selectDashboardFarmsHasMore);
-  const farmsPage = useAppSelector(selectDashboardFarmsPage);
-  const farmsTotal = useAppSelector(selectDashboardFarmsTotal);
-  const farmsError = useAppSelector(selectDashboardFarmsError);
-  const dashboardDefaultFarmId = useAppSelector(selectDashboardDefaultFarmId);
-  const dashboard = useAppSelector(selectFarmDashboard);
+  const programs = useAppSelector(selectDashboardPrograms);
+  const programsLoaded = useAppSelector(selectDashboardProgramsLoaded);
+  const selectedProgramId = useAppSelector(selectSelectedProgramId);
+  const selectedProgram = useAppSelector(selectSelectedDashboardProgram);
+  const programsLoading = useAppSelector(selectDashboardProgramsLoading);
+  const programsLoadingMore = useAppSelector(selectDashboardProgramsLoadingMore);
+  const programsHasMore = useAppSelector(selectDashboardProgramsHasMore);
+  const programsPage = useAppSelector(selectDashboardProgramsPage);
+  const programsTotal = useAppSelector(selectDashboardProgramsTotal);
+  const programsError = useAppSelector(selectDashboardProgramsError);
+  const dashboardDefaultProgramId = useAppSelector(selectDashboardDefaultProgramId);
+  const dashboard = useAppSelector(selectProgramDashboard);
+  const dashboardCapturedAt = useAppSelector(selectDashboardCapturedAt);
   const dashboardLoading = useAppSelector(selectDashboardLoading);
   const dashboardError = useAppSelector(selectDashboardError);
-  const selectedFarmIsStale = useAppSelector(selectSelectedFarmIsStale);
 
   const incomingVisit = useAppSelector(selectIncomingVisit);
 
   const [sheetVisible, setSheetVisible] = useState(false);
 
-  useEffect(() => {
-    dispatch(fetchDashboardFarmsThunk());
-  }, [dispatch]);
+  useSyncedFetch({
+    tags: [Tags.dashboard],
+    run: useCallback(() => {
+      dispatch(fetchDashboardProgramsThunk());
+    }, [dispatch]),
+    hasData: programsLoaded,
+    ttlMs: DASHBOARD_LIST_TTL_MS,
+  });
 
-  useEffect(() => {
-    if (selectedFarmId) {
-      dispatch(fetchFarmDashboardThunk({ farmId: selectedFarmId }));
+  const fetchSelectedDashboard = useCallback(() => {
+    if (selectedProgramId) {
+      dispatch(fetchProgramDashboardThunk({ programId: selectedProgramId }));
     }
-  }, [dispatch, selectedFarmId]);
+  }, [dispatch, selectedProgramId]);
 
-  const isFirstFocus = useRef(true);
-  useFocusEffect(
-    useCallback(() => {
-      if (isFirstFocus.current) {
-        isFirstFocus.current = false;
-        return;
-      }
-      if (selectedFarmId && selectedFarmIsStale) {
-        dispatch(fetchFarmDashboardThunk({ farmId: selectedFarmId }));
-      }
-    }, [dispatch, selectedFarmId, selectedFarmIsStale]),
-  );
+  useEffect(() => {
+    fetchSelectedDashboard();
+  }, [fetchSelectedDashboard]);
+
+  useSyncedFetch({
+    tags: [Tags.dashboard],
+    run: fetchSelectedDashboard,
+    hasData: !!dashboard,
+    enabled: !!selectedProgramId,
+  });
 
   const goAssessment = useCallback(() => navigation.navigate('Assessment'), [navigation]);
   const goEnroll = useCallback(() => navigation.navigate('EnrollNow'), [navigation]);
-  const goFarms = useCallback(() => navigation.navigate('Farms'), [navigation]);
   const goRecommendations = useCallback(() => {
   }, []);
   const goReports = useCallback(
-    () => navigation.navigate('Reports', { farmId: selectedFarmId ?? undefined }),
-    [navigation, selectedFarmId],
+    () => navigation.navigate('Reports', { programId: selectedProgramId ?? undefined }),
+    [navigation, selectedProgramId],
   );
   const goVisitTracking = useCallback(
     () =>
@@ -132,38 +140,38 @@ const HomeScreen: React.FC = () => {
   );
 
   const onRefresh = useCallback(() => {
-    dispatch(fetchDashboardFarmsThunk());
-    if (selectedFarmId) {
-      dispatch(fetchFarmDashboardThunk({ farmId: selectedFarmId }));
+    dispatch(fetchDashboardProgramsThunk());
+    if (selectedProgramId) {
+      dispatch(fetchProgramDashboardThunk({ programId: selectedProgramId }));
     }
-  }, [dispatch, selectedFarmId]);
+  }, [dispatch, selectedProgramId]);
 
-  const loadMoreFarms = useCallback(() => {
-    if (farmsLoading || farmsLoadingMore || !farmsHasMore) {
+  const loadMorePrograms = useCallback(() => {
+    if (programsLoading || programsLoadingMore || !programsHasMore) {
       return;
     }
-    dispatch(fetchDashboardFarmsThunk({ page: farmsPage + 1 }));
-  }, [dispatch, farmsLoading, farmsLoadingMore, farmsHasMore, farmsPage]);
+    dispatch(fetchDashboardProgramsThunk({ page: programsPage + 1 }));
+  }, [dispatch, programsLoading, programsLoadingMore, programsHasMore, programsPage]);
 
   const openSheet = useCallback(() => setSheetVisible(true), []);
   const closeSheet = useCallback(() => setSheetVisible(false), []);
-  const handleSelectFarm = useCallback(
+  const handleSelectProgram = useCallback(
     (id: string) => {
-      dispatch(setSelectedFarmId(id));
+      dispatch(setSelectedProgramId(id));
       setSheetVisible(false);
     },
     [dispatch],
   );
 
-  const farmLabel =
-    selectedFarm?.name ??
-    dashboard?.farm.name ??
-    (farmsLoading ? 'Loading…' : farms.length === 0 ? 'No farms yet' : 'Select a farm');
+  const programLabel =
+    selectedProgram?.name ??
+    dashboard?.program.name ??
+    (programsLoading ? 'Loading…' : programs.length === 0 ? 'No programs yet' : 'Select a program');
 
-  const noFarms = !farmsLoading && !farmsError && farms.length === 0;
+  const noPrograms = !programsLoading && !programsError && programs.length === 0;
   const showFirstError =
-    !dashboard && !noFarms && !dashboardLoading && Boolean(dashboardError || farmsError);
-  const showFirstLoading = !dashboard && !noFarms && !showFirstError;
+    !dashboard && !noPrograms && !dashboardLoading && Boolean(dashboardError || programsError);
+  const showFirstLoading = !dashboard && !noPrograms && !showFirstError;
 
   const metrics = dashboard ? toHealthMetrics(dashboard.categories) : [];
   const trend = dashboard ? toTrendDelta(dashboard.trendVsLastYear) : { positive: true };
@@ -245,39 +253,44 @@ const HomeScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          <FarmSelectorCard
-            farmName={farmLabel}
-            fieldCount={selectedFarm?.fieldCount}
-            farmCount={farmsTotal}
-            loading={farmsLoading && farms.length === 0}
+          <ProgramSelectorCard
+            programName={programLabel}
+            status={selectedProgram?.status}
+            fieldsEnrolled={selectedProgram?.fieldsEnrolled}
+            assessmentsCompleted={selectedProgram?.assessmentsCompleted}
+            assessmentsPending={selectedProgram?.assessmentsPending}
+            programCount={programsTotal}
+            loading={programsLoading && programs.length === 0}
             onPress={openSheet}
           />
         </FadeSlideIn>
 
-        {showFirstLoading ? (
-          <View style={styles.stateWrap}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-          </View>
-        ) : showFirstError ? (
+        {showFirstError ? (
           <View style={styles.stateWrap}>
             <AppIcon name={ICONS.ERROR} size={moderateScale(44)} color={COLORS.gray500} />
             <AppText style={styles.stateTitle}>Couldn't load dashboard</AppText>
-            <AppText style={styles.stateMsg}>{dashboardError || farmsError}</AppText>
+            <AppText style={styles.stateMsg}>{dashboardError || programsError}</AppText>
             <Button title="Retry" onPress={onRefresh} fullWidth={false} style={styles.retry} />
           </View>
-        ) : noFarms ? (
+        ) : noPrograms ? (
           <FarmerEmptyState
-            title="No farms yet"
-            message="Add a farm to see its Regen Health Index and assessment progress."
-            actionLabel="Go to Farms"
-            onAction={goFarms}
+            title="No programs yet"
+            message="Enroll in a program to see its Regen Health Index and assessment progress."
+            actionLabel="Enroll now"
+            onAction={goEnroll}
           />
         ) : dashboard ? (
           <>
+            {dashboardCapturedAt ? (
+              <FadeSlideIn delay={40} style={styles.section}>
+                <StaleDataNote capturedAt={dashboardCapturedAt} />
+              </FadeSlideIn>
+            ) : null}
+
             <FadeSlideIn delay={80} style={styles.section}>
               <RegenHealthCard
                 score={dashboard.regenHealthIndex ?? 0}
-                status={regenStatusLabel(dashboard.regenHealthIndex)}
+                status={dashboard.rating ?? regenStatusLabel(dashboard.regenHealthIndex)}
                 deltaLabel={trend.label}
                 deltaPositive={trend.positive}
                 metrics={metrics}
@@ -325,17 +338,17 @@ const HomeScreen: React.FC = () => {
         ) : null}
       </ScrollView>
 
-      <FarmSelectorSheet
+      <ProgramSelectorSheet
         visible={sheetVisible}
-        farms={farms}
-        selectedFarmId={selectedFarmId}
-        defaultFarmId={dashboardDefaultFarmId}
-        loading={farmsLoading}
-        loadingMore={farmsLoadingMore}
-        hasMore={farmsHasMore}
-        total={farmsTotal}
-        onLoadMore={loadMoreFarms}
-        onSelect={handleSelectFarm}
+        programs={programs}
+        selectedProgramId={selectedProgramId}
+        defaultProgramId={dashboardDefaultProgramId}
+        loading={programsLoading}
+        loadingMore={programsLoadingMore}
+        hasMore={programsHasMore}
+        total={programsTotal}
+        onLoadMore={loadMorePrograms}
+        onSelect={handleSelectProgram}
         onClose={closeSheet}
       />
     </View>

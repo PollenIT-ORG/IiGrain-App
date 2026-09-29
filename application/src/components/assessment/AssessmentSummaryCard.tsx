@@ -9,7 +9,7 @@ import {
   shadows,
   spacing,
 } from '../../constants';
-import { formatDate, moderateScale } from '../../utils';
+import { addAlpha, formatDate, moderateScale } from '../../utils';
 import AppText from '../AppText/AppText';
 import Button from '../Button/Button';
 import type { AssessmentSummary } from '../../types/assessment';
@@ -44,11 +44,25 @@ const AssessmentSummaryCard: React.FC<AssessmentSummaryCardProps> = ({
         <AppText style={styles.title} numberOfLines={2}>
           {title ? title : summary.title}
         </AppText>
-        <AssessmentStatusBadge status={summary.status} />
+        {summary.reviewStatus ? (
+          <View
+            style={[
+              styles.reviewChip,
+              summary.reviewStatus === 'approved' && styles.reviewChipApproved,
+            ]}>
+            <AppText style={styles.reviewChipText}>
+              {summary.reviewStatus === 'in_review' ? 'In review' : 'Reviewed'}
+            </AppText>
+          </View>
+        ) : (
+          <AssessmentStatusBadge status={summary.status} />
+        )}
       </View>
 
       <AppText style={styles.dateText}>
-        Started on {formatDate(summary.startedDateISO)}
+        {summary.surveyClosed
+          ? "Opens once the program office locks the survey"
+          : `Started on ${formatDate(summary.startedDateISO)}`}
       </AppText>
 
       <AppText style={styles.progressLabel}>Assessment Progress</AppText>
@@ -134,5 +148,18 @@ const styles = StyleSheet.create({
   },
   fractionTotal: {
     ...presets.bodySM,
+  },
+  reviewChip: {
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing[2.5],
+    paddingVertical: spacing[1],
+    backgroundColor: addAlpha(COLORS.gray500, 0.14),
+  },
+  reviewChipApproved: {
+    backgroundColor: addAlpha(COLORS.success, 0.14),
+  },
+  reviewChipText: {
+    ...presets.labelSM,
+    color: COLORS.gray700,
   },
 });

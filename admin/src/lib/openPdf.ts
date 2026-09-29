@@ -7,7 +7,7 @@ import { showError } from "./toast";
 // blob URL instead.
 
 /** Turns a failed blob request back into a readable message. */
-async function blobErrorMessage(error: unknown): Promise<string> {
+export async function blobErrorMessage(error: unknown): Promise<string> {
   if (axios.isAxiosError(error) && error.response?.data instanceof Blob) {
     try {
       const parsed = JSON.parse(await error.response.data.text()) as {

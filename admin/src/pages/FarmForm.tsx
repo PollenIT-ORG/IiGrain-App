@@ -16,10 +16,11 @@ import {
   MAX_AREA_ACRES,
 } from "../lib/validation";
 import Loader from "../components/Loader";
+import Breadcrumbs from "../components/ui/Breadcrumbs";
 import Select from "../components/ui/Select";
 import MapPicker, { type LatLng } from "../components/ui/MapPicker";
-import { ChevronLeftIcon } from "../components/icons";
 import { applyServerFieldErrors } from "../lib/serverErrors";
+import { useReturnTo } from "../lib/returnTo";
 
 function errMsg(err: unknown): string {
   return (
@@ -37,6 +38,7 @@ export default function FarmForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const back = useReturnTo("/farms");
 
   const [name, setName] = useState("");
   const [areaAcres, setAreaAcres] = useState("");
@@ -154,7 +156,7 @@ export default function FarmForm() {
         await createFarm(body).unwrap();
         showSuccess("Farm created.");
       }
-      navigate("/farms");
+      back.go();
     } catch (err) {
       // Land server conflicts on the right field: a farm-shrink rejection is an
       // area problem, a missing owner is an owner problem. Otherwise toast.
@@ -173,13 +175,15 @@ export default function FarmForm() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <button
-          onClick={() => navigate("/farms")}
-          className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to farms
-        </button>
+        <Breadcrumbs
+          className="mb-2"
+          items={[
+            { label: "Farms", to: "/farms" },
+            ...(isEdit
+              ? [{ label: farm?.name ?? "Farm", to: `/farms/${id}` }, { label: "Edit" }]
+              : [{ label: "Add farm" }]),
+          ]}
+        />
         <h1 className="text-2xl font-bold text-gray-900">
           {isEdit ? "Edit farm" : "Add farm"}
         </h1>
@@ -327,7 +331,7 @@ export default function FarmForm() {
             <button
               type="button"
               className="btn-secondary"
-              onClick={() => navigate("/farms")}
+              onClick={() => back.go()}
             >
               Cancel
             </button>

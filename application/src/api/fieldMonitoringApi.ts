@@ -11,8 +11,8 @@ import type {
   ModuleSummary,
   MonitoringContext,
   MonitoringDocument,
+  MonitoringField,
   MonitoringFieldErrors,
-  MonitoringProgram,
   MonitoringRecord,
   MonitoringValues,
   RecordPatch,
@@ -41,8 +41,6 @@ interface RawContext {
   fieldName: string;
   farmName: string;
   ownerId: string;
-  programId: string;
-  programName: string;
 }
 
 interface RawModuleSummary {
@@ -70,7 +68,6 @@ interface RecordPayloadEnvelope {
 interface RawDocument {
   id: string;
   field_id: string;
-  program_id: string;
   module: string;
   record_id: string | null;
   kind: string;
@@ -89,16 +86,15 @@ interface DocumentPayload {
   document: RawDocument;
 }
 
-interface RawFarmProgram {
-  programId: string;
-  programName: string;
-  startDate: string | null;
-  fields?: Array<{ fieldId: string; fieldName: string; areaAcres: number | null }> | null;
+interface RawFarmField {
+  fieldId: string;
+  fieldName: string;
+  areaAcres: number | string | null;
 }
 
-interface FarmProgramsPayload {
+interface FarmFieldsPayload {
   farmName: string;
-  programs: RawFarmProgram[];
+  fields: RawFarmField[];
 }
 
 
@@ -120,8 +116,6 @@ const mapContext = (raw: RawContext): MonitoringContext => ({
   fieldName: raw?.fieldName ?? '',
   farmName: raw?.farmName ?? '',
   ownerId: raw?.ownerId ?? '',
-  programId: raw?.programId ?? '',
-  programName: raw?.programName ?? '',
 });
 
 const mapValues = (module: ModuleKey, raw: RawRecord): MonitoringValues => {
@@ -225,11 +219,10 @@ const mapDocument = (raw: RawDocument): MonitoringDocument => {
   };
 };
 
-const mapProgram = (raw: RawFarmProgram): MonitoringProgram => ({
-  programId: raw.programId,
-  programName: raw.programName ?? '',
-  startDateISO: raw.startDate ?? null,
-  fieldIds: (raw.fields ?? []).map(f => f.fieldId),
+const mapFarmField = (raw: RawFarmField): MonitoringField => ({
+  fieldId: raw.fieldId,
+  fieldName: raw.fieldName ?? '',
+  areaAcres: toNumberOrNull(raw.areaAcres),
 });
 
 
@@ -277,19 +270,25 @@ export interface ModulesResult {
   modules: ModuleSummary[];
 }
 
-export const getFarmPrograms = async (farmId: string): Promise<MonitoringProgram[]> => {
-  const res = await http.get<Envelope<FarmProgramsPayload>>(
-    Endpoints.fieldMonitoring.farmPrograms(farmId),
+export interface FarmFieldsResult {
+  farmName: string;
+  fields: MonitoringField[];
+}
+
+export const getFarmFields = async (farmId: string): Promise<FarmFieldsResult> => {
+  const res = await http.get<Envelope<FarmFieldsPayload>>(
+    Endpoints.fieldMonitoring.farmFields(farmId),
   );
-  return (res.data.data.programs ?? []).map(mapProgram);
+  const payload = res.data.data;
+  return {
+    farmName: payload.farmName ?? '',
+    fields: (payload.fields ?? []).map(mapFarmField),
+  };
 };
 
-export const getModules = async (
-  programId: string,
-  fieldId: string,
-): Promise<ModulesResult> => {
+export const getModules = async (fieldId: string): Promise<ModulesResult> => {
   const res = await http.get<Envelope<ModulesPayload>>(
-    Endpoints.fieldMonitoring.modules(programId, fieldId),
+    Endpoints.fieldMonitoring.modules(fieldId),
   );
   const payload = res.data.data;
   const mapped = (payload.modules ?? [])
@@ -317,12 +316,11 @@ export interface RecordsResult {
 }
 
 export const getRecords = async (
-  programId: string,
   fieldId: string,
   module: ModuleKey,
 ): Promise<RecordsResult> => {
   const res = await http.get<Envelope<RecordsPayload>>(
-    Endpoints.fieldMonitoring.records(programId, fieldId, module),
+    Endpoints.fieldMonitoring.records(fieldId, module),
   );
   const payload = res.data.data;
   return {
@@ -332,52 +330,52 @@ export const getRecords = async (
 };
 
 export const getRecord = async (
-  programId: string,
   fieldId: string,
   module: ModuleKey,
   recordId: string,
 ): Promise<MonitoringRecord> => {
   const res = await http.get<Envelope<RecordPayloadEnvelope>>(
-    Endpoints.fieldMonitoring.record(programId, fieldId, module, recordId),
+    Endpoints.fieldMonitoring.record(fieldId, module, recordId),
   );
   return mapRecord(module, res.data.data.record);
 };
 
 export const createRecord = async (
-  programId: string,
   fieldId: string,
   module: ModuleKey,
   payload: RecordPayload,
 ): Promise<MonitoringRecord> => {
   const res = await http.post<Envelope<RecordPayloadEnvelope>>(
-    Endpoints.fieldMonitoring.records(programId, fieldId, module),
+    Endpoints.fieldMonitoring.records(fieldId, module),
     toBody(payload),
   );
   return mapRecord(module, res.data.data.record);
 };
 
 export const updateRecord = async (
-  programId: string,
   fieldId: string,
   module: ModuleKey,
   recordId: string,
   patch: RecordPatch,
 ): Promise<MonitoringRecord> => {
   const res = await http.patch<Envelope<RecordPayloadEnvelope>>(
-    Endpoints.fieldMonitoring.record(programId, fieldId, module, recordId),
+    Endpoints.fieldMonitoring.record(fieldId, module, recordId),
     toPatchBody(patch),
   );
   return mapRecord(module, res.data.data.record);
 };
 
 export const deleteRecord = async (
-  programId: string,
   fieldId: string,
   module: ModuleKey,
   recordId: string,
 ): Promise<string> => {
-  await http.delete(Endpoints.fieldMonitoring.record(programId, fieldId, module, recordId));
-  return recordId;
+  const id = (recordId ?? '').trim();
+  if (!id) {
+    throw new Error('This record has no id yet, so it cannot be deleted.');
+  }
+  await http.delete(Endpoints.fieldMonitoring.record(fieldId, module, id));
+  return id;
 };
 
 export interface DocumentQuery {
@@ -386,12 +384,11 @@ export interface DocumentQuery {
 }
 
 export const getDocuments = async (
-  programId: string,
   fieldId: string,
   query: DocumentQuery = {},
 ): Promise<MonitoringDocument[]> => {
   const res = await http.get<Envelope<DocumentsPayload>>(
-    Endpoints.fieldMonitoring.documents(programId, fieldId),
+    Endpoints.fieldMonitoring.documents(fieldId),
     {
       params: {
         ...(query.module ? { module: query.module } : {}),
@@ -403,7 +400,6 @@ export const getDocuments = async (
 };
 
 export interface UploadArgs {
-  programId: string;
   fieldId: string;
   module: DocumentModule;
   recordId?: string | null;
@@ -412,7 +408,6 @@ export interface UploadArgs {
 }
 
 export const uploadDocument = async ({
-  programId,
   fieldId,
   module,
   recordId,
@@ -434,17 +429,16 @@ export const uploadDocument = async ({
   }
 
   const res = await http.post<Envelope<DocumentPayload>>(
-    Endpoints.fieldMonitoring.documentUpload(programId, fieldId),
+    Endpoints.fieldMonitoring.documentUpload(fieldId),
     form,
   );
   return mapDocument(res.data.data.document);
 };
 
 export const deleteDocument = async (
-  programId: string,
   fieldId: string,
   documentId: string,
 ): Promise<string> => {
-  await http.delete(Endpoints.fieldMonitoring.document(programId, fieldId, documentId));
+  await http.delete(Endpoints.fieldMonitoring.document(fieldId, documentId));
   return documentId;
 };

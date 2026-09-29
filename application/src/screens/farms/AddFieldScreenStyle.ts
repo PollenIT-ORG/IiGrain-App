@@ -3,6 +3,7 @@ import {
   COLORS,
   borderRadius,
   borderWidth,
+  fonts,
   presets,
   spacing,
 } from '../../constants';
@@ -61,6 +62,43 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
 
+  farmGrowth: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing[2.5],
+    marginTop: -spacing[2],
+    marginBottom: spacing[4],
+    padding: spacing[3],
+    borderRadius: borderRadius.lg,
+    borderWidth: borderWidth.thin,
+    borderColor: addAlpha(COLORS.validation, 0.3),
+    backgroundColor: addAlpha(COLORS.validation, 0.08),
+  },
+  farmGrowthIcon: {
+    width: scale(30),
+    height: scale(30),
+    borderRadius: borderRadius.full,
+    backgroundColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  farmGrowthTexts: {
+    flex: 1,
+    gap: spacing[0.5],
+  },
+  farmGrowthTitle: {
+    ...presets.labelSM,
+    color: COLORS.gray900,
+  },
+  farmGrowthText: {
+    ...presets.caption,
+    color: COLORS.gray700,
+  },
+  farmGrowthStrong: {
+    fontFamily: fonts.semibold,
+    color: COLORS.validation,
+  },
+
   statusRow: {
     flexDirection: 'row',
     gap: spacing[2],
@@ -116,9 +154,33 @@ export const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     backgroundColor: COLORS.white,
   },
+  soilTriggerSpaced: {
+    marginTop: spacing[4],
+  },
   soilTriggerPressed: {
     backgroundColor: COLORS.gray100,
     borderColor: COLORS.primary,
+  },
+  soilTriggerErrorBorder: {
+    borderColor: COLORS.danger,
+  },
+  soilTriggerLocked: {
+    backgroundColor: COLORS.gray100,
+    borderColor: COLORS.gray200,
+  },
+  soilTriggerIconLocked: {
+    backgroundColor: COLORS.gray200,
+  },
+  soilTriggerTitleLocked: {
+    color: COLORS.gray500,
+  },
+  required: {
+    color: COLORS.danger,
+  },
+  triggerError: {
+    ...presets.bodyXS,
+    color: COLORS.danger,
+    marginTop: spacing[1],
   },
   soilTriggerIcon: {
     width: scale(42),

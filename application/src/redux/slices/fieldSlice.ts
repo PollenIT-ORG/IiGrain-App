@@ -1,4 +1,4 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { Field } from '../../types/farm';
 import { logout } from './authSlice';
 import {
@@ -55,6 +55,30 @@ const fieldSlice = createSlice({
     },
     clearFieldUpdateError(state) {
       state.updateError = null;
+    },
+    fieldBoundarySaved(
+      state,
+      action: PayloadAction<{
+        farmId: string;
+        fieldId: string;
+        areaAcres: number | null;
+        hasBoundary: boolean;
+      }>,
+    ) {
+      const { farmId, fieldId, areaAcres, hasBoundary } = action.payload;
+      if (state.farmId !== farmId) {
+        return;
+      }
+      state.fields = state.fields.map(f =>
+        f.id === fieldId
+          ? {
+              ...f,
+              areaAcres: areaAcres ?? f.areaAcres,
+              hasBoundary,
+              boundary: hasBoundary ? f.boundary : null,
+            }
+          : f,
+      );
     },
   },
   extraReducers: builder => {
@@ -161,6 +185,7 @@ export const {
   clearFields,
   clearFieldCreateError,
   clearFieldUpdateError,
+  fieldBoundarySaved,
 } = fieldSlice.actions;
 export default fieldSlice.reducer;
 

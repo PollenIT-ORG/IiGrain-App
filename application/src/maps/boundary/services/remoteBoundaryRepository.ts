@@ -1,5 +1,11 @@
 import http from '../../../services/http';
 import { Endpoints } from '../../../config/endpoints';
+import {
+  saveFieldBoundary,
+  updateFarmField,
+  type FieldBoundarySaveResult,
+} from '../../../api/FieldApi';
+import { acresFromRing } from '../../utils/fieldAcres';
 import type { LatLng } from '../../types';
 import type { FieldBoundary, GeoJSONPolygon } from '../types';
 import { buildFieldBoundary } from './boundaryFactory';
@@ -9,12 +15,30 @@ import type {
   LocalBoundaryStore,
   SaveBoundaryInput,
 } from './boundaryRepository';
+import { handleApiError } from '../../../utils/handleApiError';
+import { isDatabaseReady } from '../../../services/db';
+import type { OwnerUserId } from '../../../services/db/types';
+import {
+  removeBoundaryOffline,
+  resolveOwner,
+  saveBoundaryOffline,
+} from '../../../services/sync';
+import { resolveFarmRow, resolveFieldRow } from '../../../services/sync/farmCache';
+import { getSyncSubsystem } from '../../../services/sync';
 
+
+export interface BoundarySavedEvent {
+  farmId: string;
+  fieldId: string;
+  areaAcres: number | null;
+  hasBoundary: boolean;
+}
 
 export interface RemoteRepoDeps {
   store: LocalBoundaryStore;
   now: () => string;
   farmIdForField: (fieldId: string) => string | null;
+  onServerSaved?: (event: BoundarySavedEvent) => void;
 }
 
 interface FieldEnvelope {
@@ -25,6 +49,74 @@ interface FieldEnvelope {
     };
   };
 }
+
+const currentOwner = async (): Promise<OwnerUserId | null> => {
+  if (!isDatabaseReady()) {
+    return null;
+  }
+  return getSyncSubsystem().owner() ?? (await resolveOwner());
+};
+
+const isOffline = (error: unknown): boolean =>
+  handleApiError(error).kind === 'offline';
+
+const queueBoundaryLocally = async (
+  fieldId: string,
+  farmId: string,
+  ring: readonly LatLng[],
+): Promise<boolean> => {
+  const owner = await currentOwner();
+  if (!owner) {
+    return false;
+  }
+  const field = await resolveFieldRow(owner, fieldId);
+  const farm = await resolveFarmRow(owner, farmId);
+  if (!field || !farm) {
+    return false;
+  }
+  await saveBoundaryOffline(owner, {
+    fieldLocalId: field.local_id,
+    farmLocalId: farm.local_id,
+    ring: ring.map(point => ({ latitude: point.latitude, longitude: point.longitude })),
+  });
+  return true;
+};
+
+const queueBoundaryRemovalLocally = async (fieldId: string): Promise<boolean> => {
+  const owner = await currentOwner();
+  if (!owner) {
+    return false;
+  }
+  const field = await resolveFieldRow(owner, fieldId);
+  if (!field) {
+    return false;
+  }
+  await removeBoundaryOffline(owner, field.local_id);
+  return true;
+};
+
+const ACRE_TOLERANCE = 0.015;
+
+const acresForSavedOutline = async (
+  farmId: string,
+  fieldId: string,
+  ring: readonly LatLng[],
+  serverAcres: number | null,
+): Promise<number | null> => {
+  const drawn = acresFromRing(ring);
+  if (drawn === null) {
+    return serverAcres;
+  }
+  if (serverAcres !== null && Math.abs(serverAcres - drawn) <= ACRE_TOLERANCE) {
+    return serverAcres;
+  }
+  try {
+    const field = await updateFarmField(farmId, fieldId, { areaAcres: drawn });
+    return field.areaAcres;
+  } catch {
+    return serverAcres;
+  }
+};
 
 const ringFromResponse = (envelope: unknown): LatLng[] => {
   const boundary = (envelope as FieldEnvelope)?.data?.field?.boundary;
@@ -103,12 +195,40 @@ export const createRemoteBoundaryRepository = (
       throw new Error('Cannot serialise this boundary.');
     }
 
-    await http.put(Endpoints.farms.fieldBoundary(input.farmId, input.fieldId), {
-      boundary: geo,
-    });
+    let saved: FieldBoundarySaveResult;
+    try {
+      saved = await saveFieldBoundary(input.farmId, input.fieldId, geo);
+    } catch (error) {
+      if (isOffline(error)) {
+        const queued = await queueBoundaryLocally(
+          input.fieldId,
+          input.farmId,
+          input.ring,
+        ).catch(() => false);
+        if (queued) {
+          const pending: FieldBoundary = { ...boundary, syncStatus: 'pending' };
+          deps.store.write(pending);
+          return pending;
+        }
+      }
+      throw error;
+    }
+
+    const areaAcres = await acresForSavedOutline(
+      input.farmId,
+      input.fieldId,
+      input.ring,
+      saved.areaAcres,
+    );
 
     const synced: FieldBoundary = { ...boundary, syncStatus: 'synced' };
     deps.store.write(synced);
+    deps.onServerSaved?.({
+      farmId: input.farmId,
+      fieldId: input.fieldId,
+      areaAcres,
+      hasBoundary: true,
+    });
     return synced;
   },
 
@@ -118,8 +238,23 @@ export const createRemoteBoundaryRepository = (
     if (!farmId) {
       return;
     }
-    await http.put(Endpoints.farms.fieldBoundary(farmId, fieldId), {
-      boundary: null,
+    let saved: FieldBoundarySaveResult;
+    try {
+      saved = await saveFieldBoundary(farmId, fieldId, null);
+    } catch (error) {
+      if (isOffline(error)) {
+        const queued = await queueBoundaryRemovalLocally(fieldId).catch(() => false);
+        if (queued) {
+          return;
+        }
+      }
+      throw error;
+    }
+    deps.onServerSaved?.({
+      farmId,
+      fieldId,
+      areaAcres: saved.areaAcres,
+      hasBoundary: false,
     });
   },
 });

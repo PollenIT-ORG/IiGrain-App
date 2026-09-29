@@ -15,6 +15,7 @@ import prisma from "../db/prisma.js";
 
 export interface EnrollmentIdHolder {
   enrollmentId: string;
+  fullName: string | null;
   email: string;
   phone: string | null;
   programId: string | null;
@@ -61,6 +62,7 @@ export async function enrollmentIdsForEmail(
 
   return rows.map((r) => ({
     enrollmentId: r.enrollment_id,
+    fullName: null,
     email: r.email,
     phone: null,
     programId: r.program_id,
@@ -77,6 +79,7 @@ export async function findEnrollmentId(
   const rows = await prisma.$queryRawUnsafe<
     Array<{
       enrollment_id: string;
+      full_name: string | null;
       email: string;
       phone: string | null;
       program_id: string | null;
@@ -84,7 +87,9 @@ export async function findEnrollmentId(
     }>
   >(
     `
-    SELECT s.enrollment_id, lower(wu.email) AS email, wu.phone,
+    SELECT s.enrollment_id,
+           NULLIF(btrim(concat_ws(' ', s.first_name, s.last_name)), '') AS full_name,
+           lower(wu.email) AS email, wu.phone,
            srv.program_id, p.name AS program_name
       FROM program_admin_survey_submissions s
       JOIN website_users wu ON wu.id = s.website_user_id
@@ -93,7 +98,8 @@ export async function findEnrollmentId(
       LEFT JOIN programs p ON p.id = srv.program_id AND p.deleted_at IS NULL
      WHERE s.deleted_at IS NULL AND upper(s.enrollment_id) = $1
     UNION
-    SELECT pe.enrollment_id, lower(u.email) AS email, u.phone,
+    SELECT pe.enrollment_id, u.full_name,
+           lower(u.email) AS email, u.phone,
            pe.program_id, p.name AS program_name
       FROM program_enrollments pe
       JOIN users u ON u.id = pe.farmer_id AND u.deleted_at IS NULL
@@ -108,6 +114,7 @@ export async function findEnrollmentId(
   if (!row) return null;
   return {
     enrollmentId: row.enrollment_id,
+    fullName: row.full_name ?? null,
     email: row.email,
     phone: row.phone ?? null,
     programId: row.program_id,

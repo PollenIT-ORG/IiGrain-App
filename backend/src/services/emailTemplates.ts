@@ -132,6 +132,19 @@ function checklist(steps: Array<{ label: string; done: boolean }>): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:10px 0 4px;">${rows}</table>`;
 }
 
+/** A message typed by a person, kept with the line breaks they used. */
+function paragraphs(text: string): string {
+  return text
+    .split(/\n{2,}/)
+    .map((block) => p(esc(block).replace(/\n/g, "<br />")))
+    .join("");
+}
+
+/** What somebody wrote earlier, set apart from the message above it. */
+function quote(text: string): string {
+  return `<div style="border-left:3px solid ${COLORS.gray300};margin:4px 0 0;padding:2px 0 2px 14px;color:${COLORS.gray700};font-size:13px;line-height:1.6;">${esc(text).replace(/\n/g, "<br />")}</div>`;
+}
+
 /** A small bold line used to head a group inside the body. */
 function subHead(text: string): string {
   return `<div style="margin:18px 0 0;color:${COLORS.gray900};font-size:15px;font-weight:700;">${esc(text)}</div>`;
@@ -853,5 +866,39 @@ export function testEmailContent(provider?: "smtp" | "resend"): EmailContent {
       `If you are reading it, email from ${app} is reaching people.
 `,
     html: layout(body, "Test email"),
+  };
+}
+
+/* The office answering somebody who wrote in through the Contact Us form. */
+export function contactReplyEmail(params: {
+  name: string;
+  subject: string;
+  message: string;
+  enquirySubject: string | null;
+  enquiryMessage: string;
+  enquiryDate: string;
+}): EmailContent {
+  const about = params.enquirySubject?.trim() || "No subject";
+  const body = `
+    ${h1(esc(params.subject))}
+    ${p(greet(params.name))}
+    ${paragraphs(params.message)}
+    ${subHead("Your message")}
+    ${p(`<span style="color:${COLORS.gray500};font-size:12px;">${esc(about)} &middot; ${esc(params.enquiryDate)}</span>`)}
+    ${quote(params.enquiryMessage)}
+    ${warning("Need more help? Send another message from the Help screen in the app.")}
+  `;
+  const text =
+    `${params.subject}\n\n` +
+    `Hi ${params.name.trim() || "there"},\n\n` +
+    `${params.message}\n\n` +
+    "--------------------------------\n" +
+    `Your message (${about}, ${params.enquiryDate}):\n` +
+    `${params.enquiryMessage}\n\n` +
+    "Need more help? Send another message from the Help screen in the app.\n";
+  return {
+    subject: params.subject,
+    html: layout(body, `Reply to your message: ${about}`),
+    text,
   };
 }

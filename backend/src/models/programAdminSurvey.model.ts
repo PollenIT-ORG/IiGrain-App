@@ -40,6 +40,8 @@ export interface PublicSurvey {
   contract_template_name: string | null;
   token: string;
   is_active: boolean;
+  // Set once the survey is locked; farmers can start the assessment from then on.
+  locked_at: Date | null;
   created_at: Date;
   submission_count?: number;
 }
@@ -66,6 +68,7 @@ function toPublicSurvey(r: SurveyRow, submissionCount?: number): PublicSurvey {
     contract_template_name: r.contract_template?.name ?? null,
     token: r.token,
     is_active: r.is_active,
+    locked_at: r.locked_at,
     created_at: r.created_at,
     submission_count: submissionCount,
   };
@@ -183,6 +186,32 @@ export async function updateSurvey(
   });
   if (!count) return null;
   return findSurveyById(id);
+}
+
+/** Locks the survey, which freezes its questions and opens the assessment, or unlocks it again. */
+export async function setSurveyLock(
+  id: string,
+  lockedBy: string | null
+): Promise<PublicSurvey | null> {
+  const { count } = await prisma.program_admin_surveys.updateMany({
+    where: { id, deleted_at: null },
+    data: {
+      locked_at: lockedBy ? new Date() : null,
+      locked_by: lockedBy,
+      updated_at: new Date(),
+    },
+  });
+  if (!count) return null;
+  return findSurveyById(id);
+}
+
+/** True while a locked survey uses this survey template, so its questions must stay as they are. */
+export async function lockedSurveyUsesTemplate(templateId: string): Promise<boolean> {
+  const row = await prisma.program_admin_surveys.findFirst({
+    where: { template_id: templateId, deleted_at: null, locked_at: { not: null } },
+    select: { id: true },
+  });
+  return row !== null;
 }
 
 export async function softDeleteSurvey(id: string): Promise<boolean> {
@@ -419,9 +448,17 @@ export interface ListSubmissionsFilters {
   offset: number;
 }
 
-export async function listSubmissions(
-  f: ListSubmissionsFilters
-): Promise<{ rows: PublicSubmission[]; total: number }> {
+/**
+ * The table and the cards above it stand over the same rows, so the clause is
+ * built once and both ask for it. Status is the one filter they do not share:
+ * it narrows the list, but narrowing the counts by one status would empty the
+ * other five cards.
+ */
+export type SubmissionFilters = Omit<ListSubmissionsFilters, "limit" | "offset">;
+
+function submissionWhere(
+  f: SubmissionFilters
+): Prisma.program_admin_survey_submissionsWhereInput {
   const createdAt =
     f.createdFrom || f.createdTo
       ? {
@@ -440,7 +477,7 @@ export async function listSubmissions(
     ...(f.ownerId ? { owner_id: f.ownerId } : {}),
     ...(f.programId ? { program_id: f.programId } : {}),
   };
-  const where: Prisma.program_admin_survey_submissionsWhereInput = {
+  return {
     deleted_at: null,
     ...(Object.keys(survey).length ? { survey } : {}),
     ...(f.statuses && f.statuses.length ? { status: { in: f.statuses } } : {}),
@@ -463,6 +500,12 @@ export async function listSubmissions(
         }
       : {}),
   };
+}
+
+export async function listSubmissions(
+  f: ListSubmissionsFilters
+): Promise<{ rows: PublicSubmission[]; total: number }> {
+  const where = submissionWhere(f);
 
   const [rows, total] = await Promise.all([
     prisma.program_admin_survey_submissions.findMany({
@@ -504,27 +547,68 @@ export async function softDeleteSubmission(id: string): Promise<boolean> {
   return count > 0;
 }
 
+/** The rows the list would return, counted by status for the cards above it. */
 export async function countByStatus(
-  ownerId: string | null,
-  programId?: string
+  f: Omit<SubmissionFilters, "statuses">
 ): Promise<Record<string, number>> {
-  // One object, for the same reason the list builds one: two spreads of
-  // `survey` would leave only the last.
-  const survey = {
-    ...(ownerId ? { owner_id: ownerId } : {}),
-    ...(programId ? { program_id: programId } : {}),
-  };
   const rows = await prisma.program_admin_survey_submissions.groupBy({
     by: ["status"],
-    where: {
-      deleted_at: null,
-      ...(Object.keys(survey).length ? { survey } : {}),
-    },
+    where: submissionWhere(f),
     _count: { _all: true },
   });
   const out: Record<string, number> = {};
   for (const r of rows) out[r.status] = r._count._all;
   return out;
+}
+
+/** The details a returning farmer already gave, newest submission first. */
+export interface KnownProfile {
+  firstName: string | null;
+  lastName: string | null;
+  phone: string | null;
+  farmName: string | null;
+  referralSource: string | null;
+  state: string | null;
+  totalAcres: string | null;
+}
+
+export async function latestProfileForEmail(
+  email: string
+): Promise<KnownProfile | null> {
+  const rows = await prisma.$queryRawUnsafe<
+    Array<{
+      first_name: string | null;
+      last_name: string | null;
+      phone: string | null;
+      farm_name: string | null;
+      referral_source: string | null;
+      state: string | null;
+      total_acres: unknown;
+    }>
+  >(
+    `
+    SELECT s.first_name, s.last_name, COALESCE(s.phone, wu.phone) AS phone,
+           s.farm_name, s.referral_source, s.state, s.total_acres
+      FROM program_admin_survey_submissions s
+      JOIN website_users wu ON wu.id = s.website_user_id
+     WHERE s.deleted_at IS NULL AND lower(wu.email) = $1
+     ORDER BY s.created_at DESC
+     LIMIT 1
+    `,
+    email.trim().toLowerCase()
+  );
+
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    firstName: row.first_name,
+    lastName: row.last_name,
+    phone: row.phone,
+    farmName: row.farm_name,
+    referralSource: row.referral_source,
+    state: row.state,
+    totalAcres: row.total_acres === null ? null : String(row.total_acres),
+  };
 }
 
 export async function enrollmentIdExists(value: string): Promise<boolean> {

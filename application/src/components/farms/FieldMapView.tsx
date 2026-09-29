@@ -7,7 +7,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { AppIcon, ICONS } from '../AppIcon';
-import { AnimatedTabBar, AppText } from '../../components';
+import { AppText } from '../../components';
 import {
   COLORS,
   borderRadius,
@@ -16,7 +16,8 @@ import {
   shadows,
   spacing,
 } from '../../constants';
-import { addAlpha, formatNumber, moderateScale, scale } from '../../utils';
+import { addAlpha, moderateScale, scale } from '../../utils';
+import { formatAcres } from '../../maps/utils/fieldAcres';
 import EmptyState from './EmptyState';
 import type { Field } from '../../types/farm';
 import { FieldChips } from './FieldChips';
@@ -27,8 +28,6 @@ export interface FieldMapViewProps {
   onOpenField: (fieldId: string) => void;
 }
 
-type FieldMapTab = 'selector' | 'parcels';
-
 interface DecoratedField {
   field: Field;
   color: string;
@@ -38,19 +37,8 @@ interface DecoratedField {
 
 const PALETTE = [COLORS.accent, COLORS.info, COLORS.secondary, COLORS.primary];
 
-const MAP_TABS: { key: FieldMapTab; label: string }[] = [
-  { key: 'selector', label: 'Fields' },
-  { key: 'parcels', label: 'Parcels' },
-];
-
 const MAP_HEIGHT = scale(330);
 const MARKER_SIZE = scale(28);
-const CARD_ACTION_HIT_SLOP = {
-  top: spacing[2],
-  right: spacing[2],
-  bottom: spacing[2],
-  left: spacing[2],
-} as const;
 
 const POSITIONS: ViewStyle[] = [
   { top: '6%', left: '5%', width: '44%', height: '50%' },
@@ -61,7 +49,6 @@ const POSITIONS: ViewStyle[] = [
 
 const FieldMapView: React.FC<FieldMapViewProps> = ({ farmName, fields, onOpenField }) => {
   const [selectedId, setSelectedId] = useState(fields[0]?.id ?? '');
-  const [activeTab, setActiveTab] = useState<FieldMapTab>('selector');
 
   const decorated = useMemo<DecoratedField[]>(
     () =>
@@ -160,7 +147,7 @@ const FieldMapView: React.FC<FieldMapViewProps> = ({ farmName, fields, onOpenFie
             {selectedField.name}
           </AppText>
           <AppText style={styles.selectedFieldMeta} numberOfLines={1}>
-            {formatNumber(selectedField.areaAcres)} acres | {selectedField.crop}
+            {formatAcres(selectedField.areaAcres)} acres | {selectedField.crop}
           </AppText>
           <AppText style={styles.selectedFieldFarm} numberOfLines={1}>
             {farmName}

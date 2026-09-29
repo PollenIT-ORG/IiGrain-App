@@ -10,6 +10,7 @@ export interface MonitoringContextCardProps {
   title: string;
   subtitle?: string;
   caption?: string;
+  captionIcon?: string;
   icon?: string;
   meta?: string;
 }
@@ -18,6 +19,7 @@ const MonitoringContextCard: React.FC<MonitoringContextCardProps> = ({
   title,
   subtitle,
   caption,
+  captionIcon,
   icon,
   meta,
 }) => (
@@ -48,7 +50,7 @@ const MonitoringContextCard: React.FC<MonitoringContextCardProps> = ({
         {caption ? (
           <View style={styles.captionPill}>
             <AppIcon
-              name="school-outline"
+              name={captionIcon ?? 'map-marker-outline'}
               size={moderateScale(13)}
               color={addAlpha(COLORS.white, 0.9)}
             />

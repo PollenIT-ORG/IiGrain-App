@@ -267,6 +267,15 @@ export interface AssessmentComparisonResult {
       id: string;
       questionCode: string | null;
       questionText: string;
+      maxScore: number;
+      // What each side actually answered, written out for the screen.
+      farmerAnswer: string | null;
+      assessorAnswer: string | null;
+      // How many records each side filled in for this form; 0 for a multiple choice question.
+      farmerRecords: number;
+      assessorRecords: number;
+      farmerAnswered: boolean;
+      assessorAnswered: boolean;
       farmerScore: number | null;
       assessorScore: number | null;
       difference: number | null;
@@ -310,6 +319,13 @@ export async function getAssessmentComparison(
       id: r.question_id,
       questionCode: r.question_code,
       questionText: r.question_text,
+      maxScore: r.max_score,
+      farmerAnswer: r.farmer_answered ? r.farmer_written ?? "-" : null,
+      assessorAnswer: r.assessor_answered ? r.assessor_written ?? "-" : null,
+      farmerRecords: r.farmer_records,
+      assessorRecords: r.assessor_records,
+      farmerAnswered: r.farmer_answered,
+      assessorAnswered: r.assessor_answered,
       farmerScore: r.farmer_score,
       assessorScore: r.assessor_score,
       difference: diff,

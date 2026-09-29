@@ -14,7 +14,10 @@ export type ChangedResource =
   | "organizations"
   | "eligibility"
   | "survey_questions"
-  | "program_admin_survey";
+  | "program_admin_survey"
+  | "faqs"
+  | "contact_enquiries"
+  | "assessments";
 
 export function broadcastToAdmins(
   resource: ChangedResource,

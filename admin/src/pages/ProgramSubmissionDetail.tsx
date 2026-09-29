@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   useGetPasSubmissionQuery,
   useGetPasTemplateQuery,
@@ -17,6 +17,10 @@ import {
 } from "../store/endpoints/programAdminSurveyApi";
 import { CategoryIconChip } from "./survey/SurveyIcons";
 import { errMsg } from "../lib/errMsg";
+import { useProgramScope } from "../lib/programScope";
+import { useReturnTo, useTrail } from "../lib/returnTo";
+import { useProgramCrumbs } from "../lib/useProgramCrumbs";
+import Breadcrumbs from "../components/ui/Breadcrumbs";
 import { useLiveData } from "../lib/useLiveData";
 import { showSuccess, showError } from "../lib/toast";
 import { openApiPdf } from "../lib/openPdf";
@@ -71,9 +75,33 @@ function fmtDateTime(iso: string | null): string {
 type Tab = "responses" | "details" | "activity";
 
 export default function ProgramSubmissionDetail() {
-  const navigate = useNavigate();
-  const { id = "" } = useParams();
+  const { id = "", templateId: surveyId } = useParams();
   const { confirm, prompt } = useDialog();
+  const { programId, home } = useProgramScope();
+  const listPath = surveyId
+    ? `/surveys/surveys/${surveyId}`
+    : home("/survey-submissions");
+  const back = useReturnTo(listPath);
+  const programCrumbs = useProgramCrumbs(programId);
+  const { data: survey } = useGetPasTemplateQuery(surveyId ?? "", {
+    skip: !surveyId,
+  });
+  const trail = useTrail();
+  const parentCrumbs = trail
+    ? trail
+    : programId
+    ? programCrumbs
+    : surveyId
+      ? [
+          { label: "Surveys", to: "/surveys" },
+          { label: survey?.template.name ?? "Survey", to: back.path, state: back.state },
+        ]
+      : [{ label: "Survey Submissions", to: back.path, state: back.state }];
+  const backLabel = programId
+    ? "Back to program"
+    : surveyId
+      ? "Back to survey"
+      : "Back to Submissions";
 
   const { data, isLoading, isError, error, refetch } = useGetPasSubmissionQuery(
     id,
@@ -159,7 +187,7 @@ export default function ProgramSubmissionDetail() {
   if (isError || !data) {
     return (
       <div className="space-y-4">
-        <BackButton onClick={() => navigate("/survey-submissions")} />
+        <Breadcrumbs items={[...parentCrumbs, { label: "View Submission" }]} />
         <div className="card px-5 py-16 text-center text-sm text-gray-500">
           {errMsg(error) || "Submission not found."}
         </div>
@@ -275,7 +303,7 @@ export default function ProgramSubmissionDetail() {
     try {
       await deleteSubmission(s.id).unwrap();
       showSuccess("Submission deleted.");
-      navigate("/survey-submissions");
+      back.go();
     } catch (err) {
       showError(errMsg(err));
     }
@@ -347,16 +375,7 @@ export default function ProgramSubmissionDetail() {
     <div className="space-y-5">
       {/* Top bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="flex items-center gap-2 text-sm text-gray-500">
-          <button
-            onClick={() => navigate("/survey-submissions")}
-            className="font-medium hover:text-primary"
-          >
-            Submissions
-          </button>
-          <span className="text-gray-300">/</span>
-          <span className="font-semibold text-gray-700">View Submission</span>
-        </p>
+        <Breadcrumbs items={[...parentCrumbs, { label: "View Submission" }]} />
         <div className="flex items-center gap-2">
           <button onClick={handleDownloadPdf} className="btn-secondary">
             <IconDownload />
@@ -374,12 +393,9 @@ export default function ProgramSubmissionDetail() {
           >
             <IconPanel />
           </button>
-          <button
-            onClick={() => navigate("/survey-submissions")}
-            className="btn-secondary"
-          >
+          <button onClick={() => back.go()} className="btn-secondary">
             <IconArrowLeft />
-            Back to Submissions
+            {backLabel}
           </button>
         </div>
       </div>
@@ -940,18 +956,6 @@ function Timeline({
         </li>
       ))}
     </ol>
-  );
-}
-
-function BackButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-    >
-      <IconArrowLeft />
-      Back to Submissions
-    </button>
   );
 }
 

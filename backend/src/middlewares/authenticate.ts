@@ -42,7 +42,8 @@ export async function authenticate(
     }
     if (!status.is_active) {
       throw ApiError.forbidden(
-        "Your account has been deactivated. Contact an administrator."
+        "Your account has been deactivated. Contact an administrator.",
+        "ACCOUNT_INACTIVE"
       );
     }
 

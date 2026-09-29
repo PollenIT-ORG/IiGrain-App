@@ -61,8 +61,6 @@ function Recenter({ to }: { to: LatLng | null }) {
 export interface BoundaryMapProps {
   value: GeoJSONPolygon | null;
   onChange: (value: GeoJSONPolygon | null) => void;
-  /** Reported on every edit so the form can offer to use it. */
-  onAreaChange?: (acres: number) => void;
   height?: number;
   readOnly?: boolean;
 }
@@ -74,7 +72,6 @@ export interface BoundaryMapProps {
 export default function BoundaryMap({
   value,
   onChange,
-  onAreaChange,
   height = 340,
   readOnly = false,
 }: BoundaryMapProps) {
@@ -110,7 +107,6 @@ export default function BoundaryMap({
     const valid = validateRing(next);
     lastPushed.current = JSON.stringify(valid.isValid ? polygon : null);
     onChange(valid.isValid ? polygon : null);
-    onAreaChange?.(valid.areaAcres);
   }
 
   function addPoint(p: LatLng) {

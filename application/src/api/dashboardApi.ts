@@ -10,12 +10,14 @@ import {
 import type { ActivityEntry } from '../types/farm';
 import type {
   DashboardCategory,
-  DashboardFarm,
-  DashboardFarms,
+  DashboardProgram,
+  DashboardPrograms,
+  DashboardRating,
   DashboardSummary,
   DashboardUpcoming,
-  FarmDashboard,
   NextAssessment,
+  ProgramDashboard,
+  ProgramStatus,
   UpcomingProgram,
 } from '../types/dashboard';
 
@@ -26,16 +28,27 @@ interface Envelope<T> {
 
 type Num = number | string | null | undefined;
 
-interface RawDashboardFarm {
+interface RawDashboardProgram {
   id: string;
   name?: string;
-  fieldCount?: Num;
-  field_count?: Num;
+  code?: string | null;
+  startDate?: string | null;
+  start_date?: string | null;
+  endDate?: string | null;
+  end_date?: string | null;
+  status?: string;
+  fieldsEnrolled?: Num;
+  fields_enrolled?: Num;
+  assessmentsCompleted?: Num;
+  assessments_completed?: Num;
+  assessmentsPending?: Num;
+  assessments_pending?: Num;
 }
-interface RawDashboardFarms {
-  farms?: RawDashboardFarm[];
-  defaultFarmId?: string | null;
-  default_farm_id?: string | null;
+
+interface RawDashboardPrograms {
+  programs?: RawDashboardProgram[];
+  defaultProgramId?: string | null;
+  default_program_id?: string | null;
 }
 
 interface RawCategory {
@@ -111,14 +124,15 @@ interface RawTrendPoint {
   score?: Num;
 }
 
-interface RawFarmDashboard {
-  farm?: { id?: string; name?: string };
+interface RawProgramDashboard {
+  program?: RawDashboardProgram;
   year?: Num;
   availableYears?: Num[];
   available_years?: Num[];
   trend?: RawTrendPoint[];
   regenHealthIndex?: Num;
   regen_health_index?: Num;
+  rating?: string | null;
   trendVsLastYear?: Num;
   trend_vs_last_year?: Num;
   categories?: RawCategory[];
@@ -126,7 +140,6 @@ interface RawFarmDashboard {
   recentActivity?: RawActivity[];
   recent_activity?: RawActivity[];
   summary?: RawSummary;
-  recommendations?: unknown[];
 }
 
 const toNumber = (raw: Num): number => {
@@ -142,6 +155,21 @@ const toNumberOrNull = (raw: Num): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+const toNumberOrUndefined = (raw: Num): number | undefined => {
+  const n = toNumberOrNull(raw);
+  return n === null ? undefined : n;
+};
+
+const PROGRAM_STATUSES: readonly ProgramStatus[] = ['active', 'scheduled', 'ended', 'inactive'];
+
+const toProgramStatus = (raw: string | undefined): ProgramStatus =>
+  PROGRAM_STATUSES.includes(raw as ProgramStatus) ? (raw as ProgramStatus) : 'inactive';
+
+const RATINGS: readonly DashboardRating[] = ['Excellent', 'Good', 'Fair', 'Needs work', 'Poor'];
+
+const toRating = (raw: string | null | undefined): DashboardRating =>
+  RATINGS.includes(raw as DashboardRating) ? (raw as DashboardRating) : null;
+
 const activityIcon = (type: string): string => {
   switch (type) {
     case 'assessment_submitted':
@@ -154,27 +182,35 @@ const activityIcon = (type: string): string => {
       return 'sprout-outline';
     case 'farm_created':
       return 'barn';
+    case 'enrolled_in_program':
+      return 'clipboard-plus-outline';
     default:
       return 'timeline-clock-outline';
   }
 };
 
-const mapFarm = (raw: RawDashboardFarm): DashboardFarm => ({
+const mapProgram = (raw: RawDashboardProgram): DashboardProgram => ({
   id: raw.id,
   name: raw.name ?? '',
-  fieldCount: toNumber(raw.fieldCount ?? raw.field_count),
+  code: raw.code ?? null,
+  startDateISO: raw.startDate ?? raw.start_date ?? null,
+  endDateISO: raw.endDate ?? raw.end_date ?? null,
+  status: toProgramStatus(raw.status),
+  fieldsEnrolled: toNumber(raw.fieldsEnrolled ?? raw.fields_enrolled),
+  assessmentsCompleted: toNumber(raw.assessmentsCompleted ?? raw.assessments_completed),
+  assessmentsPending: toNumber(raw.assessmentsPending ?? raw.assessments_pending),
 });
 
-const mapDashboardFarms = (
-  raw: RawDashboardFarms,
+const mapDashboardPrograms = (
+  raw: RawDashboardPrograms,
   rawMeta: RawPageMeta | undefined,
   query: PageQuery | undefined,
-): DashboardFarms => {
-  const farms = (raw.farms ?? []).map(mapFarm);
+): DashboardPrograms => {
+  const programs = (raw.programs ?? []).map(mapProgram);
   return {
-    farms,
-    defaultFarmId: raw.defaultFarmId ?? raw.default_farm_id ?? null,
-    meta: normalizePageMeta(rawMeta, farms.length, query),
+    programs,
+    defaultProgramId: raw.defaultProgramId ?? raw.default_program_id ?? null,
+    meta: normalizePageMeta(rawMeta, programs.length, query),
   };
 };
 
@@ -183,7 +219,7 @@ const mapCategory = (raw: RawCategory): DashboardCategory => ({
   name: raw.name ?? '',
   score: toNumberOrNull(raw.score),
   answered: toNumber(raw.answered),
-  totalQuestions: toNumber(raw.totalQuestions ?? raw.total_questions),
+  totalQuestions: toNumberOrUndefined(raw.totalQuestions ?? raw.total_questions),
 });
 
 const mapNextAssessment = (raw: RawNextAssessment | null | undefined): NextAssessment | null => {
@@ -231,8 +267,8 @@ const mapSummary = (raw: RawSummary | undefined): DashboardSummary => ({
   topCategory: raw?.topCategory ?? raw?.top_category ?? null,
 });
 
-const mapFarmDashboard = (raw: RawFarmDashboard): FarmDashboard => ({
-  farm: { id: raw.farm?.id ?? '', name: raw.farm?.name ?? '' },
+const mapProgramDashboard = (raw: RawProgramDashboard): ProgramDashboard => ({
+  program: mapProgram(raw.program ?? { id: '' }),
   year: toNumber(raw.year) || new Date().getFullYear(),
   availableYears: (raw.availableYears ?? raw.available_years ?? [])
     .map(toNumber)
@@ -241,43 +277,43 @@ const mapFarmDashboard = (raw: RawFarmDashboard): FarmDashboard => ({
     .map(p => ({ year: toNumber(p.year), score: toNumber(p.score) }))
     .filter(p => p.year > 0),
   regenHealthIndex: toNumberOrNull(raw.regenHealthIndex ?? raw.regen_health_index),
+  rating: toRating(raw.rating),
   trendVsLastYear: toNumberOrNull(raw.trendVsLastYear ?? raw.trend_vs_last_year),
   categories: (raw.categories ?? []).map(mapCategory),
   upcoming: mapUpcoming(raw.upcoming),
   recentActivity: (raw.recentActivity ?? raw.recent_activity ?? []).map(mapActivity),
   summary: mapSummary(raw.summary),
-  recommendations: (raw.recommendations ?? []).filter(
-    (r): r is string => typeof r === 'string',
-  ),
 });
 
-export const getDashboardFarms = async (
+export const getDashboardPrograms = async (
   query?: PageQuery,
-): Promise<DashboardFarms> => {
+): Promise<DashboardPrograms> => {
   const effective: PageQuery = { limit: MAX_PAGE_LIMIT, ...query };
-  const res = await http.get<Envelope<RawDashboardFarms>>(Endpoints.dashboard.farms, {
+  const res = await http.get<Envelope<RawDashboardPrograms>>(Endpoints.dashboard.programs, {
     silent: true,
     params: toPageParams(effective),
   });
-  return mapDashboardFarms(res.data.data, res.data.meta, effective);
+  return mapDashboardPrograms(res.data.data, res.data.meta, effective);
 };
 
-export interface FarmDashboardQuery {
+export interface ProgramDashboardQuery {
   year?: number;
   trendYears?: number;
 }
 
-export const getFarmDashboard = async (
-  farmId: string,
-  query?: FarmDashboardQuery,
-): Promise<FarmDashboard> => {
-  const res = await http.get<Envelope<RawFarmDashboard>>(Endpoints.dashboard.farm(farmId), {
-    silent: true,
-    params: {
-      ...(query?.year ? { year: query.year } : {}),
-      ...(query?.trendYears ? { trendYears: query.trendYears } : {}),
+export const getProgramDashboard = async (
+  programId: string,
+  query?: ProgramDashboardQuery,
+): Promise<ProgramDashboard> => {
+  const res = await http.get<Envelope<RawProgramDashboard>>(
+    Endpoints.dashboard.programSummary(programId),
+    {
+      silent: true,
+      params: {
+        ...(query?.year ? { year: query.year } : {}),
+        ...(query?.trendYears ? { trendYears: query.trendYears } : {}),
+      },
     },
-  });
-  console.log("getFarmDashboard  ___---", res);
-  return mapFarmDashboard(res.data.data);
+  );
+  return mapProgramDashboard(res.data.data);
 };

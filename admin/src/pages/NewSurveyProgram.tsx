@@ -4,9 +4,11 @@ import { useListProgramsQuery } from "../store/endpoints/programsApi";
 import { useListPasProgramsQuery } from "../store/endpoints/programAdminSurveyApi";
 import { errMsg } from "../lib/errMsg";
 import { useLiveData } from "../lib/useLiveData";
+import { useForward } from "../lib/returnTo";
 import Loader from "../components/Loader";
+import Breadcrumbs from "../components/ui/Breadcrumbs";
 import ProgramStatusBadge from "../components/ProgramStatusBadge";
-import { PlusIcon, ChevronLeftIcon, ChevronRightIcon } from "../components/icons";
+import { PlusIcon, ChevronRightIcon } from "../components/icons";
 
 // A survey is answered for a program, so a new one starts by saying which
 // program it is for. A program that already has a survey is not offered - its
@@ -15,6 +17,8 @@ import { PlusIcon, ChevronLeftIcon, ChevronRightIcon } from "../components/icons
 export default function NewSurveyProgram() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
+  const crumbs = [{ label: "Surveys", to: "/surveys" }, { label: "New survey" }];
+  const forward = useForward(crumbs);
 
   const { data, isLoading, isError, error, refetch } = useListProgramsQuery({
     page: 1,
@@ -53,13 +57,7 @@ export default function NewSurveyProgram() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <button
-          onClick={() => navigate("/surveys")}
-          className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to surveys
-        </button>
+        <Breadcrumbs className="mb-2" items={crumbs} />
         <h1 className="text-2xl font-bold text-gray-900">New survey</h1>
         <p className="mt-1 text-sm text-gray-500">
           Choose the program this survey is for. Its questions and contract come
@@ -83,7 +81,7 @@ export default function NewSurveyProgram() {
           </p>
           <button
             className="btn-primary mx-auto"
-            onClick={() => navigate("/programs/new")}
+            onClick={() => navigate("/programs/new", { state: forward })}
           >
             <PlusIcon width={18} height={18} />
             Add a program
@@ -111,7 +109,7 @@ export default function NewSurveyProgram() {
               </p>
               <button
                 className="btn-primary mx-auto"
-                onClick={() => navigate("/programs/new")}
+                onClick={() => navigate("/programs/new", { state: forward })}
               >
                 <PlusIcon width={18} height={18} />
                 Add a program
@@ -122,7 +120,9 @@ export default function NewSurveyProgram() {
               {free.map((p) => (
                 <li key={p.id}>
                   <button
-                    onClick={() => navigate(`/programs/${p.id}/survey`)}
+                    onClick={() =>
+                      navigate(`/programs/${p.id}/survey`, { state: forward })
+                    }
                     className="flex w-full items-center gap-4 border-b border-gray-300/70 px-5 py-4 text-left last:border-0 hover:bg-gray-100/60"
                   >
                     <span className="min-w-0 flex-1">

@@ -11,6 +11,10 @@ import {
   getFieldCategoryQuestionList,
   getFieldQuestionDetail,
   saveFieldAnswer,
+  saveFieldCategoryAnswers,
+  addFieldRecord,
+  saveFieldRecord,
+  removeFieldRecord,
   getFieldReview,
   getFieldAssessmentHistory,
   submitFieldAssessmentForUser,
@@ -18,7 +22,10 @@ import {
 } from "../services/assessmentMobile.service.js";
 import { uploadEvidenceImages } from "../services/upload.service.js";
 import type { PaginationQuery } from "../validators/pagination.schema.js";
-import type { HistoryQuery } from "../validators/assessment.schema.js";
+import type {
+  HistoryQuery,
+  SaveCategoryAnswersBody,
+} from "../validators/assessment.schema.js";
 
 export const uploadEvidence = asyncHandler(
   async (req: Request, res: Response) => {
@@ -143,6 +150,64 @@ export const myFieldQuestionDetail = asyncHandler(
     ApiResponse.send(res, 200, "Question fetched.", result);
   }
 );
+
+// One form, one save: every field of a category at once.
+export const saveMyFieldCategoryAnswers = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?.sub;
+    if (!userId) throw ApiError.unauthorized("Authentication required.");
+
+    const result = await saveFieldCategoryAnswers(
+      req.params.fieldId,
+      req.params.programId,
+      req.params.categoryId,
+      userId,
+      req.body as SaveCategoryAnswersBody
+    );
+    ApiResponse.send(res, 200, "Form saved.", result);
+  }
+);
+
+// One more filling of an input based form.
+export const addMyFieldRecord = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user?.sub;
+  if (!userId) throw ApiError.unauthorized("Authentication required.");
+  const result = await addFieldRecord(
+    req.params.fieldId,
+    req.params.programId,
+    req.params.categoryId,
+    userId,
+    req.body as SaveCategoryAnswersBody
+  );
+  ApiResponse.send(res, 201, "Record added.", result);
+});
+
+export const saveMyFieldRecord = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user?.sub;
+  if (!userId) throw ApiError.unauthorized("Authentication required.");
+  const result = await saveFieldRecord(
+    req.params.fieldId,
+    req.params.programId,
+    req.params.categoryId,
+    req.params.recordId,
+    userId,
+    req.body as SaveCategoryAnswersBody
+  );
+  ApiResponse.send(res, 200, "Record saved.", result);
+});
+
+export const removeMyFieldRecord = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user?.sub;
+  if (!userId) throw ApiError.unauthorized("Authentication required.");
+  const result = await removeFieldRecord(
+    req.params.fieldId,
+    req.params.programId,
+    req.params.categoryId,
+    req.params.recordId,
+    userId
+  );
+  ApiResponse.send(res, 200, "Record removed.", result);
+});
 
 export const saveMyFieldAnswer = asyncHandler(
   async (req: Request, res: Response) => {

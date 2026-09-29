@@ -20,8 +20,8 @@ interface MenuItem {
 const MENU: MenuItem[] = [
   { icon: 'account-circle-outline', label: 'Profile', target: 'Profile' },
   { icon: 'account-outline', label: 'Account', target: 'Account' },
-  { icon: ICONS.ROCKET, label: 'Getting Started', target: 'OnboardingChecklist' },
-  { icon: 'help-circle-outline', label: 'Help' },
+  // { icon: ICONS.ROCKET, label: 'Getting Started', target: 'OnboardingChecklist' },
+  { icon: ICONS.HELP, label: 'Help', target: 'Help' },
 ];
 
 const MoreScreen: React.FC = () => {

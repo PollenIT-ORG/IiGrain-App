@@ -13,7 +13,7 @@ import { addAlpha, moderateScale, scale } from '../../utils';
 import AppText from '../AppText/AppText';
 import Button from '../Button/Button';
 
-export type AssessmentLockState = 'no_visit' | 'other_field' | 'en_route';
+export type AssessmentLockState = 'no_visit' | 'other_field' | 'en_route' | 'program_not_open';
 
 export interface AssessmentLockedModalProps {
   visible: boolean;
@@ -82,6 +82,13 @@ const AssessmentLockedModal: React.FC<AssessmentLockedModalProps> = ({
 
   const { chipLabel, chipTone, message, doneCount } = useMemo(() => {
     switch (state) {
+      case 'program_not_open':
+        return {
+          chipLabel: 'Opens soon',
+          chipTone: COLORS.gray500,
+          doneCount: 0,
+          message: `The program office hasn't opened this survey yet. ${field} will unlock for scoring as soon as they do — no action needed from you.`,
+        };
       case 'en_route':
         return {
           chipLabel: 'On the way',
@@ -146,9 +153,12 @@ const AssessmentLockedModal: React.FC<AssessmentLockedModalProps> = ({
             </View>
           </View>
 
-          <AppText style={styles.title}>Reach the field to unlock</AppText>
+          <AppText style={styles.title}>
+            {state === 'program_not_open' ? 'Waiting on the program office' : 'Reach the field to unlock'}
+          </AppText>
           <AppText style={styles.message}>{message}</AppText>
 
+          {state !== 'program_not_open' ? (
           <View style={styles.steps}>
             {STEPS.map((step, i) => {
               const done = i < doneCount;
@@ -196,6 +206,7 @@ const AssessmentLockedModal: React.FC<AssessmentLockedModalProps> = ({
               );
             })}
           </View>
+          ) : null}
 
           <View style={styles.actions}>
             <Button

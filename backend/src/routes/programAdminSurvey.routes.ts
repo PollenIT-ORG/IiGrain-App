@@ -42,6 +42,8 @@ import {
   createProgram,
   updateProgram,
   deleteProgram,
+  lockProgramSurvey,
+  unlockProgramSurvey,
   shareProgram,
   listContractTemplates,
   getContractTemplate,
@@ -113,6 +115,8 @@ router.get("/programs/:id", withId, getProgram);
 router.patch("/programs/:id", withId, validate(programUpdateSchema), updateProgram);
 router.delete("/programs/:id", withId, deleteProgram);
 router.post("/programs/:id/share", withId, validate(shareProgramSchema), shareProgram);
+router.post("/programs/:id/lock", withId, lockProgramSurvey);
+router.delete("/programs/:id/lock", withId, unlockProgramSurvey);
 
 // Contract templates (global read-only + the caller's own).
 //

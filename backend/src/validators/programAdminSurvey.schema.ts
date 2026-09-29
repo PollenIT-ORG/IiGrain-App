@@ -168,8 +168,16 @@ export const setCategorySchema = z.object({
   reason: optionalText(250),
 });
 
+// The cards count the same rows the table lists, so they take the same filters.
+// Status is deliberately not one of them: picking a status would empty the five
+// cards it does not match.
 export const submissionStatsQuerySchema = z.object({
   programId: z.string().uuid("Choose a valid program.").optional(),
+  category: categoryEnum.optional(),
+  referral: z.string().trim().max(100).optional(),
+  createdFrom: z.string().trim().max(40).optional(),
+  createdTo: z.string().trim().max(40).optional(),
+  search: z.string().trim().max(100).optional(),
 });
 
 export const listSubmissionsQuerySchema = z.object({
@@ -202,3 +210,4 @@ export type ContractTemplateUpdateBody = z.infer<
 >;
 export type SetCategoryBody = z.infer<typeof setCategorySchema>;
 export type ListSubmissionsQuery = z.infer<typeof listSubmissionsQuerySchema>;
+export type SubmissionStatsQuery = z.infer<typeof submissionStatsQuerySchema>;

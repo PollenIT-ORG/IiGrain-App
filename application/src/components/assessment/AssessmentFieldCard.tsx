@@ -9,7 +9,7 @@ import {
   shadows,
   spacing,
 } from '../../constants';
-import { formatDate, moderateScale, scale } from '../../utils';
+import { addAlpha, formatDate, moderateScale, scale } from '../../utils';
 import AppText from '../AppText/AppText';
 import AssessmentProgressMeter from './AssessmentProgressMeter';
 import AssessmentStatusBadge from './AssessmentStatusBadge';
@@ -42,7 +42,19 @@ const AssessmentFieldCard: React.FC<AssessmentFieldCardProps> = ({ item, onPress
             {item.crop ? ` · ${item.crop}` : ''}
           </AppText>
         </View>
-        <AssessmentStatusBadge status={item.status} />
+        {item.reviewStatus ? (
+          <View
+            style={[
+              styles.reviewChip,
+              item.reviewStatus === 'approved' && styles.reviewChipApproved,
+            ]}>
+            <AppText style={styles.reviewChipText}>
+              {item.reviewStatus === 'in_review' ? 'In review' : 'Reviewed'}
+            </AppText>
+          </View>
+        ) : (
+          <AssessmentStatusBadge status={item.status} />
+        )}
       </View>
 
       {item.programName ? (
@@ -155,5 +167,18 @@ const styles = StyleSheet.create({
   submitted: {
     ...presets.caption,
     color: COLORS.primary,
+  },
+  reviewChip: {
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing[2.5],
+    paddingVertical: spacing[1],
+    backgroundColor: addAlpha(COLORS.gray500, 0.14),
+  },
+  reviewChipApproved: {
+    backgroundColor: addAlpha(COLORS.success, 0.14),
+  },
+  reviewChipText: {
+    ...presets.labelSM,
+    color: COLORS.gray700,
   },
 });

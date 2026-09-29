@@ -14,17 +14,19 @@ const SCORE_COLOR: Record<number, string> = {
 
 interface ScorePillProps {
   score: QuestionScore | null;
+  answered?: boolean;
 }
 
-const ScorePill: React.FC<ScorePillProps> = ({ score }) => {
+const ScorePill: React.FC<ScorePillProps> = ({ score, answered = true }) => {
   const color = score === null ? COLORS.gray500 : SCORE_COLOR[score] ?? COLORS.gray500;
+  const label = score === null ? (answered ? '···' : '—') : score;
   return (
     <View
       style={[
         styles.pill,
         { backgroundColor: addAlpha(color, 0.14), borderColor: addAlpha(color, 0.3) },
       ]}>
-      <AppText style={[styles.text, { color }]}>{score === null ? '—' : score}</AppText>
+      <AppText style={[styles.text, { color }]}>{label}</AppText>
     </View>
   );
 };

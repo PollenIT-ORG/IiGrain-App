@@ -9,13 +9,16 @@ import {
 } from "../store/endpoints/fieldsApi";
 import { showSuccess, showError } from "../lib/toast";
 import { useConfirmCascadeDelete } from "../lib/confirmDelete";
+import { useProgramScope } from "../lib/programScope";
+import { useHere } from "../lib/returnTo";
+import { useProgramCrumbs } from "../lib/useProgramCrumbs";
 import { useDialog } from "../components/ui/DialogProvider";
+import Breadcrumbs from "../components/ui/Breadcrumbs";
 import Loader from "../components/Loader";
-import FieldMonitoringCard from "../components/fieldMonitoring/FieldMonitoringCard";
+import FieldAssessmentsCard from "../components/FieldAssessmentsCard";
 import BoundaryMap from "../components/ui/BoundaryMap";
 import { boundaryToRing, validateRing } from "../lib/geo";
 import {
-  ChevronLeftIcon,
   EditIcon,
   FileIcon,
   LeafIcon,
@@ -61,6 +64,11 @@ export default function FieldDetail() {
   const navigate = useNavigate();
   const { confirm } = useDialog();
   const { id = "" } = useParams();
+  const { programId, to, home } = useProgramScope();
+  const listPath = home("/fields");
+  const here = useHere();
+  const programCrumbs = useProgramCrumbs(programId);
+  const parentCrumbs = programId ? programCrumbs : [{ label: "Fields", to: "/fields" }];
 
   const {
     data: field,
@@ -103,7 +111,7 @@ export default function FieldDetail() {
     try {
       await deleteField(field.id).unwrap();
       showSuccess("Field deleted.");
-      navigate("/fields");
+      navigate(listPath);
     } catch (err) {
       showError(errMsg(err));
     }
@@ -123,13 +131,7 @@ export default function FieldDetail() {
   if (isError || !field) {
     return (
       <div className="space-y-4">
-        <button
-          onClick={() => navigate("/fields")}
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to fields
-        </button>
+        <Breadcrumbs items={[...parentCrumbs, { label: "Field" }]} />
         <div className="card px-5 py-16 text-center text-sm text-gray-500">
           {errMsg(error) || "Field not found."}
         </div>
@@ -140,13 +142,7 @@ export default function FieldDetail() {
   return (
     <div className="space-y-6">
       <div>
-        <button
-          onClick={() => navigate("/fields")}
-          className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to fields
-        </button>
+        <Breadcrumbs className="mb-2" items={[...parentCrumbs, { label: field.name }]} />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{field.name}</h1>
@@ -169,7 +165,7 @@ export default function FieldDetail() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => navigate(`/fields/${field.id}/edit`)}
+              onClick={() => navigate(to(`/fields/${field.id}/edit`), { state: here })}
               className="btn-secondary"
             >
               <EditIcon width={16} height={16} />
@@ -201,7 +197,7 @@ export default function FieldDetail() {
 
       <Boundary field={field} formatDate={formatDate} />
 
-      <FieldMonitoringCard fieldId={field.id} />
+      <FieldAssessmentsCard fieldId={field.id} programId={programId} />
 
       <Documents
         documents={documents}

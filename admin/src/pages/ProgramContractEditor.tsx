@@ -1,17 +1,20 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import {
+  useListPasProgramsQuery,
   useGetPasContractQuery,
   useUpdatePasContractMutation,
   type ContractClause,
 } from "../store/endpoints/programAdminSurveyApi";
 import { errMsg } from "../lib/errMsg";
+import { useForward, useTrail } from "../lib/returnTo";
 import { useAuth } from "../store/useAuth";
 import { useGetCurrentOrganizationQuery } from "../store/endpoints/organizationsApi";
 import { useLiveData } from "../lib/useLiveData";
 import { showSuccess, showError } from "../lib/toast";
 import { useDialog } from "../components/ui/DialogProvider";
 import Loader from "../components/Loader";
+import Breadcrumbs, { type Crumb } from "../components/ui/Breadcrumbs";
 import ContractPdfPreview from "../components/ContractPdfPreview";
 import { PlusIcon, TrashIcon, ChevronLeftIcon } from "../components/icons";
 import { fmtDate } from "../lib/datetime";
@@ -19,10 +22,18 @@ import { fmtDate } from "../lib/datetime";
 // Edit one contract template: the intro line and its numbered clauses. The
 // global contract is shown read-only.
 export default function ProgramContractEditor() {
-  const navigate = useNavigate();
   const { id = "" } = useParams();
+  const trail = useTrail();
   return (
-    <ContractEditor id={id} onBack={() => navigate("/surveys?tab=contracts")} />
+    <ContractEditor
+      id={id}
+      parents={
+        trail ?? [
+          { label: "Surveys", to: "/surveys" },
+          { label: "Contracts", to: "/surveys?tab=contracts" },
+        ]
+      }
+    />
   );
 }
 
@@ -31,14 +42,14 @@ export default function ProgramContractEditor() {
  *
  * It is the page behind /surveys/contracts/:id, and the same component opens
  * over the Programs list when a contract is picked or created for a program.
- * Leave `onBack` out when it is embedded.
+ * Leave `parents` out when it is embedded.
  */
 export function ContractEditor({
   id,
-  onBack,
+  parents,
 }: {
   id: string;
-  onBack?: () => void;
+  parents?: Crumb[];
 }) {
   const { confirm } = useDialog();
   const { user } = useAuth();
@@ -293,7 +304,7 @@ export function ContractEditor({
   if (isError || !data) {
     return (
       <div className="space-y-4">
-        {onBack && <BackBtn onClick={onBack} />}
+        {parents && <Breadcrumbs items={[...parents, { label: "Contract" }]} />}
         <div className="card px-5 py-16 text-center text-sm text-gray-500">
           {errMsg(error) || "Contract not found."}
         </div>
@@ -311,19 +322,19 @@ export function ContractEditor({
         name={data.name}
         isGlobal={data.is_global}
         uploaded={data.source === "uploaded"}
-        onBack={onBack}
+        parents={parents}
       />
     );
   }
 
   return (
     <div className="space-y-5">
-      {onBack && <BackBtn onClick={onBack} />}
+      {parents && <Breadcrumbs items={[...parents, { label: data.name }]} />}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           {/* Embedded, the sheet's own header already names the contract. */}
-          {onBack && (
+          {parents && (
             <h1 className="text-2xl font-bold text-gray-900">{data.name}</h1>
           )}
           {data.is_global && (
@@ -362,6 +373,14 @@ export function ContractEditor({
             what every program signs unless they pick their own.
           </div>
         )
+      )}
+
+      {parents && (
+        <ContractUsageCard
+          contractId={id}
+          isGlobal={data.is_global}
+          crumbs={[...parents, { label: data.name }]}
+        />
       )}
 
       <div className="card space-y-4 p-5">
@@ -488,20 +507,20 @@ function ContractReadView({
   name,
   isGlobal,
   uploaded,
-  onBack,
+  parents,
 }: {
   id: string;
   name: string;
   isGlobal: boolean;
   uploaded: boolean;
-  onBack?: () => void;
+  parents?: Crumb[];
 }) {
   return (
     <div className="space-y-5">
-      {onBack && <BackBtn onClick={onBack} />}
+      {parents && <Breadcrumbs items={[...parents, { label: name }]} />}
 
       <div className="flex flex-wrap items-center gap-3">
-        {onBack && <h1 className="text-2xl font-bold text-gray-900">{name}</h1>}
+        {parents && <h1 className="text-2xl font-bold text-gray-900">{name}</h1>}
         {isGlobal && (
           <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
             Global
@@ -519,19 +538,74 @@ function ContractReadView({
         the platform team.
       </div>
 
+      {parents && (
+        <ContractUsageCard
+          contractId={id}
+          isGlobal={isGlobal}
+          crumbs={[...parents, { label: name }]}
+        />
+      )}
+
       <ContractPdfPreview contractId={id} className="h-[38rem]" />
     </div>
   );
 }
 
-function BackBtn({ onClick }: { onClick: () => void }) {
+function ContractUsageCard({
+  contractId,
+  isGlobal,
+  crumbs,
+}: {
+  contractId: string;
+  isGlobal: boolean;
+  crumbs: Crumb[];
+}) {
+  const forward = useForward(crumbs);
+  const { data: links, isLoading } = useListPasProgramsQuery();
+  const used = (links ?? []).filter(
+    (l) =>
+      l.program_id &&
+      (l.contract_template_id === contractId ||
+        (isGlobal && !l.contract_template_id))
+  );
+
   return (
-    <button
-      onClick={onClick}
-      className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-    >
-      <ChevronLeftIcon width={16} height={16} />
-      Back to contracts
-    </button>
+    <div className="card p-5">
+      <p className="text-sm font-bold text-gray-900">
+        Used by programs{" "}
+        <span className="font-normal text-gray-400">({used.length})</span>
+      </p>
+      {isLoading ? (
+        <p className="mt-1 text-sm text-gray-500">Loading programs...</p>
+      ) : used.length === 0 ? (
+        <p className="mt-1 text-sm text-gray-500">
+          No program uses this contract yet.
+        </p>
+      ) : (
+        <ul className="mt-3 divide-y divide-gray-300/70 rounded-lg border border-gray-300">
+          {used.map((l) => (
+            <li
+              key={l.id}
+              className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <Link
+                to={`/programs/${l.program_id}`}
+                state={forward}
+                className="font-semibold text-gray-900 hover:text-primary hover:underline"
+              >
+                {l.name}
+              </Link>
+              <Link
+                to={`/surveys/surveys/${l.template_id}`}
+                state={forward}
+                className="text-sm text-gray-500 hover:text-primary hover:underline"
+              >
+                Survey: {l.template_name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

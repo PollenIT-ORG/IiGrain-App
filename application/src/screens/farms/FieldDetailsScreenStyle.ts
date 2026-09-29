@@ -310,10 +310,26 @@ export const styles = StyleSheet.create({
     padding: spacing[2],
   },
 
-  mapFab: {
+  mapActions: {
     position: 'absolute',
     right: spacing[3],
     bottom: spacing[3],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  mapFocusBtn: {
+    width: scale(38),
+    height: scale(38),
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: addAlpha(COLORS.white, 0.95),
+    borderWidth: borderWidth.thin,
+    borderColor: addAlpha(COLORS.gray900, 0.08),
+    ...shadows.md,
+  },
+  mapFab: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[2],

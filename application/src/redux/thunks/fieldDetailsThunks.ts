@@ -3,16 +3,43 @@ import * as fieldDetailsApi from '../../api/fieldDetailsApi';
 import type { ActivityEntry } from '../../types/farm';
 import type { FieldDocument, FieldOverview, FieldSoil } from '../../types/fieldDetails';
 import { handleApiError, StandardizedError } from '../../utils/handleApiError';
+import { asOwnerUserId, isDatabaseReady } from '../../services/db';
+import type { OwnerUserId } from '../../services/db/types';
+import {
+  cacheFieldDocuments,
+  fieldScope,
+  readCachedFieldDocuments,
+} from '../../services/sync/documentCache';
+import { throughOfflineSnapshot as throughSnapshot } from '../../services/sync/offlineSnapshot';
 
 type ThunkConfig = { rejectValue: StandardizedError };
+
+interface AuthStateSlice {
+  auth?: { user?: { id?: string } | null } | null;
+}
+
+const ownerFrom = (getState: () => unknown): OwnerUserId | null => {
+  if (!isDatabaseReady()) {
+    return null;
+  }
+  const userId = (getState() as AuthStateSlice).auth?.user?.id;
+  return userId ? asOwnerUserId(userId) : null;
+};
+
+const isOffline = (error: unknown): boolean =>
+  handleApiError(error).kind === 'offline';
 
 export const fetchFieldOverviewThunk = createAsyncThunk<
   FieldOverview,
   string,
   ThunkConfig
->('fieldDetails/overview', async (fieldId, { rejectWithValue }) => {
+>('fieldDetails/overview', async (fieldId, { getState, rejectWithValue }) => {
   try {
-    return await fieldDetailsApi.getFieldOverview(fieldId);
+    return await throughSnapshot(
+      ownerFrom(getState),
+      fieldScope(fieldId, 'overview'),
+      () => fieldDetailsApi.getFieldOverview(fieldId),
+    );
   } catch (error) {
     return rejectWithValue(handleApiError(error));
   }
@@ -22,9 +49,13 @@ export const fetchFieldActivityThunk = createAsyncThunk<
   ActivityEntry[],
   string,
   ThunkConfig
->('fieldDetails/activity', async (fieldId, { rejectWithValue }) => {
+>('fieldDetails/activity', async (fieldId, { getState, rejectWithValue }) => {
   try {
-    return await fieldDetailsApi.getFieldActivity(fieldId);
+    return await throughSnapshot(
+      ownerFrom(getState),
+      fieldScope(fieldId, 'activity'),
+      () => fieldDetailsApi.getFieldActivity(fieldId),
+    );
   } catch (error) {
     return rejectWithValue(handleApiError(error));
   }
@@ -32,9 +63,13 @@ export const fetchFieldActivityThunk = createAsyncThunk<
 
 export const fetchFieldSoilThunk = createAsyncThunk<FieldSoil, string, ThunkConfig>(
   'fieldDetails/soil',
-  async (fieldId, { rejectWithValue }) => {
+  async (fieldId, { getState, rejectWithValue }) => {
     try {
-      return await fieldDetailsApi.getFieldSoil(fieldId);
+      return await throughSnapshot(
+        ownerFrom(getState),
+        fieldScope(fieldId, 'soil'),
+        () => fieldDetailsApi.getFieldSoil(fieldId),
+      );
     } catch (error) {
       return rejectWithValue(handleApiError(error));
     }
@@ -45,10 +80,21 @@ export const fetchFieldDocumentsThunk = createAsyncThunk<
   FieldDocument[],
   string,
   ThunkConfig
->('fieldDetails/documents', async (fieldId, { rejectWithValue }) => {
+>('fieldDetails/documents', async (fieldId, { getState, rejectWithValue }) => {
+  const owner = ownerFrom(getState);
   try {
-    return await fieldDetailsApi.getFieldDocuments(fieldId);
+    const documents = await fieldDetailsApi.getFieldDocuments(fieldId);
+    if (owner) {
+      await cacheFieldDocuments(owner, fieldId, documents).catch(() => undefined);
+    }
+    return documents;
   } catch (error) {
+    if (owner && isOffline(error)) {
+      const cached = await readCachedFieldDocuments(owner, fieldId).catch(() => null);
+      if (cached) {
+        return cached;
+      }
+    }
     return rejectWithValue(handleApiError(error));
   }
 });

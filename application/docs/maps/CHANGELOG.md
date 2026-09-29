@@ -8,6 +8,178 @@ Scope tags: `[js]` `[android]` `[ios]` `[cloud]` `[docs]`
 
 ---
 
+## [1.4.0] — 2026-08-24 — Boundary editor: first-draw coach mark `[js]`
+
+New farmers opening DRAW mode saw an empty satellite image and nothing that
+said "tap here" — there's no affordance on a farm field the way a text input's
+placeholder hints at typing. The report was blunt: first time on the screen,
+no idea what to do.
+
+### Added
+
+- **`src/maps/boundary/components/BoundaryDrawTutorial.tsx`** — a full-screen
+  coach mark, shown once per device, that plays a **live** demo of the exact
+  gesture rather than a static illustration: a ghost fingertip taps a point, a
+  white line **grows in real time** to the next tap (not a jump-cut), the shape
+  closes and its fill fades in, then "Got it — let's draw" hands off. It loops
+  until dismissed and Skip is always available.
+  - Reuses the real vocabulary throughout, not a separate illustration style:
+    numbered dots styled like `VertexMarker`, the same white stroke `MapPolyline`
+    draws mid-draw, and captions that step through the actual `BOUNDARY_HINTS`
+    text (`drawEmpty` → `drawOne` → `drawTwo` → `drawReady`) the real toolbar
+    shows next — the lesson and the real screen say the same thing.
+  - The growing line is a nested-rotation trick — a hairline box centred
+    exactly on the start point, so it spins around that point with no
+    `transformOrigin` dependency, containing an `Animated.View` whose width
+    tweens from 0 to the segment's length.
+  - Every transform/opacity animation runs on the native driver; only the
+    line's width tween is JS-driven (layout properties can't be), and that's
+    one ~400ms tween per edge, not a per-frame cost.
+  - The scrim intercepts all touches while it plays — without that, a farmer's
+    first stray tap could drop a real point before they'd seen the whole
+    gesture, which is exactly the confusion this exists to prevent.
+- **`boundarySlice.drawTutorialSeen`** (+ `markDrawTutorialSeen`,
+  `selectDrawTutorialSeen`) — device-wide, not per-field, since the lesson is
+  about the gesture, not any one boundary. Added to the slice's persist
+  whitelist in `redux/store.ts` so it survives an app restart.
+- **`__tests__/boundaryDrawTutorial.test.tsx`** — renders nothing while hidden,
+  opens on the same hint text real drawing starts with, Skip dismisses exactly
+  once (real-timer await, not fake timers — Animated's own timing isn't
+  fake-timer-friendly here), and toggling visible off mid-loop doesn't throw or
+  leak a handle.
+
+### Changed
+
+- **`BoundaryEditorScreen`** — `startDraw` shows the coach mark instead of the
+  usual toast the first time; every time after, unchanged. Dismissing (Skip or
+  the CTA) marks it seen and shows that same toast, so guidance continues
+  either way.
+
+### Verified on device
+
+iPhone 16e simulator, iOS 26, the real `BoundaryEditorScreen` (not a mock) with
+`drawTutorialSeen` at its real default (`false`). Screenshots across a full
+loop confirm: point 1 lands and the caption advances to "Good. Tap the next
+corner"; the line **visibly grows** from point 1 toward the hand mid-flight to
+point 2 (not a snap); point 2 lands and the caption advances again; the third
+edge closes the triangle and the caption reads "That's it — now try it
+yourself" with "Got it — let's draw" and "Skip" both live.
+
+### Notes
+
+- The "already seen, second time is just the toast" branch is a one-line
+  conditional (`if (drawTutorialSeen) toast else show tutorial`), verified by
+  type-checking and code review rather than on-device — this machine has no
+  touch-injection tool (no `idb`/`cliclick`, and `osascript` lacks Accessibility
+  permission here), so a real tap on "Draw field boundary" couldn't be sent to
+  the simulator to drive that second run end-to-end.
+
+---
+
+## [1.3.2] — 2026-08-24 — Boundary editor: the shape now follows the point you are dragging (iOS) `[js]` `[ios]`
+
+With the handles visible ([1.3.1]) the next layer of the same story surfaced:
+dragging a point moved the handle but **not the outline**. The polygon stayed
+frozen at whatever shape it had when a point was last added or deleted, then
+snapped to the truth the moment you inserted or removed one. Users read this as
+"editing does nothing" / "the lines vanish on edit".
+
+**Root cause.** `RNMapsGooglePolygonView.updateProps` rebuilds the
+`GMSMutablePath` only `if (newViewProps.coordinates.size() != oldViewProps.coordinates.size())`.
+Moving a vertex changes the values, never the count. Drawing appends points, so
+the count changes on every tap — which is exactly why drawing looked fine and
+only editing was dead. `<Polyline>` over the same array does update, and that
+asymmetry is how it was isolated. Full write-up:
+[TROUBLESHOOTING #19](./TROUBLESHOOTING.md#19-polygon-does-not-update-when-a-coordinate-moves-ios).
+
+### Changed
+
+- **`BoundaryPolygon`** — on iOS the ring is padded with one or two repeats of
+  its last vertex (a zero-length closing segment, drawn as nothing) so the
+  coordinate count the SDK sees is never the count it saw last time. One or two
+  rather than a fixed alternation, because an insert or a delete changes the
+  ring length too and a naive toggle collides with itself exactly there. Android
+  receives the ring unpadded and is byte-for-byte unchanged.
+
+### Added
+
+- **`__tests__/boundaryPolygon.test.tsx`** — pins the invariant: ten frames of a
+  drag, and an insert/move/delete/move sequence, must never send the same
+  coordinate count twice in a row; the padding may only ever repeat the last
+  vertex; Android passes the ring straight through.
+
+### Verified on device
+
+iPhone 16e simulator, iOS 26. A raw `<Polygon>` and a `BoundaryPolygon` were fed
+the same animated ring side by side: the raw one stays a square, the fixed one
+tracks every frame. Then the editor's real composition (`AppMapView` +
+`BoundaryPolygon` + `BoundaryHandleLayer`) with a moving vertex — handle,
+outline and edge midpoints all move together — and finally the real
+`BoundaryEditorScreen` in edit mode: numbered handles, live area and perimeter,
+nudge pad, all correct.
+
+### Notes
+
+- Every boundary surface (editor, `LocationPicker`, `BoundaryPreviewMap`,
+  `SamplePointsMap`) draws through `BoundaryPolygon`, so all of them are fixed.
+  `VisitMap` still calls `MapPolygon` directly — safe only because its ring
+  never changes while the screen is open.
+
+---
+
+## [1.3.1] — 2026-08-22 — Boundary editor: points and editing work on iOS `[js]` `[ios]`
+
+The Farm Boundary editor was Android-only in practice. On iOS no vertex ever
+appeared, nothing could be selected, dragged or inserted, and drawing a new
+boundary showed nothing while tapping — the shape only became visible from the
+third point, as the polygon.
+
+**Root cause.** react-native-maps 1.29 on the New Architecture never lays out
+the Google-on-iOS marker's `iconView`, so any `<Marker>` with React children is
+zero-sized: invisible *and* un-hittable. `<Polygon>` / `<Polyline>` / plain pins
+are unaffected — which is why the outline drew but the handles did not. Full
+diagnosis, including the 60-second confirmation test:
+[TROUBLESHOOTING #11 Cause E](./TROUBLESHOOTING.md#cause-e--ios--new-architecture--provider_google-a-marker-with-children-never-renders).
+
+### Added
+
+- **`src/maps/boundary/components/BoundaryHandleLayer.tsx`** — the vertex and
+  midpoint handles as a screen-space overlay above the map instead of as marker
+  children. Projects the ring with the live region, renders plain RN views, and
+  drives move/insert/select through one `PanResponder` per handle with an
+  explicit tap-vs-drag rule (4 pt of travel). Receives the region imperatively
+  (`ref.setRegion`) so a pan re-renders the overlay only, not the editor.
+- **`src/maps/utils/projection.ts`** — `unprojectFromScreen`, the inverse of
+  `projectToScreen`; together they turn a finger's pixel delta into a coordinate.
+- **`USE_OVERLAY_HANDLES`** in `boundary/engine/boundaryConfig.ts` — the single
+  platform switch, documented at the definition.
+- **`__tests__/boundaryHandleLayer.test.tsx`** — projection round-trip and
+  ground-distance accuracy, handle placement, region tracking, and two gestures
+  driven through React Native's real responder plumbing (a tap selects, a drag
+  reports the coordinate under the finger and freezes the map).
+
+### Changed
+
+- **`BoundaryEditorScreen`** — renders the overlay on iOS and the existing
+  `VertexMarker` / `MidpointHandle` markers on Android; Android behaviour is
+  untouched. Map gestures freeze while a handle is under the finger, so a drag
+  can never pan the map underneath it. The overlay stays mounted in every mode:
+  one that unmounts stops receiving region updates and returns pinned to a stale
+  frame.
+- **`BoundaryEditorScreen`** — the "map not ready" spinner is now
+  `pointerEvents="none"`. It filled the map and swallowed every touch until
+  `onMapReady` arrived.
+
+### Notes
+
+- Android still uses native markers, so **this is a platform split by
+  necessity** — see ADR-B09. The overlay is written to work on both; flip
+  `USE_OVERLAY_HANDLES` once it can be tested on an Android device.
+- The same SDK bug still affects `VisitMap`, `SamplePointsMap` and
+  `FieldLocationPreview`, whose markers also carry children. Not fixed here.
+
+---
+
 ## [1.3.0] — 2026-07-24 — Farm Boundary module (Phase D: draw · edit · area · local save)
 
 Adds the Farm Boundary drawing system as a sub-feature of `src/maps`. A farmer

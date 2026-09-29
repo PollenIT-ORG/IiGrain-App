@@ -14,6 +14,8 @@ export const assessmentSummary: AssessmentSummary = {
   totalQuestions: 31,
   progress: 58,
   buttonTitle: 'Continue Assessment',
+  reviewStatus: null,
+  surveyClosed: false,
 };
 
 export const assessmentCategories: AssessmentCategory[] = [

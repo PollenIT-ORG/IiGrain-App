@@ -9,7 +9,8 @@ import {
   shadows,
   spacing,
 } from '../../constants';
-import { addAlpha, formatDate, formatNumber, moderateScale, scale } from '../../utils';
+import { addAlpha, formatDate, moderateScale, scale } from '../../utils';
+import { formatAcres } from '../../maps/utils/fieldAcres';
 import AppText from '../AppText/AppText';
 import StatusBadge from './StatusBadge';
 import { FARM_STATUS_META, type Farm } from '../../types/farm';
@@ -69,7 +70,7 @@ const FarmCard: React.FC<FarmCardProps> = ({ farm, onPress, fieldCount }) => {
         </View>
         <View style={styles.chip}>
           <AppIcon name={ICONS.AREA} size={CHIP_ICON} color={COLORS.primary} />
-          <AppText style={styles.chipText}>{formatNumber(farm.areaAcres)} acres</AppText>
+          <AppText style={styles.chipText}>{formatAcres(farm.areaAcres)} acres</AppText>
         </View>
       </View>
 

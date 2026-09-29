@@ -11,6 +11,7 @@ import { styles } from './AuthenticationScreenStyle';
 
 const AuthenticationScreen: React.FC<AuthScreenProps<'Authentication'>> = ({
   route,
+  navigation,
 }) => {
   const [authMode, setAuthMode] = useState<AuthMode>(route.params?.mode ?? 'login');
 
@@ -23,13 +24,9 @@ const AuthenticationScreen: React.FC<AuthScreenProps<'Authentication'>> = ({
   }, [paramMode, paramError]);
 
   const handleSwitch = useCallback((next: AuthMode) => setAuthMode(next), []);
-  const goSignup = useCallback(() => setAuthMode('signup'), []);
-  const goLogin = useCallback(() => setAuthMode('login'), []);
 
   const loginForm = useMemo(() => <LoginForm />, []);
   const signupForm = useMemo(() => <SignupForm />, []);
-
-  const isLogin = authMode === 'login';
 
   return (
     <View style={styles.safe}>
@@ -48,6 +45,17 @@ const AuthenticationScreen: React.FC<AuthScreenProps<'Authentication'>> = ({
         login={loginForm}
         signup={signupForm}
       />
+
+      <View style={styles.footer}>
+        <AppText style={styles.footerPrompt}>Trouble signing in? </AppText>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Help')}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Help and support">
+          <AppText style={styles.footerAction}>Get help</AppText>
+        </TouchableOpacity>
+      </View>
 
       </SafeAreaView>
     </View>

@@ -16,6 +16,8 @@ export interface AssessmentSummary {
   totalQuestions: number;
   progress: number;
   buttonTitle: string;
+  reviewStatus: ReviewStatus;
+  surveyClosed: boolean;
 }
 
 export interface AssessmentCategory {
@@ -37,6 +39,27 @@ export interface AssessmentHistoryItem {
 }
 
 export type QuestionScore = 0 | 1 | 2 | 3;
+
+export type QuestionType =
+  | 'scored'
+  | 'mcq'
+  | 'text'
+  | 'long_text'
+  | 'number'
+  | 'date'
+  | 'boolean';
+
+export type AnswerExtra = 'off' | 'optional' | 'required';
+
+export type QuestionKind = 'mcq' | 'input';
+
+export interface QuestionOption {
+  id: string;
+  text: string;
+  score: number;
+}
+
+export type ReviewStatus = 'in_review' | 'approved' | null;
 
 export type QuestionStatus =
   | 'NOT_STARTED'
@@ -94,6 +117,7 @@ export interface AssessmentInfo {
   answered: number;
   percentage: number;
   submitted: boolean;
+  questionKind: QuestionKind;
 }
 
 export interface AssessmentCategorySummary {
@@ -102,12 +126,23 @@ export interface AssessmentCategorySummary {
   totalQuestions: number;
   answered: number;
   percentage: number;
+  records: number;
+}
+
+export interface AssessmentProgramInfo {
+  active: boolean;
+  ended: boolean;
+  endDate: string | null;
+  assessmentOpen: boolean;
 }
 
 export interface FieldAssessmentSummary {
   field: AssessmentField;
   assessment: AssessmentInfo;
   categories: AssessmentCategorySummary[];
+  canEdit: boolean;
+  reviewStatus: ReviewStatus;
+  program: AssessmentProgramInfo;
 }
 
 export interface AssessmentFieldRef {
@@ -151,25 +186,89 @@ export interface AssessmentQuestionDetail {
   code: string;
   text: string;
   guidance: string;
+  questionType: QuestionType;
+  maxScore: number;
+  options: QuestionOption[];
+  evidenceMode: AnswerExtra;
+  commentMode: AnswerExtra;
   scoreDescriptions: QuestionScoreDescription[];
   answerScore: QuestionScore | null;
+  answerOptionId: string | null;
+  answerOptionText: string | null;
+  answerText: string | null;
+  answerNumber: number | null;
+  answerDate: string | null;
+  answerBoolean: boolean | null;
   answerComment: string | null;
   answerEvidenceUrls: string[];
+  reviewScore: number | null;
+  finalScore: number | null;
   answered: boolean;
   locked: boolean;
 }
 
+export interface AssessmentRecordAnswer {
+  questionId: string;
+  score: QuestionScore | null;
+  optionId: string | null;
+  optionText: string | null;
+  answerText: string | null;
+  answerNumber: number | null;
+  answerDate: string | null;
+  answerBoolean: boolean | null;
+  comment: string | null;
+  evidenceUrls: string[];
+}
+
+export interface AssessmentRecord {
+  id: string;
+  number: number;
+  evidenceUrls: string[];
+  createdAtISO: string;
+  updatedAtISO: string;
+  answers: AssessmentRecordAnswer[];
+}
+
+export interface CategoryQuestionSet {
+  field: AssessmentFieldRef;
+  category: AssessmentCategoryRef;
+  progress: CategoryQuestionProgress;
+  questionKind: QuestionKind | null;
+  records: AssessmentRecord[];
+  evidenceUrls: string[];
+  questions: AssessmentQuestionDetail[];
+}
+
 export interface SaveAnswerInput {
-  score: QuestionScore;
+  score?: QuestionScore;
+  optionId?: string | null;
+  answerText?: string | null;
+  answerNumber?: number | null;
+  answerDate?: string | null;
+  answerBoolean?: boolean | null;
   comment?: string | null;
   evidenceUrls?: string[] | null;
+}
+
+export interface SaveFormAnswerInput extends SaveAnswerInput {
+  questionId: string;
+}
+
+export interface SaveCategoryAnswersInput {
+  answers: SaveFormAnswerInput[];
 }
 
 export interface SavedAnswer {
   id: string;
   fieldId: string;
   questionId: string;
-  score: QuestionScore;
+  questionType: QuestionType;
+  score: QuestionScore | null;
+  optionId: string | null;
+  answerText: string | null;
+  answerNumber: number | null;
+  answerDate: string | null;
+  answerBoolean: boolean | null;
   comment: string;
   evidenceUrls: string[];
   createdAtISO: string;
@@ -180,7 +279,20 @@ export interface AssessmentReviewQuestion {
   id: string;
   code: string;
   text: string;
+  questionType: QuestionType;
+  maxScore: number;
+  options: QuestionOption[];
+  evidenceMode: AnswerExtra;
+  commentMode: AnswerExtra;
   score: QuestionScore | null;
+  optionId: string | null;
+  optionText: string | null;
+  answerText: string | null;
+  answerNumber: number | null;
+  answerDate: string | null;
+  answerBoolean: boolean | null;
+  reviewScore: number | null;
+  finalScore: number | null;
   comment: string;
   evidenceUrls: string[];
   answered: boolean;
@@ -201,6 +313,8 @@ export interface AssessmentSubmissionInfo {
   totalQuestions: number;
   answered: number;
   percentage: number;
+  reviewStatus: ReviewStatus;
+  reviewNote: string | null;
 }
 
 export interface AssessmentReview {
@@ -223,6 +337,7 @@ export interface MyAssessmentField {
   answered: number;
   percentage: number;
   submittedAtISO: string | null;
+  reviewStatus: ReviewStatus;
 }
 
 export interface MyAssessmentCounts {
@@ -265,4 +380,7 @@ export interface AssessmentSubmitResult {
   maxScore: number;
   percentage: number;
   submittedAtISO: string;
+  reviewStatus: ReviewStatus;
+  reviewedAtISO: string | null;
+  reviewNote: string | null;
 }

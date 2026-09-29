@@ -1,3 +1,4 @@
+/* eslint-env jest */
 require('react-native-gesture-handler/jestSetup');
 
 jest.mock('react-native-reanimated', () => {
@@ -91,6 +92,10 @@ jest.mock('@react-native-documents/picker', () => ({
   types: {},
 }));
 
+jest.mock('@react-native-community/netinfo', () =>
+  require('@react-native-community/netinfo/jest/netinfo-mock.js'),
+);
+
 jest.mock('react-native-keychain', () => ({
   getGenericPassword: jest.fn(() => Promise.resolve(false)),
   setGenericPassword: jest.fn(() => Promise.resolve(true)),
@@ -124,13 +129,27 @@ jest.mock('react-native-maps', () => {
   };
 });
 
-jest.mock('react-native-fs', () => ({
-  DocumentDirectoryPath: '/tmp',
-  DownloadDirectoryPath: '/tmp',
-  downloadFile: jest.fn(() => ({ promise: Promise.resolve({ statusCode: 200 }) })),
-  exists: jest.fn(() => Promise.resolve(false)),
-  unlink: jest.fn(() => Promise.resolve()),
-}));
+jest.mock('react-native-fs', () => {
+  const files = new Set();
+  return {
+    __files: files,
+    DocumentDirectoryPath: '/tmp',
+    DownloadDirectoryPath: '/tmp',
+    ExternalDirectoryPath: '/tmp',
+    downloadFile: jest.fn(() => ({ promise: Promise.resolve({ statusCode: 200 }) })),
+    exists: jest.fn(path => Promise.resolve(files.has(path))),
+    unlink: jest.fn(path => {
+      files.delete(path);
+      return Promise.resolve();
+    }),
+    mkdir: jest.fn(() => Promise.resolve()),
+    copyFile: jest.fn((from, to) => {
+      files.add(to);
+      return Promise.resolve();
+    }),
+    stat: jest.fn(() => Promise.resolve({ size: 1024 })),
+  };
+});
 
 jest.mock('react-native-image-crop-picker', () => ({
   openPicker: jest.fn(() => Promise.resolve([])),
@@ -146,3 +165,11 @@ jest.mock('react-native-video', () => {
   const { View } = require('react-native');
   return { __esModule: true, default: View };
 });
+
+jest.mock('@react-native-clipboard/clipboard', () => ({
+  __esModule: true,
+  default: {
+    setString: jest.fn(),
+    getString: jest.fn(() => Promise.resolve('')),
+  },
+}));

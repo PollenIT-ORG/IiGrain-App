@@ -1,4 +1,5 @@
 import type { UserRole } from "../types";
+import { unscopedPath } from "./programScope";
 
 // What each role is allowed to work with. A program administrator runs their
 // own programs: the programs themselves, their surveys and submissions, and
@@ -11,12 +12,17 @@ const PROGRAM_ADMIN_PATHS = [
   "/submissions",
   "/surveys",
   "/survey-submissions",
+  // Their own assessment templates and the questions of their programs; what they may change is checked per template.
+  "/assessments",
   "/farms",
   "/fields",
   "/users",
   "/settings",
   "/profile",
   "/notifications",
+  // They answer producers day to day, so the enquiries reach them too. Writing
+  // the help content stays with the platform team, so /faqs is not here.
+  "/contact-enquiries",
 ];
 
 /** The user roles a role may look after. */
@@ -31,8 +37,9 @@ export function isProgramAdmin(role: string | undefined): boolean {
 /** True when a role may open a page. */
 export function canOpen(role: string | undefined, path: string): boolean {
   if (!isProgramAdmin(role)) return true;
+  const real = unscopedPath(path);
   return PROGRAM_ADMIN_PATHS.some(
-    (allowed) => path === allowed || path.startsWith(`${allowed}/`)
+    (allowed) => real === allowed || real.startsWith(`${allowed}/`)
   );
 }
 

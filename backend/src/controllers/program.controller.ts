@@ -75,7 +75,7 @@ export const listPrograms = asyncHandler(async (req: Request, res: Response) => 
 
 export const getProgram = asyncHandler(async (req: Request, res: Response) => {
   await assertOwnProgram(req, req.params.id);
-  const program = await service.getProgramById(req.params.id);
+  const program = await service.getProgramDetail(req.params.id);
   return ApiResponse.send(res, 200, "Program fetched.", { program });
 });
 
@@ -83,7 +83,8 @@ export const updateProgram = asyncHandler(async (req: Request, res: Response) =>
   await assertOwnProgram(req, req.params.id);
   const program = await service.editProgram(
     req.params.id,
-    req.body as UpdateProgramBody
+    req.body as UpdateProgramBody,
+    actorOf(req)
   );
   return ApiResponse.send(res, 200, "Program updated.", { program });
 });
@@ -260,7 +261,9 @@ export const listSubmissions = asyncHandler(async (req: Request, res: Response) 
     page: q.page,
     limit: q.limit,
     programId: q.programId,
+    fieldId: q.fieldId,
     authorRole: q.authorRole,
+    reviewStatus: q.reviewStatus,
     // Not one program by id: the whole list belongs to their own programs.
     programOwnerId: ownProgramsOnly(actor.role) ? actor.id : undefined,
   });

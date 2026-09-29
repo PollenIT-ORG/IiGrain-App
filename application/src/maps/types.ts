@@ -40,3 +40,7 @@ export interface MapRoute {
   readonly distanceMeters: number;
   readonly durationSeconds: number;
 }
+
+export interface MapFocusHandle {
+  focus: () => void;
+}

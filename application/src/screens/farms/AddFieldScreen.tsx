@@ -10,7 +10,7 @@ import {
   Input,
 } from '../../components';
 import { API_LIMITS, COLORS } from '../../constants';
-import { formatNumber, moderateScale } from '../../utils';
+import { moderateScale } from '../../utils';
 import { useFormValidation } from '../../hooks';
 import type { ValidatorMap } from '../../hooks';
 import {
@@ -39,8 +39,13 @@ import { showSuccess } from '../../services/toastService';
 import type { SaveSoilInput, SoilRecord } from '../../types/fieldDetails';
 import type { AppScreenProps } from '../../navigation/navigationTypes';
 import SoilDetailsModal, { type SoilValues } from '../../components/farms/SoilDetailsModal';
-import { LocationPickerModal, type PickedLocation } from '../../maps';
-import { selectSelectedFarm } from '../../redux/slices/farmSlice';
+import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog';
+import { LocationPickerModal, type LatLng, type PickedLocation } from '../../maps';
+import { geoJSONToRing, ringToGeoJSON } from '../../maps/boundary/services/boundarySerializer';
+import { polygonAreaSqMeters, formatArea } from '../../maps/utils/geo';
+import { acresFromRing, fitFieldInFarm, formatAcres } from '../../maps/utils/fieldAcres';
+import { refreshFarmDetailThunk, selectSelectedFarm } from '../../redux/slices/farmSlice';
+import { selectBoundary } from '../../redux/slices/boundarySlice';
 import { styles } from './AddFieldScreenStyle';
 
 type FieldFormValues = {
@@ -104,6 +109,11 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
   const [expectedHarvest, setExpectedHarvest] = useState('');
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [boundaryRing, setBoundaryRing] = useState<readonly LatLng[] | null>(null);
+  const [boundaryTouched, setBoundaryTouched] = useState(false);
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+  const [growthPromptVisible, setGrowthPromptVisible] = useState(false);
+  const [growthAcknowledged, setGrowthAcknowledged] = useState(false);
 
   const [soilTexture, setSoilTexture] = useState('');
   const [soilTestedOn, setSoilTestedOn] = useState('');
@@ -118,6 +128,8 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
     () => (fieldId ? fields.find(f => f.id === fieldId) : undefined),
     [fields, fieldId],
   );
+
+  const liveBoundary = useAppSelector(state => (fieldId ? selectBoundary(state, fieldId) : null));
 
   const farmCoords = useMemo(
     () =>
@@ -143,11 +155,60 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
     return selectedFarm.availableAcres + ownArea;
   }, [selectedFarm, farmId, isEdit, existing]);
 
+  const hasBoundary = !!boundaryRing && boundaryRing.length >= 3;
+  const areaTiedToSavedBoundary = isEdit && hasBoundary && !boundaryTouched && !!existing;
+  const boundaryAcres = hasBoundary
+    ? areaTiedToSavedBoundary && existing
+      ? existing.areaAcres
+      : acresFromRing(boundaryRing)
+    : null;
+  const areaFromBoundary = boundaryAcres !== null;
+
   const enteredArea = textToNum(areaAcres);
   const areaWarning =
-    availableAreaAcres != null && enteredArea != null && enteredArea > availableAreaAcres
-      ? `Only ${formatNumber(availableAreaAcres)} acres free in this farm — this field's area goes over that.`
+    !areaFromBoundary &&
+    availableAreaAcres != null &&
+    enteredArea != null &&
+    enteredArea > availableAreaAcres
+      ? `Only ${formatAcres(availableAreaAcres)} acres free in this farm — this field's area goes over that.`
       : null;
+
+  const farmFit = useMemo(() => {
+    if (
+      boundaryAcres === null ||
+      areaTiedToSavedBoundary ||
+      !selectedFarm ||
+      selectedFarm.id !== farmId ||
+      selectedFarm.usedAcres == null
+    ) {
+      return null;
+    }
+    return fitFieldInFarm({
+      farmAcres: selectedFarm.areaAcres,
+      usedAcres: selectedFarm.usedAcres,
+      ownAcres: isEdit && existing ? existing.areaAcres : 0,
+      fieldAcres: boundaryAcres,
+    });
+  }, [boundaryAcres, areaTiedToSavedBoundary, selectedFarm, farmId, isEdit, existing]);
+
+  const areaHint = !areaFromBoundary
+    ? 'Draw the field boundary below and this fills in for you'
+    : areaTiedToSavedBoundary
+      ? 'Set by the field boundary. Redraw the boundary to change it.'
+      : farmFit && !farmFit.grows
+        ? `From your boundary · ${formatAcres(farmFit.freeAcresAfter)} acres stay free on this farm`
+        : 'Calculated from the boundary you drew';
+
+  const growthMessage = farmFit?.grows
+    ? `Your boundary covers ${formatAcres(boundaryAcres ?? 0)} acres, but only ${formatAcres(
+        farmFit.freeAcresBefore,
+      )} acres are free in this farm.\n\nSaving will grow this farm from ${formatAcres(
+        farmFit.farmAcresBefore,
+      )} to ${formatAcres(farmFit.farmAcresAfter)} acres.`
+    : undefined;
+
+  const locationMissing = !coords;
+  const boundaryMissing = !hasBoundary;
 
   const handlePickLocation = useCallback((loc: PickedLocation) => {
     setCoords({ latitude: loc.latitude, longitude: loc.longitude });
@@ -155,6 +216,26 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
       setLocation(loc.address);
     }
   }, []);
+
+  const openBoundaryEditor = useCallback(() => {
+    navigation.navigate('BoundaryEditor', {
+      farmId,
+      fieldName: name.trim() || 'New field',
+      latitude: coords?.latitude ?? farmCoords?.latitude,
+      longitude: coords?.longitude ?? farmCoords?.longitude,
+      initialRing: boundaryRing ?? undefined,
+      maxAcres: availableAreaAcres,
+      onSave: ring => {
+        setBoundaryRing(ring);
+        setBoundaryTouched(true);
+        setGrowthAcknowledged(false);
+        const drawnAcres = acresFromRing(ring);
+        if (drawnAcres !== null) {
+          setAreaAcres(drawnAcres.toFixed(2));
+        }
+      },
+    });
+  }, [navigation, farmId, name, coords, farmCoords, boundaryRing, availableAreaAcres]);
 
   const seededId = useRef<string | null>(null);
   useEffect(() => {
@@ -182,7 +263,12 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
     if (existing.latitude != null && existing.longitude != null) {
       setCoords({ latitude: existing.latitude, longitude: existing.longitude });
     }
-  }, [isEdit, fieldId, existing, fieldsFarmId, farmId, dispatch]);
+    const geoBoundary =
+      liveBoundary?.ring ?? (existing.boundary ? geoJSONToRing(existing.boundary) : null);
+    if (geoBoundary && geoBoundary.length >= 3) {
+      setBoundaryRing(geoBoundary);
+    }
+  }, [isEdit, fieldId, existing, fieldsFarmId, farmId, dispatch, liveBoundary]);
 
   useEffect(() => {
     if (isEdit && fieldId) {
@@ -206,13 +292,17 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
   const validators = useMemo<ValidatorMap<FieldFormValues>>(
     () => ({
       name: requiredNameValidator<FieldFormValues>('Field name', 1),
-      areaAcres: requiredPositiveNumberValidator<FieldFormValues>(
-        'Area',
-        'Enter a valid area in acres',
-      ),
+      ...(areaFromBoundary
+        ? {}
+        : {
+            areaAcres: requiredPositiveNumberValidator<FieldFormValues>(
+              'Area',
+              'Enter a valid area in acres',
+            ),
+          }),
       crop: requiredValidator<FieldFormValues>('Crop is required'),
     }),
-    [],
+    [areaFromBoundary],
   );
 
   const { errors, validateField, validateForm } =
@@ -239,18 +329,9 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
     [dispatch, soilTexture, soilNotes, soilTestedOn],
   );
 
-  const handleSave = useCallback(async () => {
-    if (saving || soilSaving) {
-      return;
-    }
-    if (areaWarning) {
-      return;
-    }
-    if (!validateForm()) {
-      return;
-    }
+  const submit = useCallback(async () => {
     const trimmedArea = areaAcres.trim();
-    const area = trimmedArea ? Number(trimmedArea) : undefined;
+    const typedArea = trimmedArea ? Number(trimmedArea) : undefined;
 
     if (isEdit && fieldId) {
       const action = await dispatch(
@@ -259,7 +340,7 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
           fieldId,
           input: {
             name: name.trim(),
-            areaAcres: area ?? null,
+            areaAcres: areaFromBoundary ? boundaryAcres : typedArea ?? null,
             crop: crop.trim() || null,
             season: season.trim() || null,
             irrigation: irrigation.trim() || null,
@@ -268,10 +349,16 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
             longitude: coords?.longitude,
             sowingDate: sowingDate.trim() || null,
             expectedHarvest: expectedHarvest.trim() || null,
+            boundary: boundaryTouched
+              ? boundaryRing && boundaryRing.length >= 3
+                ? ringToGeoJSON(boundaryRing)
+                : null
+              : undefined,
           },
         }),
       );
       if (updateFieldThunk.fulfilled.match(action)) {
+        dispatch(refreshFarmDetailThunk(farmId));
         const soilSaved = await persistSoil(fieldId);
         showSuccess(
           soilSaved
@@ -288,7 +375,7 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
         farmId,
         input: {
           name: name.trim(),
-          areaAcres: area,
+          areaAcres: areaFromBoundary ? boundaryAcres ?? undefined : typedArea,
           crop: crop.trim() || undefined,
           season: season.trim() || undefined,
           irrigation: irrigation.trim() || undefined,
@@ -297,10 +384,13 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
           longitude: coords?.longitude,
           sowingDate: sowingDate.trim() || undefined,
           expectedHarvest: expectedHarvest.trim() || undefined,
+          boundary:
+            boundaryRing && boundaryRing.length >= 3 ? ringToGeoJSON(boundaryRing) : undefined,
         },
       }),
     );
     if (createFieldThunk.fulfilled.match(action)) {
+      dispatch(refreshFarmDetailThunk(farmId));
       const soilSaved = await persistSoil(action.payload.field.id);
       showSuccess(
         soilSaved ? 'Field added' : 'Field added, but the soil details could not be saved',
@@ -308,11 +398,9 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
       navigation.goBack();
     }
   }, [
-    saving,
-    soilSaving,
-    areaWarning,
-    validateForm,
     areaAcres,
+    areaFromBoundary,
+    boundaryAcres,
     isEdit,
     fieldId,
     dispatch,
@@ -325,9 +413,48 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
     coords,
     sowingDate,
     expectedHarvest,
+    boundaryRing,
+    boundaryTouched,
     persistSoil,
     navigation,
   ]);
+
+  const handleSave = useCallback(() => {
+    if (saving || soilSaving) {
+      return;
+    }
+    if (areaWarning) {
+      return;
+    }
+    setAttemptedSubmit(true);
+    if (!validateForm()) {
+      return;
+    }
+    if (locationMissing || boundaryMissing) {
+      return;
+    }
+    if (farmFit?.grows && !growthAcknowledged) {
+      setGrowthPromptVisible(true);
+      return;
+    }
+    submit();
+  }, [
+    saving,
+    soilSaving,
+    areaWarning,
+    validateForm,
+    locationMissing,
+    boundaryMissing,
+    farmFit,
+    growthAcknowledged,
+    submit,
+  ]);
+
+  const confirmGrowth = useCallback(() => {
+    setGrowthPromptVisible(false);
+    setGrowthAcknowledged(true);
+    submit();
+  }, [submit]);
 
   const soilValues = useMemo<SoilValues>(
     () => ({
@@ -392,10 +519,19 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
           label="Area (acres)"
           required
           placeholder="e.g. 3.5"
-          value={areaAcres}
+          value={boundaryAcres !== null ? boundaryAcres.toFixed(2) : areaAcres}
           onChangeText={setAreaAcres}
-          onValidate={v => validateField('areaAcres', { areaAcres: v })}
-          error={errors.areaAcres}
+          onValidate={
+            areaFromBoundary ? undefined : v => validateField('areaAcres', { areaAcres: v })
+          }
+          error={areaFromBoundary ? undefined : errors.areaAcres}
+          editable={!areaFromBoundary}
+          trailingIcon={areaFromBoundary ? ICONS.BOUNDARY : undefined}
+          hint={areaHint}
+          hintTone={areaFromBoundary ? 'success' : 'muted'}
+          accessibilityHint={
+            areaFromBoundary ? 'Worked out from the field boundary. Redraw the boundary to change it.' : undefined
+          }
           keyboardType="decimal-pad"
           returnKeyType="next"
         />
@@ -404,6 +540,34 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
           <View style={styles.areaWarning}>
             <AppIcon name={ICONS.WARNING} size={moderateScale(16)} color={COLORS.warning} />
             <AppText style={styles.areaWarningText}>{areaWarning}</AppText>
+          </View>
+        ) : null}
+
+        {farmFit?.grows ? (
+          <View style={styles.farmGrowth} accessible>
+            <View style={styles.farmGrowthIcon}>
+              <AppIcon name={ICONS.WARNING} size={moderateScale(16)} color={COLORS.validation} />
+            </View>
+            <View style={styles.farmGrowthTexts}>
+              <AppText style={styles.farmGrowthTitle}>
+                Bigger than the space left in this farm
+              </AppText>
+              <AppText style={styles.farmGrowthText}>
+                Only{' '}
+                <AppText style={styles.farmGrowthStrong}>
+                  {formatAcres(farmFit.freeAcresBefore)} acres
+                </AppText>{' '}
+                are free here, but your boundary covers{' '}
+                <AppText style={styles.farmGrowthStrong}>
+                  {formatAcres(boundaryAcres ?? 0)} acres
+                </AppText>
+                . Saving grows this farm to{' '}
+                <AppText style={styles.farmGrowthStrong}>
+                  {formatAcres(farmFit.farmAcresAfter)} acres
+                </AppText>
+                .
+              </AppText>
+            </View>
           </View>
         ) : null}
 
@@ -455,12 +619,19 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
           onPress={() => setPickerVisible(true)}
           accessibilityRole="button"
           accessibilityLabel="Pick field location on map"
-          style={({ pressed }) => [styles.soilTrigger, pressed && styles.soilTriggerPressed]}>
+          style={({ pressed }) => [
+            styles.soilTrigger,
+            attemptedSubmit && locationMissing && styles.soilTriggerErrorBorder,
+            pressed && styles.soilTriggerPressed,
+          ]}>
           <View style={styles.soilTriggerIcon}>
             <AppIcon name="map-marker-radius-outline" size={moderateScale(20)} color={COLORS.primary} />
           </View>
           <View style={styles.soilTriggerTexts}>
-            <AppText style={styles.soilTriggerTitle}>Location on map</AppText>
+            <AppText style={styles.soilTriggerTitle}>
+              Field Location
+              <AppText style={styles.required}> *</AppText>
+            </AppText>
             <AppText style={styles.soilTriggerSub} numberOfLines={1}>
               {coords
                 ? `📍 ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`
@@ -473,6 +644,62 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
             color={coords ? COLORS.primary : COLORS.gray500}
           />
         </Pressable>
+        {attemptedSubmit && locationMissing ? (
+          <AppText style={styles.triggerError}>Pin the field's location on the map</AppText>
+        ) : null}
+
+        <Pressable
+          onPress={openBoundaryEditor}
+          disabled={locationMissing}
+          accessibilityRole="button"
+          accessibilityLabel={
+            locationMissing
+              ? 'Field boundary — pin the location first'
+              : 'Draw field boundary on map'
+          }
+          accessibilityState={{ disabled: locationMissing }}
+          style={({ pressed }) => [
+            styles.soilTrigger,
+            styles.soilTriggerSpaced,
+            locationMissing && styles.soilTriggerLocked,
+            attemptedSubmit &&
+              boundaryMissing &&
+              !locationMissing &&
+              styles.soilTriggerErrorBorder,
+            pressed && !locationMissing && styles.soilTriggerPressed,
+          ]}>
+          <View style={[styles.soilTriggerIcon, locationMissing && styles.soilTriggerIconLocked]}>
+            <AppIcon
+              name={locationMissing ? 'lock-outline' : 'vector-square'}
+              size={moderateScale(20)}
+              color={locationMissing ? COLORS.gray500 : COLORS.primary}
+            />
+          </View>
+          <View style={styles.soilTriggerTexts}>
+            <AppText
+              style={[styles.soilTriggerTitle, locationMissing && styles.soilTriggerTitleLocked]}>
+              Field Boundary
+              <AppText style={styles.required}> *</AppText>
+            </AppText>
+            <AppText style={styles.soilTriggerSub} numberOfLines={1}>
+              {locationMissing
+                ? 'Pin the field location first to unlock this'
+                : boundaryRing && boundaryRing.length >= 3
+                  ? `${boundaryRing.length} points • ${formatArea(polygonAreaSqMeters(boundaryRing), 'acre')} traced`
+                  : 'Trace the field outline on the map'}
+            </AppText>
+          </View>
+          {!locationMissing ? (
+            <AppIcon
+              name={boundaryRing && boundaryRing.length >= 3 ? 'check-circle' : 'chevron-right'}
+              size={moderateScale(boundaryRing && boundaryRing.length >= 3 ? 20 : 22)}
+              color={boundaryRing && boundaryRing.length >= 3 ? COLORS.primary : COLORS.gray500}
+            />
+          ) : null}
+        </Pressable>
+        {attemptedSubmit && boundaryMissing && !locationMissing ? (
+          <AppText style={styles.triggerError}>Draw the field's boundary on the map</AppText>
+        ) : null}
 
         <View style={styles.dateRow}>
           <View style={styles.dateCol}>
@@ -526,6 +753,18 @@ const AddFieldScreen: React.FC<AppScreenProps<'AddField'>> = ({
           style={styles.submit}
         />
       </KeyboardAwareScrollView>
+
+      <ConfirmDialog
+        visible={growthPromptVisible}
+        tone="primary"
+        icon={ICONS.AREA}
+        title="More than this farm's free space"
+        message={growthMessage}
+        confirmLabel="Save anyway"
+        cancelLabel="Go back"
+        onConfirm={confirmGrowth}
+        onClose={() => setGrowthPromptVisible(false)}
+      />
 
       <SoilDetailsModal
         showNutrients={false}

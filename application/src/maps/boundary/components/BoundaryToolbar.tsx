@@ -37,6 +37,7 @@ export interface BoundaryToolbarProps {
   canAddPoint: boolean;
   canSave: boolean;
   saving: boolean;
+  saveLabel?: string;
 
   onCycleUnit: (next: AreaUnit) => void;
   onStartDraw: () => void;
@@ -191,7 +192,7 @@ const BoundaryToolbar: React.FC<BoundaryToolbarProps> = props => {
           />
         ) : (
           <Button
-            title="Save"
+            title={props.saveLabel ?? 'Save'}
             onPress={props.onSave}
             disabled={!props.canSave}
             loading={props.saving}

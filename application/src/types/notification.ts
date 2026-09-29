@@ -4,6 +4,7 @@ export type NotificationType =
   | 'assessor_assigned'
   | 'assessor_visit_started'
   | 'assessment_submitted'
+  | 'assessment_reviewed'
   | string;
 
 export type NotificationScreenKey =

@@ -6,6 +6,7 @@ export const Endpoints = {
   auth: {
     register: '/auth/register',
     checkEmail: '/auth/check-email',
+    enrollmentIdLookup: '/auth/enrollment-id/lookup',
     login: '/auth/login',
     requestOtp: '/auth/request-otp',
     verifyOtp: '/auth/verify-otp',
@@ -16,8 +17,11 @@ export const Endpoints = {
     resetPassword: '/auth/reset-password',
     me: '/auth/me',
   },
-  roles: {
-    list: '/roles',
+  faqs: {
+    list: '/faqs',
+  },
+  support: {
+    contactEnquiries: '/contact-enquiries',
   },
   visits: {
     start: '/visits',
@@ -48,8 +52,9 @@ export const Endpoints = {
       `/farms/${farmId}/fields/${fieldId}/boundary`,
   },
   dashboard: {
-    farms: '/dashboard/my/farms',
-    farm: (farmId: string): string => `/dashboard/my/farms/${farmId}`,
+    programs: '/dashboard/my/programs',
+    programSummary: (programId: string): string =>
+      `/dashboard/my/programs/${programId}/summary`,
   },
   fields: {
     details: (fieldId: string): string => `/fields/${fieldId}/details`,
@@ -67,6 +72,9 @@ export const Endpoints = {
     categoryQuestions: (programId: string, fieldId: string, categoryId: string): string =>
       `/assessments/my/programs/${programId}/fields/${fieldId}/categories/${categoryId}/questions/list`,
 
+    categoryQuestionsFull: (programId: string, fieldId: string, categoryId: string): string =>
+      `/assessments/my/programs/${programId}/fields/${fieldId}/categories/${categoryId}/questions`,
+
     question: (
       programId: string,
       fieldId: string,
@@ -78,8 +86,25 @@ export const Endpoints = {
     saveAnswer: (programId: string, fieldId: string, questionId: string): string =>
       `/assessments/my/programs/${programId}/fields/${fieldId}/questions/${questionId}/answer`,
 
+    saveCategoryAnswers: (programId: string, fieldId: string, categoryId: string): string =>
+      `/assessments/my/programs/${programId}/fields/${fieldId}/categories/${categoryId}/answers`,
+
+    categoryRecords: (programId: string, fieldId: string, categoryId: string): string =>
+      `/assessments/my/programs/${programId}/fields/${fieldId}/categories/${categoryId}/records`,
+
+    categoryRecord: (
+      programId: string,
+      fieldId: string,
+      categoryId: string,
+      recordId: string,
+    ): string =>
+      `/assessments/my/programs/${programId}/fields/${fieldId}/categories/${categoryId}/records/${recordId}`,
+
     review: (programId: string, fieldId: string): string =>
       `/assessments/my/programs/${programId}/fields/${fieldId}/review`,
+
+    fieldHistory: (programId: string, fieldId: string): string =>
+      `/assessments/my/programs/${programId}/fields/${fieldId}/history`,
 
     submit: (programId: string, fieldId: string): string =>
       `/assessments/my/programs/${programId}/fields/${fieldId}/submit`,
@@ -93,6 +118,9 @@ export const Endpoints = {
 
     regenIndex: (programId: string, fieldId: string): string =>
       `/assessments/my/programs/${programId}/fields/${fieldId}/regen-index`,
+
+    comparison: (fieldId: string): string =>
+      `/fields/${fieldId}/assessment-comparison`,
   },
   assessor: {
     fields: '/assessor/fields',
@@ -117,6 +145,20 @@ export const Endpoints = {
     saveAnswer: (programId: string, fieldId: string, questionId: string): string =>
       `/assessor/programs/${programId}/fields/${fieldId}/questions/${questionId}/answer`,
 
+    saveCategoryAnswers: (programId: string, fieldId: string, categoryId: string): string =>
+      `/assessor/programs/${programId}/fields/${fieldId}/categories/${categoryId}/answers`,
+
+    categoryRecords: (programId: string, fieldId: string, categoryId: string): string =>
+      `/assessor/programs/${programId}/fields/${fieldId}/categories/${categoryId}/records`,
+
+    categoryRecord: (
+      programId: string,
+      fieldId: string,
+      categoryId: string,
+      recordId: string,
+    ): string =>
+      `/assessor/programs/${programId}/fields/${fieldId}/categories/${categoryId}/records/${recordId}`,
+
     review: (programId: string, fieldId: string): string =>
       `/assessor/programs/${programId}/fields/${fieldId}/review`,
 
@@ -137,31 +179,26 @@ export const Endpoints = {
       `/programs/${programId}/fields/${fieldId}/unenroll`,
   },
   fieldMonitoring: {
-    farmPrograms: (farmId: string): string =>
-      `/field-monitoring/farms/${farmId}/programs`,
+    farmFields: (farmId: string): string =>
+      `/field-monitoring/farms/${farmId}/fields`,
 
-    modules: (programId: string, fieldId: string): string =>
-      `/field-monitoring/programs/${programId}/fields/${fieldId}/modules`,
+    modules: (fieldId: string): string =>
+      `/field-monitoring/fields/${fieldId}/modules`,
 
-    records: (programId: string, fieldId: string, module: string): string =>
-      `/field-monitoring/programs/${programId}/fields/${fieldId}/modules/${module}`,
+    records: (fieldId: string, module: string): string =>
+      `/field-monitoring/fields/${fieldId}/modules/${module}`,
 
-    record: (
-      programId: string,
-      fieldId: string,
-      module: string,
-      recordId: string,
-    ): string =>
-      `/field-monitoring/programs/${programId}/fields/${fieldId}/modules/${module}/${recordId}`,
+    record: (fieldId: string, module: string, recordId: string): string =>
+      `/field-monitoring/fields/${fieldId}/modules/${module}/${recordId}`,
 
-    documents: (programId: string, fieldId: string): string =>
-      `/field-monitoring/programs/${programId}/fields/${fieldId}/documents`,
+    documents: (fieldId: string): string =>
+      `/field-monitoring/fields/${fieldId}/documents`,
 
-    documentUpload: (programId: string, fieldId: string): string =>
-      `/field-monitoring/programs/${programId}/fields/${fieldId}/documents/upload`,
+    documentUpload: (fieldId: string): string =>
+      `/field-monitoring/fields/${fieldId}/documents/upload`,
 
-    document: (programId: string, fieldId: string, documentId: string): string =>
-      `/field-monitoring/programs/${programId}/fields/${fieldId}/documents/${documentId}`,
+    document: (fieldId: string, documentId: string): string =>
+      `/field-monitoring/fields/${fieldId}/documents/${documentId}`,
   },
   notifications: {
     list: '/notifications',
@@ -176,6 +213,7 @@ export const Endpoints = {
 
 export const PUBLIC_AUTH_PATHS: readonly string[] = [
   Endpoints.auth.register,
+  Endpoints.auth.enrollmentIdLookup,
   Endpoints.auth.login,
   Endpoints.auth.requestOtp,
   Endpoints.auth.verifyOtp,
@@ -184,14 +222,19 @@ export const PUBLIC_AUTH_PATHS: readonly string[] = [
   Endpoints.auth.forgotPassword,
   Endpoints.auth.verifyResetCode,
   Endpoints.auth.resetPassword,
-  Endpoints.roles.list,
   Endpoints.health.liveness,
   Endpoints.health.readiness,
 ];
 
-export const isPublicAuthPath = (url: string | undefined): boolean => {
+export const PUBLIC_PATHS: readonly string[] = [
+  ...PUBLIC_AUTH_PATHS,
+  Endpoints.faqs.list,
+  Endpoints.support.contactEnquiries,
+];
+
+export const isPublicPath = (url: string | undefined): boolean => {
   if (!url) {
     return false;
   }
-  return PUBLIC_AUTH_PATHS.some(path => url.includes(path));
+  return PUBLIC_PATHS.some(path => url.includes(path));
 };

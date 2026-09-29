@@ -22,6 +22,8 @@ export interface PublicUser {
   role: string;
   is_active: boolean;
   is_email_verified: boolean;
+  /** True while the temporary password the office set is still in place. */
+  must_change_password: boolean;
   last_login_at: Date | null;
   created_at: Date;
   updated_at: Date;
@@ -36,6 +38,7 @@ const PUBLIC_USER_SELECT = {
   avatar_url: true,
   is_active: true,
   is_email_verified: true,
+  must_change_password: true,
   last_login_at: true,
   created_at: true,
   updated_at: true,
@@ -75,6 +78,7 @@ function toPublicUser(u: PublicUserRow): PublicUser {
     role: u.roles.name,
     is_active: u.is_active,
     is_email_verified: u.is_email_verified,
+    must_change_password: u.must_change_password,
     last_login_at: u.last_login_at,
     created_at: u.created_at,
     updated_at: u.updated_at,
@@ -202,6 +206,7 @@ interface CreateByAdminParams {
   passwordHash: string;
   isActive: boolean;
   isEmailVerified: boolean;
+  mustChangePassword: boolean;
 }
 
 export async function createUserByAdmin(
@@ -216,10 +221,19 @@ export async function createUserByAdmin(
       password_hash: params.passwordHash,
       is_active: params.isActive,
       is_email_verified: params.isEmailVerified,
+      must_change_password: params.mustChangePassword,
     },
     select: PUBLIC_USER_SELECT,
   });
   return toPublicUser(created);
+}
+
+/** Cleared once the owner has replaced the password somebody else set. */
+export async function clearMustChangePassword(id: string): Promise<void> {
+  await prisma.users.updateMany({
+    where: { id, must_change_password: true },
+    data: { must_change_password: false, updated_at: new Date() },
+  });
 }
 
 export async function findPublicById(id: string): Promise<PublicUser | null> {

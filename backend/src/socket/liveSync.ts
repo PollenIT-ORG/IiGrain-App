@@ -17,6 +17,7 @@ export type SyncResource =
 export type SyncAction =
   | "answer_saved"
   | "submitted"
+  | "reviewed"
   | "discarded"
   | "created"
   | "updated"

@@ -1,8 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
 import { StyleSheet, View, type GestureResponderEvent } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import AppMapView from '../../components/AppMapView';
 import { useMapCamera } from '../../hooks/useMapCamera';
-import type { LatLng, MapKind } from '../../types';
+import { coordinatesKey } from '../../utils/fieldCenter';
+import type { LatLng, MapFocusHandle, MapKind } from '../../types';
 import BoundaryPolygon from './BoundaryPolygon';
 
 export interface BoundaryPreviewMapProps {
@@ -16,42 +18,50 @@ export interface BoundaryPreviewMapProps {
 
 const FIT_PADDING = { top: 28, right: 28, bottom: 28, left: 28 };
 
-const BoundaryPreviewMap: React.FC<BoundaryPreviewMapProps> = ({
-  ring,
-  center,
-  mapKind = 'hybrid',
-  onTouchStart,
-  onTouchEnd,
-  onTouchCancel,
-}) => {
-  const { mapRef, onMapReady, isReady, camera } = useMapCamera();
+const BoundaryPreviewMap = forwardRef<MapFocusHandle, BoundaryPreviewMapProps>(
+  ({ ring, center, mapKind = 'hybrid', onTouchStart, onTouchEnd, onTouchCancel }, ref) => {
+    const { mapRef, onMapReady, isReady, camera } = useMapCamera();
+    const isFocused = useIsFocused();
 
-  const fittedRef = useRef(false);
-  useEffect(() => {
-    if (!isReady || fittedRef.current || ring.length < 2) {
-      return;
-    }
-    fittedRef.current = true;
-    camera.fitToCoordinates(ring, FIT_PADDING);
-  }, [isReady, ring, camera]);
+    const fitKey = coordinatesKey(ring);
+    const lastFitRef = useRef('');
 
-  return (
-    <View
-      style={StyleSheet.absoluteFill}
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
-      onTouchCancel={onTouchCancel}>
-      <AppMapView
-        ref={mapRef}
-        onReady={onMapReady}
-        mapKind={mapKind}
-        initialCenter={center}
-        initialZoom={16}
-        style={StyleSheet.absoluteFill}>
-        <BoundaryPolygon ring={ring} strokeWidth={3} />
-      </AppMapView>
-    </View>
-  );
-};
+    const fitToRing = useCallback(() => {
+      if (ring.length >= 2) {
+        camera.fitToCoordinates(ring, FIT_PADDING);
+      }
+    }, [ring, camera]);
+
+    useEffect(() => {
+      if (!isReady || !isFocused || ring.length < 2 || lastFitRef.current === fitKey) {
+        return;
+      }
+      lastFitRef.current = fitKey;
+      fitToRing();
+    }, [isReady, isFocused, fitKey, ring.length, fitToRing]);
+
+    useImperativeHandle(ref, () => ({ focus: fitToRing }), [fitToRing]);
+
+    return (
+      <View
+        style={StyleSheet.absoluteFill}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchCancel}>
+        <AppMapView
+          ref={mapRef}
+          onReady={onMapReady}
+          mapKind={mapKind}
+          initialCenter={center}
+          initialZoom={16}
+          style={StyleSheet.absoluteFill}>
+          <BoundaryPolygon key={fitKey} ring={ring} strokeWidth={3} />
+        </AppMapView>
+      </View>
+    );
+  },
+);
+
+BoundaryPreviewMap.displayName = 'BoundaryPreviewMap';
 
 export default React.memo(BoundaryPreviewMap);

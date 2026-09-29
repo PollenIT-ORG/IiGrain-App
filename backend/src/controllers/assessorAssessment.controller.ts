@@ -3,6 +3,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import ApiError from "../utils/ApiError.js";
 import * as service from "../services/assessorAssessment.service.js";
+import type { SaveCategoryAnswersBody } from "../validators/assessment.schema.js";
 
 function assessorId(req: Request): string {
   const id = req.user?.sub;
@@ -63,6 +64,53 @@ export const assessorCategoryQuestions = asyncHandler(
     return ApiResponse.send(res, 200, "Category questions fetched.", result);
   }
 );
+
+// One form, one save: every field of a category at once.
+export const saveAssessorCategoryAnswers = asyncHandler(async (req: Request, res: Response) => {
+  const result = await service.saveAssessorCategoryAnswers(
+    req.params.fieldId,
+    req.params.programId,
+    req.params.categoryId,
+    assessorId(req),
+    req.body as SaveCategoryAnswersBody
+  );
+  return ApiResponse.send(res, 200, "Form saved.", result);
+});
+
+// One more filling of an input based form.
+export const addAssessorRecord = asyncHandler(async (req: Request, res: Response) => {
+  const result = await service.addAssessorRecord(
+    req.params.fieldId,
+    req.params.programId,
+    req.params.categoryId,
+    assessorId(req),
+    req.body as SaveCategoryAnswersBody
+  );
+  return ApiResponse.send(res, 201, "Record added.", result);
+});
+
+export const saveAssessorRecord = asyncHandler(async (req: Request, res: Response) => {
+  const result = await service.saveAssessorRecord(
+    req.params.fieldId,
+    req.params.programId,
+    req.params.categoryId,
+    req.params.recordId,
+    assessorId(req),
+    req.body as SaveCategoryAnswersBody
+  );
+  return ApiResponse.send(res, 200, "Record saved.", result);
+});
+
+export const removeAssessorRecord = asyncHandler(async (req: Request, res: Response) => {
+  const result = await service.removeAssessorRecord(
+    req.params.fieldId,
+    req.params.programId,
+    req.params.categoryId,
+    req.params.recordId,
+    assessorId(req)
+  );
+  return ApiResponse.send(res, 200, "Record removed.", result);
+});
 
 export const saveAssessorAnswer = asyncHandler(async (req: Request, res: Response) => {
   const response = await service.saveAssessorAnswer(

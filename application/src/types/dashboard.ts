@@ -2,15 +2,23 @@ import type { PageMeta } from './pagination';
 
 import type { ActivityEntry } from './farm';
 
-export interface DashboardFarm {
+export type ProgramStatus = 'active' | 'scheduled' | 'ended' | 'inactive';
+
+export interface DashboardProgram {
   id: string;
   name: string;
-  fieldCount: number;
+  code: string | null;
+  startDateISO: string | null;
+  endDateISO: string | null;
+  status: ProgramStatus;
+  fieldsEnrolled: number;
+  assessmentsCompleted: number;
+  assessmentsPending: number;
 }
 
-export interface DashboardFarms {
-  farms: DashboardFarm[];
-  defaultFarmId: string | null;
+export interface DashboardPrograms {
+  programs: DashboardProgram[];
+  defaultProgramId: string | null;
   meta: PageMeta;
 }
 
@@ -19,7 +27,7 @@ export interface DashboardCategory {
   name: string;
   score: number | null;
   answered: number;
-  totalQuestions: number;
+  totalQuestions?: number;
 }
 
 export interface NextAssessment {
@@ -59,16 +67,18 @@ export interface DashboardTrendPoint {
   score: number;
 }
 
-export interface FarmDashboard {
-  farm: { id: string; name: string };
+export type DashboardRating = 'Excellent' | 'Good' | 'Fair' | 'Needs work' | 'Poor' | null;
+
+export interface ProgramDashboard {
+  program: DashboardProgram;
   year: number;
   availableYears: number[];
   trend: DashboardTrendPoint[];
   regenHealthIndex: number | null;
+  rating: DashboardRating;
   trendVsLastYear: number | null;
   categories: DashboardCategory[];
   upcoming: DashboardUpcoming;
   recentActivity: ActivityEntry[];
   summary: DashboardSummary;
-  recommendations: string[];
 }

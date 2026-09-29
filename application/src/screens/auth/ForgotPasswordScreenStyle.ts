@@ -17,6 +17,10 @@ export const styles = StyleSheet.create({
     paddingVertical: spacing[8],
   },
 
+  notice: {
+    marginBottom: spacing[5],
+  },
+
   submit: {
     marginTop: spacing[2],
   },

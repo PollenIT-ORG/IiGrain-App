@@ -15,8 +15,10 @@ import AssessmentFieldSummaryScreen from '../screens/assessment/AssessmentFieldS
 import AssessmentCategoryScreen from '../screens/assessment/AssessmentCategoryScreen';
 import AssessmentQuestionDetailScreen from '../screens/assessment/AssessmentQuestionDetailScreen';
 import AssessmentReviewScreen from '../screens/assessment/AssessmentReviewScreen';
+import FarmerComparisonScreen from '../screens/assessment/FarmerComparisonScreen';
 import FarmerVisitTrackingScreen from '../screens/home/FarmerVisitTrackingScreen';
 import HelpScreen from '../screens/help/HelpScreen';
+import ContactUsScreen from '../screens/support/ContactUsScreen';
 import FieldMapScreen from '../screens/help/FieldMapScreen';
 import BoundaryEditorScreen from '../screens/farms/BoundaryEditorScreen';
 import MonitoringModuleScreen from '../screens/monitoring/MonitoringModuleScreen';
@@ -28,10 +30,10 @@ import AssessorNavigator from './AssessorNavigator';
 import NotificationsScreen from '../screens/notifications/NotificationsScreen';
 import OnboardingWelcomeScreen from '../screens/onboarding/OnboardingWelcomeScreen';
 import OnboardingChecklistScreen from '../screens/onboarding/OnboardingChecklistScreen';
-import ProgramInfoScreen from '../screens/onboarding/ProgramInfoScreen';
 import { useAppSelector } from '../redux/hooks';
 import { selectAuthUser } from '../redux/slices/authSlice';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
+import { useSyncSettledRefresh } from '../hooks/useSyncSettledRefresh';
 import { useFarmerVisitWatch } from '../hooks/useFarmerVisitWatch';
 import type { AppStackParamList } from './navigationTypes';
 
@@ -44,6 +46,7 @@ const AppNavigator: React.FC = () => {
   const isAssessor = user?.role === 'assessor';
 
   useRealtimeSync();
+  useSyncSettledRefresh();
   useFarmerVisitWatch(!isAssessor);
 
   if (isAssessor) {
@@ -55,7 +58,6 @@ const AppNavigator: React.FC = () => {
       <Stack.Screen name="Shell" component={AppDrawer} />
       <Stack.Screen name="OnboardingWelcome" component={OnboardingWelcomeScreen} />
       <Stack.Screen name="OnboardingChecklist" component={OnboardingChecklistScreen} />
-      <Stack.Screen name="OnboardingProgramInfo" component={ProgramInfoScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="Account" component={AccountScreen} />
       <Stack.Screen name="Reports" component={ReportsScreen} />
@@ -76,8 +78,10 @@ const AppNavigator: React.FC = () => {
         component={AssessmentQuestionDetailScreen}
       />
       <Stack.Screen name="AssessmentReview" component={AssessmentReviewScreen} />
+      <Stack.Screen name="FarmerComparison" component={FarmerComparisonScreen} />
       <Stack.Screen name="FarmerVisitTracking" component={FarmerVisitTrackingScreen} />
       <Stack.Screen name="Help" component={HelpScreen} />
+      <Stack.Screen name="ContactUs" component={ContactUsScreen} />
       <Stack.Screen name="FieldMap" component={FieldMapScreen} />
       <Stack.Screen name="BoundaryEditor" component={BoundaryEditorScreen} />
       <Stack.Screen name="MonitoringModule" component={MonitoringModuleScreen} />

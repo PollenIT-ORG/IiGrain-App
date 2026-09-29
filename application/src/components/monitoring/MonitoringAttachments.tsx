@@ -1,5 +1,12 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Share, StyleSheet, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Linking,
+  Share,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { AppIcon, ICONS } from '../AppIcon';
 import AppText from '../AppText/AppText';
 import Button from '../Button/Button';
@@ -15,6 +22,19 @@ import { toFileUri } from '../../services/fileDownloadService';
 import { showSuccess, showToast } from '../../services/toastService';
 import type { MonitoringDocument } from '../../types/monitoring';
 
+export type PendingAttachmentStatus =
+  | 'queued'
+  | 'waiting'
+  | 'uploading'
+  | 'failed';
+
+export interface PendingAttachment {
+  id: string;
+  name: string;
+  sizeBytes?: number | null;
+  status: PendingAttachmentStatus;
+}
+
 export interface MonitoringAttachmentsProps {
   title: string;
   subtitle?: string;
@@ -28,9 +48,121 @@ export interface MonitoringAttachmentsProps {
   onDelete: (documentId: string) => void;
   onRetry: () => void;
   disabledNote?: string;
+  addLabel?: string;
+  pending?: readonly PendingAttachment[];
+  onRemovePending?: (id: string) => void;
 }
 
 const HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 } as const;
+
+const EMPTY_PENDING: readonly PendingAttachment[] = [];
+
+const KB = 1024;
+const MB = KB * 1024;
+
+const sizeLabel = (bytes?: number | null): string => {
+  if (typeof bytes !== 'number' || bytes <= 0) {
+    return '';
+  }
+  return bytes >= MB
+    ? `${(bytes / MB).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(bytes / KB))} KB`;
+};
+
+interface PendingLook {
+  readonly text: string;
+  readonly accent: string;
+  readonly badge: string | null;
+  readonly dashed: boolean;
+}
+
+export const PENDING_LOOK: Record<PendingAttachmentStatus, PendingLook> = {
+  queued: {
+    text: 'Attaches when you save',
+    accent: COLORS.gray600,
+    badge: null,
+    dashed: true,
+  },
+  waiting: {
+    text: 'Kept on this device · uploads later',
+    accent: COLORS.infoBlue,
+    badge: ICONS.CLOUD_OFFLINE,
+    dashed: false,
+  },
+  uploading: {
+    text: 'Uploading…',
+    accent: COLORS.primary,
+    badge: null,
+    dashed: false,
+  },
+  failed: {
+    text: 'Could not upload · still on this device',
+    accent: COLORS.danger,
+    badge: ICONS.CLOUD_ALERT,
+    dashed: false,
+  },
+};
+
+interface PendingRowProps {
+  item: PendingAttachment;
+  onRemove?: (id: string) => void;
+}
+
+const PendingRow: React.FC<PendingRowProps> = ({ item, onRemove }) => {
+  const meta = classifyMedia({
+    kind: 'file',
+    name: item.name,
+    url: item.name,
+  });
+  const look = PENDING_LOOK[item.status];
+  const size = sizeLabel(item.sizeBytes);
+
+  return (
+    <View
+      style={[
+        styles.pending,
+        look.dashed
+          ? styles.pendingDashed
+          : {
+              borderColor: addAlpha(look.accent, 0.3),
+              backgroundColor: addAlpha(look.accent, 0.06),
+            },
+      ]}>
+      <View style={styles.pendingIcon}>
+        {item.status === 'uploading' ? (
+          <ActivityIndicator size="small" color={look.accent} />
+        ) : (
+          <AppIcon name={meta.icon} size={moderateScale(20)} color={meta.color} />
+        )}
+        {look.badge ? (
+          <View style={[styles.pendingBadge, { backgroundColor: look.accent }]}>
+            <AppIcon name={look.badge} size={moderateScale(10)} color={COLORS.white} />
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.pendingTexts}>
+        <AppText style={styles.pendingName} numberOfLines={1}>
+          {item.name}
+        </AppText>
+        <AppText style={[styles.pendingMeta, { color: look.accent }]} numberOfLines={2}>
+          {size ? `${size} · ${look.text}` : look.text}
+        </AppText>
+      </View>
+
+      {onRemove && item.status !== 'uploading' ? (
+        <TouchableOpacity
+          onPress={() => onRemove(item.id)}
+          hitSlop={HIT_SLOP}
+          style={styles.pendingRemove}
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${item.name}`}>
+          <AppIcon name={ICONS.CLOSE} size={moderateScale(16)} color={COLORS.gray600} />
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+};
 
 const MonitoringAttachments: React.FC<MonitoringAttachmentsProps> = ({
   title,
@@ -45,8 +177,15 @@ const MonitoringAttachments: React.FC<MonitoringAttachmentsProps> = ({
   onDelete,
   onRetry,
   disabledNote,
+  addLabel,
+  pending,
+  onRemovePending,
 }) => {
   const { entries, download } = useFileDownloads(documents);
+
+  const pendingList = pending ?? EMPTY_PENDING;
+  const empty = documents.length === 0 && pendingList.length === 0;
+  const total = documents.length + pendingList.length;
 
   const imageDocs = useMemo(
     () => documents.filter(d => classifyMedia(d).type === 'image'),
@@ -105,7 +244,11 @@ const MonitoringAttachments: React.FC<MonitoringAttachmentsProps> = ({
 
   const handleShare = useCallback(async (doc: MonitoringDocument) => {
     try {
-      await Share.share({ message: `${doc.name}\n${doc.url}`, url: doc.url, title: doc.name });
+      await Share.share({
+        message: `${doc.name}\n${doc.url}`,
+        url: doc.url,
+        title: doc.name,
+      });
     } catch {
       showToast('Could not share this file.', { type: 'error' });
     }
@@ -128,9 +271,9 @@ const MonitoringAttachments: React.FC<MonitoringAttachmentsProps> = ({
           <AppText style={styles.title}>{title}</AppText>
           {subtitle ? <AppText style={styles.subtitle}>{subtitle}</AppText> : null}
         </View>
-        {documents.length > 0 ? (
+        {total > 0 ? (
           <View style={styles.countChip}>
-            <AppText style={styles.countText}>{documents.length}</AppText>
+            <AppText style={styles.countText}>{total}</AppText>
           </View>
         ) : null}
       </View>
@@ -142,38 +285,35 @@ const MonitoringAttachments: React.FC<MonitoringAttachmentsProps> = ({
         </View>
       ) : (
         <Button
-          title="Attach a file"
+          title={addLabel ?? 'Attach a file'}
           variant="outline"
           loading={uploading}
           onPress={onAdd}
-          leftIcon={
-            <AppIcon name={ICONS.UPLOAD} size={moderateScale(18)} color={COLORS.primary} />
-          }
+          leftIcon={<AppIcon name={ICONS.UPLOAD} size={moderateScale(18)} color={COLORS.primary} />}
         />
       )}
 
-      {loading && documents.length === 0 ? (
+      {loading && empty ? (
         <View style={styles.centered}>
           <ActivityIndicator size="small" color={COLORS.primary} />
         </View>
-      ) : error && documents.length === 0 ? (
+      ) : error && empty ? (
         <View style={styles.centered}>
           <AppText style={styles.errorText}>{error}</AppText>
           <TouchableOpacity onPress={onRetry} hitSlop={HIT_SLOP} accessibilityRole="button">
             <AppText style={styles.retryText}>Retry</AppText>
           </TouchableOpacity>
         </View>
-      ) : documents.length === 0 ? (
+      ) : empty ? (
         <View style={styles.empty}>
-          <AppIcon
-            name="file-outline"
-            size={moderateScale(22)}
-            color={COLORS.gray500}
-          />
+          <AppIcon name="file-outline" size={moderateScale(22)} color={COLORS.gray500} />
           <AppText style={styles.emptyText}>{emptyMessage}</AppText>
         </View>
       ) : (
         <View style={styles.list}>
+          {pendingList.map(item => (
+            <PendingRow key={item.id} item={item} onRemove={onRemovePending} />
+          ))}
           {documents.map(doc => (
             <AttachmentCard
               key={doc.id}
@@ -288,6 +428,59 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: spacing[3],
+  },
+  pending: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    paddingVertical: spacing[3],
+    paddingHorizontal: spacing[3],
+    borderRadius: borderRadius.xl,
+    borderWidth: borderWidth.thin,
+  },
+  pendingDashed: {
+    borderStyle: 'dashed',
+    borderColor: COLORS.gray300,
+    backgroundColor: COLORS.gray100,
+  },
+  pendingIcon: {
+    width: scale(38),
+    height: scale(38),
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.white,
+  },
+  pendingBadge: {
+    position: 'absolute',
+    right: scale(-3),
+    bottom: scale(-3),
+    width: scale(17),
+    height: scale(17),
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: borderWidth.medium,
+    borderColor: COLORS.white,
+  },
+  pendingRemove: {
+    width: scale(28),
+    height: scale(28),
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.white,
+  },
+  pendingTexts: {
+    flex: 1,
+    gap: scale(2),
+  },
+  pendingName: {
+    ...presets.labelMD,
+    color: COLORS.gray900,
+  },
+  pendingMeta: {
+    ...presets.bodyXS,
   },
   centered: {
     alignItems: 'center',

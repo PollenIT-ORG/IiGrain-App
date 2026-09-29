@@ -48,8 +48,12 @@ interface RawProgram {
   already_enrolled?: boolean;
   can_enroll?: boolean;
   canEnroll?: boolean;
+  enrollment_id?: string | null;
+  enrollmentId?: string | null;
   survey_url?: string | null;
   surveyUrl?: string | null;
+  survey_acres?: number | string | null;
+  surveyAcres?: number | string | null;
   fields?: RawProgramField[] | null;
 }
 interface AvailableProgramsPayload {
@@ -97,9 +101,27 @@ const readCanEnroll = (raw: RawProgram): boolean => {
   return typeof value === 'boolean' ? value : true;
 };
 
+const readEnrollmentId = (raw: RawProgram): string | null => {
+  const value = raw.enrollment_id ?? raw.enrollmentId;
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
 const readSurveyUrl = (raw: RawProgram): string | null => {
   const value = (raw.survey_url ?? raw.surveyUrl ?? '').trim();
   return isOpenableUrl(value) ? value : null;
+};
+
+const readSurveyAcres = (raw: RawProgram): number | null => {
+  const value = raw.survey_acres ?? raw.surveyAcres;
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const acres = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(acres) && acres > 0 ? acres : null;
 };
 
 const mapProgram = (raw: RawProgram): AvailableProgram => ({
@@ -115,7 +137,9 @@ const mapProgram = (raw: RawProgram): AvailableProgram => ({
   isFull: !!raw.is_full,
   alreadyEnrolled: !!raw.already_enrolled,
   canEnroll: readCanEnroll(raw),
+  enrollmentId: readEnrollmentId(raw),
   surveyUrl: readSurveyUrl(raw),
+  surveyAcres: readSurveyAcres(raw),
   fields: (raw.fields ?? []).map(mapProgramField),
 });
 

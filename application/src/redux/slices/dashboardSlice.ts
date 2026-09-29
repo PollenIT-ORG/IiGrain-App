@@ -5,85 +5,138 @@ import {
   PayloadAction,
 } from '@reduxjs/toolkit';
 import * as dashboardApi from '../../api/dashboardApi';
-import type { DashboardFarm, DashboardFarms, FarmDashboard } from '../../types/dashboard';
+import type { DashboardProgram, DashboardPrograms, ProgramDashboard } from '../../types/dashboard';
 import { hasNextPage, mergePage, type PageMeta, type PageQuery } from '../../types/pagination';
-import { createFarmThunk, deleteFarmThunk, resetFarmThunk } from '../thunks/farmThunks';
-import { createFieldThunk, deleteFieldThunk, resetFieldThunk } from '../thunks/fieldThunks';
 import { handleApiError, StandardizedError } from '../../utils/handleApiError';
 import { logout } from './authSlice';
+import { asOwnerUserId, isDatabaseReady } from '../../services/db';
+import type { OwnerUserId } from '../../services/db/types';
+import {
+  PROGRAMS_SCOPE,
+  readSnapshot,
+  saveSnapshot,
+} from '../../services/sync/dashboardCache';
 
 type ThunkConfig = { rejectValue: StandardizedError };
 
-export interface DashboardState {
-  farms: DashboardFarm[];
-  farmsMeta: PageMeta | null;
-  defaultFarmId: string | null;
-  selectedFarmId: string | null;
-  farmsLoading: boolean;
-  farmsLoadingMore: boolean;
-  farmsError: string | null;
-  farmsRequestId: string | null;
+type DashboardThunkConfig = ThunkConfig & {
+  fulfilledMeta: { capturedAt: string | null };
+};
 
-  dashboard: FarmDashboard | null;
-  requestedFarmId: string | null;
+export interface DashboardState {
+  programs: DashboardProgram[];
+  programsMeta: PageMeta | null;
+  defaultProgramId: string | null;
+  selectedProgramId: string | null;
+  programsLoading: boolean;
+  programsLoadingMore: boolean;
+  programsError: string | null;
+  programsRequestId: string | null;
+
+  dashboard: ProgramDashboard | null;
+  requestedProgramId: string | null;
   dashboardLoading: boolean;
   dashboardError: string | null;
   requestedKey: string | null;
   selectedYear: number | null;
 
-  staleFarmIds: string[];
+  dashboardCapturedAt: string | null;
 }
 
 const initialState: DashboardState = {
-  farms: [],
-  farmsMeta: null,
-  defaultFarmId: null,
-  selectedFarmId: null,
-  farmsLoading: true,
-  farmsLoadingMore: false,
-  farmsError: null,
-  farmsRequestId: null,
+  programs: [],
+  programsMeta: null,
+  defaultProgramId: null,
+  selectedProgramId: null,
+  programsLoading: true,
+  programsLoadingMore: false,
+  programsError: null,
+  programsRequestId: null,
   dashboard: null,
-  requestedFarmId: null,
+  requestedProgramId: null,
   dashboardLoading: false,
   dashboardError: null,
   requestedKey: null,
   selectedYear: null,
-  staleFarmIds: [],
+  dashboardCapturedAt: null,
 };
 
-export const fetchDashboardFarmsThunk = createAsyncThunk<
-  DashboardFarms,
+interface AuthStateSlice {
+  auth?: { user?: { id?: string } | null } | null;
+}
+
+const ownerFrom = (getState: () => unknown): OwnerUserId | null => {
+  if (!isDatabaseReady()) {
+    return null;
+  }
+  const userId = (getState() as AuthStateSlice).auth?.user?.id;
+  return userId ? asOwnerUserId(userId) : null;
+};
+
+export const fetchDashboardProgramsThunk = createAsyncThunk<
+  DashboardPrograms,
   PageQuery | undefined,
   ThunkConfig
->('dashboard/fetchFarms', async (query, { rejectWithValue }) => {
+>('dashboard/fetchPrograms', async (query, { getState, rejectWithValue }) => {
+  const owner = ownerFrom(getState);
   try {
-    return await dashboardApi.getDashboardFarms(query);
+    const result = await dashboardApi.getDashboardPrograms(query);
+    if (owner) {
+      await saveSnapshot(owner, PROGRAMS_SCOPE, result).catch(() => undefined);
+    }
+    return result;
   } catch (error) {
-    return rejectWithValue(handleApiError(error));
+    const standardized = handleApiError(error);
+    if (owner && standardized.kind === 'offline') {
+      const cached = await readSnapshot<DashboardPrograms>(owner, PROGRAMS_SCOPE).catch(
+        () => null,
+      );
+      if (cached) {
+        return cached.payload;
+      }
+    }
+    return rejectWithValue(standardized);
   }
 });
 
-export interface FarmDashboardArg {
-  farmId: string;
+export interface ProgramDashboardArg {
+  programId: string;
   year?: number;
   trendYears?: number;
 }
 
-const dashboardKey = (arg: FarmDashboardArg): string =>
-  `${arg.farmId}:${arg.year ?? 'default'}`;
+const dashboardKey = (arg: ProgramDashboardArg): string =>
+  `${arg.programId}:${arg.year ?? 'default'}`;
 
-export const fetchFarmDashboardThunk = createAsyncThunk<
-  FarmDashboard,
-  FarmDashboardArg,
-  ThunkConfig
+export const fetchProgramDashboardThunk = createAsyncThunk<
+  ProgramDashboard,
+  ProgramDashboardArg,
+  DashboardThunkConfig
 >(
-  'dashboard/fetchFarm',
-  async ({ farmId, year, trendYears }, { rejectWithValue }) => {
+  'dashboard/fetchProgram',
+  async (
+    { programId, year, trendYears },
+    { getState, rejectWithValue, fulfillWithValue },
+  ) => {
+    const owner = ownerFrom(getState);
     try {
-      return await dashboardApi.getFarmDashboard(farmId, { year, trendYears });
+      const result = await dashboardApi.getProgramDashboard(programId, { year, trendYears });
+      if (owner) {
+        await saveSnapshot(owner, programId, result, result.year).catch(() => undefined);
+        await saveSnapshot(owner, programId, result, null).catch(() => undefined);
+      }
+      return fulfillWithValue(result, { capturedAt: null });
     } catch (error) {
-      return rejectWithValue(handleApiError(error));
+      const standardized = handleApiError(error);
+      if (owner && standardized.kind === 'offline') {
+        const cached = await readSnapshot<ProgramDashboard>(owner, programId, year).catch(
+          () => null,
+        );
+        if (cached) {
+          return fulfillWithValue(cached.payload, { capturedAt: cached.capturedAt });
+        }
+      }
+      return rejectWithValue(standardized);
     }
   },
   {
@@ -100,196 +153,133 @@ const dashboardSlice = createSlice({
   name: 'dashboard',
   initialState,
   reducers: {
-    setSelectedFarmId(state, action: PayloadAction<string>) {
-      if (state.selectedFarmId !== action.payload) {
+    setSelectedProgramId(state, action: PayloadAction<string>) {
+      if (state.selectedProgramId !== action.payload) {
         state.selectedYear = null;
       }
-      state.selectedFarmId = action.payload;
+      state.selectedProgramId = action.payload;
     },
     clearDashboardError(state) {
-      state.farmsError = null;
+      state.programsError = null;
       state.dashboardError = null;
-    },
-    markDashboardStale(state, action: PayloadAction<string>) {
-      if (!state.staleFarmIds.includes(action.payload)) {
-        state.staleFarmIds.push(action.payload);
-      }
     },
   },
   extraReducers: builder => {
     builder
-      .addCase(fetchDashboardFarmsThunk.pending, (state, action) => {
+      .addCase(fetchDashboardProgramsThunk.pending, (state, action) => {
         if ((action.meta.arg?.page ?? 1) > 1) {
-          state.farmsLoadingMore = true;
+          state.programsLoadingMore = true;
         } else {
-          state.farmsLoading = true;
+          state.programsLoading = true;
         }
-        state.farmsError = null;
-        state.farmsRequestId = action.meta.requestId;
+        state.programsError = null;
+        state.programsRequestId = action.meta.requestId;
       })
-      .addCase(fetchDashboardFarmsThunk.fulfilled, (state, action) => {
-        if (action.meta.requestId !== state.farmsRequestId) {
+      .addCase(fetchDashboardProgramsThunk.fulfilled, (state, action) => {
+        if (action.meta.requestId !== state.programsRequestId) {
           return;
         }
-        state.farmsLoading = false;
-        state.farmsLoadingMore = false;
-        const { farms, defaultFarmId, meta } = action.payload;
-        state.farms = mergePage(state.farms, farms, meta.page, f => f.id);
-        state.farmsMeta = meta;
-        state.defaultFarmId = defaultFarmId;
+        state.programsLoading = false;
+        state.programsLoadingMore = false;
+        const { programs, defaultProgramId, meta } = action.payload;
+        if (meta.page <= 1 && state.programs.length > programs.length) {
+          const incomingIds = new Set(programs.map(p => p.id));
+          const extra = state.programs.filter(p => !incomingIds.has(p.id));
+          state.programs = [...programs, ...extra];
+        } else {
+          state.programs = mergePage(state.programs, programs, meta.page, p => p.id);
+        }
+        state.programsMeta = meta;
+        state.defaultProgramId = defaultProgramId;
 
-        const listIsComplete = state.farms.length >= meta.total;
+        const listIsComplete = state.programs.length >= meta.total;
         const stillValid =
-          state.selectedFarmId !== null &&
-          (!listIsComplete || state.farms.some(f => f.id === state.selectedFarmId));
+          state.selectedProgramId !== null &&
+          (!listIsComplete || state.programs.some(p => p.id === state.selectedProgramId));
         if (!stillValid) {
-          const next = defaultFarmId ?? state.farms[0]?.id ?? null;
-          state.selectedFarmId = next;
+          const next = defaultProgramId ?? state.programs[0]?.id ?? null;
+          state.selectedProgramId = next;
           if (next === null) {
             state.dashboard = null;
             state.dashboardError = null;
             state.dashboardLoading = false;
-            state.requestedFarmId = null;
+            state.requestedProgramId = null;
           }
         }
       })
-      .addCase(fetchDashboardFarmsThunk.rejected, (state, action) => {
-        if (action.meta.requestId !== state.farmsRequestId) {
+      .addCase(fetchDashboardProgramsThunk.rejected, (state, action) => {
+        if (action.meta.requestId !== state.programsRequestId) {
           return;
         }
-        state.farmsLoading = false;
-        state.farmsLoadingMore = false;
-        state.farmsError = action.payload?.message ?? 'Failed to load farms';
+        state.programsLoading = false;
+        state.programsLoadingMore = false;
+        state.programsError = action.payload?.message ?? 'Failed to load programs';
       })
-      .addCase(fetchFarmDashboardThunk.pending, (state, action) => {
+      .addCase(fetchProgramDashboardThunk.pending, (state, action) => {
         state.dashboardLoading = true;
         state.dashboardError = null;
-        state.requestedFarmId = action.meta.arg.farmId;
+        state.requestedProgramId = action.meta.arg.programId;
         state.requestedKey = dashboardKey(action.meta.arg);
-        if (state.dashboard && state.dashboard.farm.id !== action.meta.arg.farmId) {
+        if (state.dashboard && state.dashboard.program.id !== action.meta.arg.programId) {
           state.dashboard = null;
         }
       })
-      .addCase(fetchFarmDashboardThunk.fulfilled, (state, action) => {
-        const { farmId } = action.meta.arg;
-        state.staleFarmIds = state.staleFarmIds.filter(id => id !== farmId);
+      .addCase(fetchProgramDashboardThunk.fulfilled, (state, action) => {
         if (dashboardKey(action.meta.arg) !== state.requestedKey) {
           return;
         }
         state.dashboardLoading = false;
         state.dashboard = action.payload;
         state.selectedYear = action.payload.year;
+        state.dashboardCapturedAt = action.meta.capturedAt ?? null;
       })
-      .addCase(fetchFarmDashboardThunk.rejected, (state, action) => {
+      .addCase(fetchProgramDashboardThunk.rejected, (state, action) => {
         if (dashboardKey(action.meta.arg) !== state.requestedKey) {
           return;
         }
         state.dashboardLoading = false;
         state.dashboardError = action.payload?.message ?? 'Failed to load dashboard';
       })
-      .addCase(createFarmThunk.fulfilled, (state, action) => {
-        const farm = action.payload;
-        if (state.farms.some(f => f.id === farm.id)) {
-          return;
-        }
-        state.farms = [
-          { id: farm.id, name: farm.name, fieldCount: farm.fieldsCount ?? 0 },
-          ...state.farms,
-        ];
-        if (state.farmsMeta) {
-          state.farmsMeta.total += 1;
-        }
-        if (state.selectedFarmId === null) {
-          state.selectedFarmId = farm.id;
-        }
-      })
-      .addCase(createFieldThunk.fulfilled, (state, action) => {
-        const { farmId } = action.payload;
-        const farm = state.farms.find(f => f.id === farmId);
-        if (farm) {
-          farm.fieldCount += 1;
-        }
-        if (!state.staleFarmIds.includes(farmId)) {
-          state.staleFarmIds.push(farmId);
-        }
-      })
-      .addCase(deleteFarmThunk.fulfilled, (state, action) => {
-        const farmId = action.payload;
-        state.farms = state.farms.filter(f => f.id !== farmId);
-        state.staleFarmIds = state.staleFarmIds.filter(id => id !== farmId);
-        if (state.farmsMeta && state.farmsMeta.total > 0) {
-          state.farmsMeta.total -= 1;
-        }
-        if (state.defaultFarmId === farmId) {
-          state.defaultFarmId = null;
-        }
-        if (state.selectedFarmId === farmId) {
-          state.selectedFarmId = state.farms[0]?.id ?? null;
-          state.dashboard = null;
-          state.dashboardError = null;
-          state.dashboardLoading = false;
-          state.requestedFarmId = null;
-        }
-      })
-      .addCase(resetFarmThunk.fulfilled, (state, action) => {
-        const farmId = action.payload.id;
-        if (!state.staleFarmIds.includes(farmId)) {
-          state.staleFarmIds.push(farmId);
-        }
-      })
-      .addCase(deleteFieldThunk.fulfilled, (state, action) => {
-        const { farmId } = action.payload;
-        if (!state.staleFarmIds.includes(farmId)) {
-          state.staleFarmIds.push(farmId);
-        }
-      })
-      .addCase(resetFieldThunk.fulfilled, (state, action) => {
-        const { farmId } = action.payload;
-        if (!state.staleFarmIds.includes(farmId)) {
-          state.staleFarmIds.push(farmId);
-        }
-      })
       .addCase(logout, () => initialState);
   },
 });
 
-export const { setSelectedFarmId, clearDashboardError, markDashboardStale } =
-  dashboardSlice.actions;
+export const { setSelectedProgramId, clearDashboardError } = dashboardSlice.actions;
 export default dashboardSlice.reducer;
 
 interface HasDashboard {
   dashboard: DashboardState;
 }
 
-const EMPTY_FARMS: DashboardFarm[] = [];
+const EMPTY_PROGRAMS: DashboardProgram[] = [];
 
-export const selectDashboardFarms = (s: HasDashboard): DashboardFarm[] =>
-  s.dashboard.farms.length ? s.dashboard.farms : EMPTY_FARMS;
-export const selectSelectedFarmId = (s: HasDashboard): string | null =>
-  s.dashboard.selectedFarmId;
-export const selectDashboardDefaultFarmId = (s: HasDashboard): string | null =>
-  s.dashboard.defaultFarmId;
-export const selectDashboardFarmsLoading = (s: HasDashboard): boolean =>
-  s.dashboard.farmsLoading;
-export const selectDashboardFarmsError = (s: HasDashboard): string | null =>
-  s.dashboard.farmsError;
-export const selectDashboardFarmsLoadingMore = (s: HasDashboard): boolean =>
-  s.dashboard.farmsLoadingMore;
-export const selectDashboardFarmsHasMore = (s: HasDashboard): boolean =>
-  hasNextPage(s.dashboard.farmsMeta);
-export const selectDashboardFarmsPage = (s: HasDashboard): number =>
-  s.dashboard.farmsMeta?.page ?? 1;
-export const selectDashboardFarmsLoaded = (s: HasDashboard): boolean =>
-  s.dashboard.farmsMeta !== null;
-export const selectDashboardFarmsTotal = (s: HasDashboard): number =>
-  s.dashboard.farmsMeta?.total ?? s.dashboard.farms.length;
+export const selectDashboardPrograms = (s: HasDashboard): DashboardProgram[] =>
+  s.dashboard.programs.length ? s.dashboard.programs : EMPTY_PROGRAMS;
+export const selectSelectedProgramId = (s: HasDashboard): string | null =>
+  s.dashboard.selectedProgramId;
+export const selectDashboardDefaultProgramId = (s: HasDashboard): string | null =>
+  s.dashboard.defaultProgramId;
+export const selectDashboardProgramsLoading = (s: HasDashboard): boolean =>
+  s.dashboard.programsLoading;
+export const selectDashboardProgramsError = (s: HasDashboard): string | null =>
+  s.dashboard.programsError;
+export const selectDashboardProgramsLoadingMore = (s: HasDashboard): boolean =>
+  s.dashboard.programsLoadingMore;
+export const selectDashboardProgramsHasMore = (s: HasDashboard): boolean =>
+  hasNextPage(s.dashboard.programsMeta);
+export const selectDashboardProgramsPage = (s: HasDashboard): number =>
+  s.dashboard.programsMeta?.page ?? 1;
+export const selectDashboardProgramsLoaded = (s: HasDashboard): boolean =>
+  s.dashboard.programsMeta !== null;
+export const selectDashboardProgramsTotal = (s: HasDashboard): number =>
+  s.dashboard.programsMeta?.total ?? s.dashboard.programs.length;
 
-export const selectSelectedDashboardFarm = createSelector(
-  [selectDashboardFarms, selectSelectedFarmId],
-  (farms, id): DashboardFarm | null => farms.find(f => f.id === id) ?? null,
+export const selectSelectedDashboardProgram = createSelector(
+  [selectDashboardPrograms, selectSelectedProgramId],
+  (programs, id): DashboardProgram | null => programs.find(p => p.id === id) ?? null,
 );
 
-export const selectFarmDashboard = (s: HasDashboard): FarmDashboard | null =>
+export const selectProgramDashboard = (s: HasDashboard): ProgramDashboard | null =>
   s.dashboard.dashboard;
 export const selectDashboardLoading = (s: HasDashboard): boolean =>
   s.dashboard.dashboardLoading;
@@ -297,10 +287,5 @@ export const selectDashboardError = (s: HasDashboard): string | null =>
   s.dashboard.dashboardError;
 export const selectDashboardYear = (s: HasDashboard): number | null =>
   s.dashboard.selectedYear;
-
-export const selectStaleFarmIds = (s: HasDashboard): string[] => s.dashboard.staleFarmIds;
-
-export const selectSelectedFarmIsStale = createSelector(
-  [selectStaleFarmIds, selectSelectedFarmId],
-  (staleIds, selectedId): boolean => selectedId !== null && staleIds.includes(selectedId),
-);
+export const selectDashboardCapturedAt = (s: HasDashboard): string | null =>
+  s.dashboard.dashboardCapturedAt;

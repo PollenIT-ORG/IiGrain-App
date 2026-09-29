@@ -30,12 +30,60 @@ const SCORE_META: Record<QuestionScore, { label: string; color: string }> = {
   3: { label: 'Advanced', color: '#2E9E5B' },
 };
 
+const formatAnswerText = (question: AssessmentReviewQuestion): string => {
+  if (!question.answered) {
+    return '—';
+  }
+  switch (question.questionType) {
+    case 'mcq':
+      return question.optionText ?? '—';
+    case 'text':
+    case 'long_text':
+      return question.answerText ?? '—';
+    case 'number':
+      return question.answerNumber !== null ? String(question.answerNumber) : '—';
+    case 'date':
+      return question.answerDate ?? '—';
+    case 'boolean':
+      return question.answerBoolean === null ? '—' : question.answerBoolean ? 'Yes' : 'No';
+    default:
+      return '—';
+  }
+};
+
+interface AnswerDisplay {
+  text: string;
+  label: string;
+  color: string;
+}
+
+const answerDisplayFor = (
+  question: AssessmentReviewQuestion,
+  hideScore: boolean,
+): AnswerDisplay => {
+  if (hideScore) {
+    return { text: '···', label: 'In review', color: COLORS.gray500 };
+  }
+  if (!question.answered) {
+    return { text: '—', label: 'Pending', color: COLORS.gray500 };
+  }
+  if (question.questionType === 'scored' && question.score !== null) {
+    const meta = SCORE_META[question.score];
+    return { text: String(question.score), label: meta.label, color: meta.color };
+  }
+  const finalScore = question.finalScore ?? question.reviewScore;
+  if (finalScore !== null && finalScore !== undefined) {
+    return { text: String(finalScore), label: 'Scored', color: COLORS.primary };
+  }
+  return { text: formatAnswerText(question), label: 'Answered', color: COLORS.gray700 };
+};
+
 const QuestionCard: React.FC<{
   question: AssessmentReviewQuestion;
+  hideScore: boolean;
   onPress?: () => void;
-}> = ({ question, onPress }) => {
-  const meta =
-    question.answered && question.score !== null ? SCORE_META[question.score] : null;
+}> = ({ question, hideScore, onPress }) => {
+  const display = answerDisplayFor(question, hideScore);
 
   const content = (
     <>
@@ -45,10 +93,10 @@ const QuestionCard: React.FC<{
       </AppText>
 
       <View style={styles.qScoreBox}>
-        <AppText style={[styles.qScore, { color: meta ? meta.color : COLORS.gray500 }]}>
-          {meta ? question.score : '—'}
+        <AppText style={[styles.qScore, { color: display.color }]} numberOfLines={1}>
+          {display.text}
         </AppText>
-        <AppText style={styles.qScoreLabel}>{meta ? meta.label : 'Pending'}</AppText>
+        <AppText style={styles.qScoreLabel}>{display.label}</AppText>
       </View>
 
       {onPress ? (
@@ -99,19 +147,31 @@ const ReviewView: React.FC<ReviewViewProps> = ({ role, params, navigation }) => 
     submitting,
     loadSummary,
     loadReview,
+    loadFieldHistory,
     loadRegenIndex,
     submitAssessment,
     clearSubmitResult,
     goToAssessmentList,
   } = flow;
 
+  const refetchReview = useCallback(
+    (s: { programId: string; fieldId: string }) => {
+      if (forcedLock) {
+        loadFieldHistory(s);
+      } else {
+        loadReview(s);
+      }
+    },
+    [forcedLock, loadReview, loadFieldHistory],
+  );
+
   const ready = !!review && loadedReviewScope === scope;
 
   useEffect(() => {
     if (!ready) {
-      loadReview({ programId, fieldId });
+      refetchReview({ programId, fieldId });
     }
-  }, [loadReview, programId, fieldId, ready]);
+  }, [refetchReview, programId, fieldId, ready]);
 
   const regenReady = !!regenIndex && loadedRegenScope === scope;
   useSyncedFetch({
@@ -124,6 +184,16 @@ const ReviewView: React.FC<ReviewViewProps> = ({ role, params, navigation }) => 
     enabled: supportsRegenIndex && !!programId && !!fieldId,
   });
 
+  useSyncedFetch({
+    tags: [Tags.assessment(programId, fieldId)],
+    run: useCallback(
+      () => refetchReview({ programId, fieldId }),
+      [refetchReview, programId, fieldId],
+    ),
+    hasData: ready,
+    enabled: !!programId && !!fieldId,
+  });
+
   const isFirstFocus = useRef(true);
   useFocusEffect(
     useCallback(() => {
@@ -131,9 +201,9 @@ const ReviewView: React.FC<ReviewViewProps> = ({ role, params, navigation }) => 
         isFirstFocus.current = false;
         return;
       }
-      loadReview({ programId, fieldId });
+      refetchReview({ programId, fieldId });
       loadRegenIndex({ programId, fieldId });
-    }, [loadReview, loadRegenIndex, programId, fieldId]),
+    }, [refetchReview, loadRegenIndex, programId, fieldId]),
   );
 
   const lastSyncedAnswerVersion = useRef(answerVersion);
@@ -142,9 +212,9 @@ const ReviewView: React.FC<ReviewViewProps> = ({ role, params, navigation }) => 
       return;
     }
     lastSyncedAnswerVersion.current = answerVersion;
-    loadReview({ programId, fieldId });
+    refetchReview({ programId, fieldId });
     loadRegenIndex({ programId, fieldId });
-  }, [answerVersion, loadReview, loadRegenIndex, programId, fieldId]);
+  }, [answerVersion, refetchReview, loadRegenIndex, programId, fieldId]);
 
   const submission = review?.submission;
   const allAnswered =
@@ -153,12 +223,14 @@ const ReviewView: React.FC<ReviewViewProps> = ({ role, params, navigation }) => 
     submission.answered >= submission.totalQuestions;
   const isLocked = forcedLock === true || !!submission?.submittedAtISO;
   const headerTitle = forcedLock === true ? 'Assessment Result' : 'Review & Submit';
+  const inReview = submission?.reviewStatus === 'in_review';
+  const isApproved = submission?.reviewStatus === 'approved';
 
   const showSuccess = !!submitResult && submitResult.field.id === fieldId;
 
   const onRetry = useCallback(() => {
-    loadReview({ programId, fieldId });
-  }, [loadReview, programId, fieldId]);
+    refetchReview({ programId, fieldId });
+  }, [refetchReview, programId, fieldId]);
 
   const openQuestion = useCallback(
     (categoryId: string, questionId: string) => {
@@ -186,10 +258,19 @@ const ReviewView: React.FC<ReviewViewProps> = ({ role, params, navigation }) => 
     goToAssessmentList(navigation);
   }, [clearSubmitResult, loadSummary, goToAssessmentList, programId, fieldId, navigation]);
 
+  const submitResultInReview = submitResult?.reviewStatus === 'in_review';
+
   const successScore = useMemo(
-    () => (submitResult ? `${submitResult.totalScore} / ${submitResult.maxScore}` : undefined),
-    [submitResult],
+    () =>
+      submitResult && !submitResultInReview
+        ? `${submitResult.totalScore} / ${submitResult.maxScore}`
+        : undefined,
+    [submitResult, submitResultInReview],
   );
+
+  const successMessage = submitResultInReview
+    ? `${review?.field.name ?? 'This field'} is now in review. You'll be notified once it's scored.`
+    : `${review?.field.name ?? 'This field'} is now locked for review.`;
 
   if (!ready) {
     return (
@@ -265,6 +346,7 @@ const ReviewView: React.FC<ReviewViewProps> = ({ role, params, navigation }) => 
               <QuestionCard
                 key={question.id}
                 question={question}
+                hideScore={inReview}
                 onPress={
                   isLocked ? () => openQuestion(category.id, question.id) : undefined
                 }
@@ -276,9 +358,11 @@ const ReviewView: React.FC<ReviewViewProps> = ({ role, params, navigation }) => 
         <AssessmentSubmitSuccess
           visible={showSuccess}
           title="Assessment Submitted"
-          message={`${review.field.name} is now locked for review.`}
+          message={successMessage}
           scoreLabel={successScore}
-          percentLabel={submitResult ? pct(submitResult.percentage) : undefined}
+          percentLabel={
+            submitResult && !submitResultInReview ? pct(submitResult.percentage) : undefined
+          }
           onDone={onDone}
         />
       </ScrollView>
@@ -295,8 +379,18 @@ const ReviewView: React.FC<ReviewViewProps> = ({ role, params, navigation }) => 
 
         {isLocked ? (
           <View style={styles.lockNote}>
-            <AppIcon name={ICONS.LOCK_CHECK} size={moderateScale(18)} color={COLORS.primary} />
-            <AppText style={styles.lockNoteText}>Submitted &amp; locked</AppText>
+            <AppIcon
+              name={inReview ? ICONS.INFO : ICONS.LOCK_CHECK}
+              size={moderateScale(18)}
+              color={COLORS.primary}
+            />
+            <AppText style={styles.lockNoteText}>
+              {inReview
+                ? 'In review — not yet scored'
+                : isApproved && review.submission.reviewNote
+                  ? `Reviewed: ${review.submission.reviewNote}`
+                  : 'Submitted & locked'}
+            </AppText>
           </View>
         ) : (
           <Button

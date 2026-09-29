@@ -7,6 +7,7 @@ export const COLORS = {
 
   secondary: '#27B36E',
   accent: '#F6B43C',
+  accentDark: '#8A5A00',
   infoBlue: '#136ACB',
 
   emerald: '#34C97B',

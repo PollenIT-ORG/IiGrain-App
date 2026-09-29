@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import ApiError from "../utils/ApiError.js";
+import { enrollmentIdsForEmail } from "../models/enrollmentId.model.js";
 import env from "../config/env.js";
 import logger from "../utils/logger.js";
 import { sendMail } from "./mailer.service.js";
@@ -45,12 +46,15 @@ import {
   findSurveyByProgram,
   findSurveyByTemplate,
   updateSurvey,
+  setSurveyLock,
   softDeleteSurvey,
   upsertDraft,
   finalizeSubmission,
   findSubmissionById,
   findSubmissionByStatusToken,
   findSubmissionBySurveyAndUser,
+  latestProfileForEmail,
+  type KnownProfile,
   listSubmissions,
   updateSubmission,
   softDeleteSubmission,
@@ -270,6 +274,21 @@ export async function editProgramSurvey(
   return withLink(updated);
 }
 
+/** Locking a survey freezes its questions and opens the program's assessment to farmers. */
+export async function setProgramSurveyLocked(
+  id: string,
+  ownerId: string | null,
+  actorId: string,
+  locked: boolean
+): Promise<SurveyWithLink> {
+  const survey = await ownedSurvey(id, ownerId);
+  if (locked === (survey.locked_at !== null)) return withLink(survey);
+  const updated = await setSurveyLock(id, locked ? actorId : null);
+  if (!updated) throw ApiError.notFound("Program not found.");
+  broadcastToAdmins("program_admin_survey");
+  return withLink(updated);
+}
+
 export async function removeProgramSurvey(
   id: string,
   ownerId: string | null
@@ -380,8 +399,10 @@ export async function verifySurveyOtp(
 }
 
 export interface EmailCheckResult {
-  state: "new" | "draft" | "submitted";
+  state: "new" | "draft" | "submitted" | "returning";
   statusToken: string | null;
+  /** Set on "returning": details already given, not asked for again. */
+  profile: KnownProfile | null;
   draft: {
     firstName: string | null;
     lastName: string | null;
@@ -401,10 +422,10 @@ export async function checkEmail(
   if (!survey) throw ApiError.notFound("This survey link is not valid.");
   const email = rawEmail.trim().toLowerCase();
   const account = await findWebsiteUserByEmailPublic(email);
-  if (!account) return { state: "new", statusToken: null, draft: null };
+  if (!account) return { state: "new", statusToken: null, profile: null, draft: null };
 
   const submission = await findSubmissionBySurveyAndUser(survey.id, account.id);
-  if (!submission) return { state: "new", statusToken: null, draft: null };
+  if (!submission) return returningOrNew(email);
 
   if (submission.status === "draft") {
     const answers: Record<string, number> = {};
@@ -412,6 +433,7 @@ export async function checkEmail(
     return {
       state: "draft",
       statusToken: submission.status_token,
+      profile: null,
       draft: {
         firstName: submission.first_name,
         lastName: submission.last_name,
@@ -423,7 +445,31 @@ export async function checkEmail(
       },
     };
   }
-  return { state: "submitted", statusToken: submission.status_token, draft: null };
+  return {
+    state: "submitted",
+    statusToken: submission.status_token,
+    profile: null,
+    draft: null,
+  };
+}
+
+/**
+ * Somebody who already holds an Enrollment ID has given these details once.
+ * The next survey reuses them rather than asking again.
+ */
+/** The stored details of someone who already holds an Enrollment ID. */
+async function lockedProfileFor(email: string): Promise<KnownProfile | null> {
+  const held = await enrollmentIdsForEmail(email);
+  if (!held.length) return null;
+  return latestProfileForEmail(email);
+}
+
+async function returningOrNew(email: string): Promise<EmailCheckResult> {
+  const profile = await lockedProfileFor(email);
+  if (!profile) {
+    return { state: "new", statusToken: null, profile: null, draft: null };
+  }
+  return { state: "returning", statusToken: null, profile, draft: null };
 }
 
 export interface DraftInput {
@@ -453,11 +499,27 @@ export async function saveDraft(
   const survey = await findSurveyByToken(token);
   if (!survey) throw ApiError.notFound("This survey link is not valid.");
   const email = input.email.trim().toLowerCase();
+
+  // A returning farmer's details are read back here rather than trusted from
+  // the request, so the locked fields cannot be edited by a crafted payload.
+  const known = await lockedProfileFor(email);
+  const details: KnownProfile = known ?? {
+    firstName: input.firstName.trim(),
+    lastName: input.lastName.trim(),
+    phone: input.phone?.trim() || null,
+    farmName: input.farmName?.trim() || null,
+    referralSource: input.referralSource?.trim() || null,
+    state: input.state?.trim() || null,
+    totalAcres: input.totalAcres === null || input.totalAcres === undefined
+      ? null
+      : String(input.totalAcres),
+  };
+
   const account = await accountFor(
     email,
-    input.firstName,
-    input.lastName,
-    input.phone ?? null
+    details.firstName ?? "",
+    details.lastName ?? "",
+    details.phone
   );
 
   const existing = await findSubmissionBySurveyAndUser(survey.id, account.id);
@@ -469,14 +531,13 @@ export async function saveDraft(
 
   const statusToken = existing?.status_token ?? makeToken();
   await upsertDraft(existing?.id ?? null, survey.id, account.id, statusToken, {
-    firstName: input.firstName.trim(),
-    lastName: input.lastName.trim(),
-    // What was given here, blank included: it is this submission's own.
-    phone: input.phone?.trim() || null,
-    farmName: input.farmName?.trim() || null,
-    referralSource: input.referralSource?.trim() || null,
-    state: input.state?.trim() || null,
-    totalAcres: input.totalAcres ?? null,
+    firstName: details.firstName ?? "",
+    lastName: details.lastName ?? "",
+    phone: details.phone,
+    farmName: details.farmName,
+    referralSource: details.referralSource,
+    state: details.state,
+    totalAcres: details.totalAcres === null ? null : Number(details.totalAcres),
     answers: toStoredAnswers(input.answers ?? {}),
   });
   broadcastToAdmins("program_admin_survey");
@@ -856,6 +917,20 @@ const STATUS_FILTER_GROUPS: Record<string, SubmissionStatus[]> = {
   withdrawn: ["withdrawn"],
 };
 
+// The day a "to" date names counts whole. Both ends are read here for the table
+// and for the cards, so the two can never disagree about the window.
+function dateRange(
+  createdFrom?: string,
+  createdTo?: string
+): { createdFrom?: Date; createdTo?: Date } {
+  const toEnd = createdTo ? new Date(createdTo) : undefined;
+  if (toEnd) toEnd.setHours(23, 59, 59, 999);
+  return {
+    createdFrom: createdFrom ? new Date(createdFrom) : undefined,
+    createdTo: toEnd,
+  };
+}
+
 export async function getSubmissions(
   ownerId: string | null,
   input: ListInput
@@ -863,16 +938,13 @@ export async function getSubmissions(
   const statuses = input.status
     ? (STATUS_FILTER_GROUPS[input.status] ?? [input.status as SubmissionStatus])
     : undefined;
-  const toEnd = input.createdTo ? new Date(input.createdTo) : undefined;
-  if (toEnd) toEnd.setHours(23, 59, 59, 999);
   const { rows, total } = await listSubmissions({
     ownerId,
     programId: input.programId,
     statuses,
     category: input.category,
     referral: input.referral,
-    createdFrom: input.createdFrom ? new Date(input.createdFrom) : undefined,
-    createdTo: toEnd,
+    ...dateRange(input.createdFrom, input.createdTo),
     search: input.search,
     limit: input.limit,
     offset: (input.page - 1) * input.limit,
@@ -905,11 +977,28 @@ export async function getSubmission(
   return { submission, contract };
 }
 
+export interface StatsInput {
+  programId?: string;
+  category?: SurveyCategory;
+  referral?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  search?: string;
+}
+
+/** The cards over the table, counted across the same rows the table shows. */
 export function getSubmissionStats(
   ownerId: string | null,
-  programId?: string
+  input: StatsInput = {}
 ): Promise<Record<string, number>> {
-  return countByStatus(ownerId, programId);
+  return countByStatus({
+    ownerId,
+    programId: input.programId,
+    category: input.category,
+    referral: input.referral,
+    search: input.search,
+    ...dateRange(input.createdFrom, input.createdTo),
+  });
 }
 
 function statusLinkFor(submission: PublicSubmission): string | undefined {

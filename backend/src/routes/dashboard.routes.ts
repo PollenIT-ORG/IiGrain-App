@@ -4,6 +4,8 @@ import {
   myDashboardFarms,
   farmDashboard,
   farmSummary,
+  myDashboardPrograms,
+  programSummary,
   adminDashboard,
   programDashboard,
 } from "../controllers/dashboard.controller.js";
@@ -18,6 +20,10 @@ const adminOnly = [authenticate, authorize("super_admin", "admin")];
 
 const farmIdParamSchema = z.object({
   farmId: z.string().uuid("Invalid farm id."),
+});
+
+const programIdParamSchema = z.object({
+  programId: z.string().uuid("Invalid program id."),
 });
 
 const farmSummaryQuerySchema = z.object({
@@ -63,6 +69,22 @@ router.get(
   validate(farmIdParamSchema, "params"),
   validate(farmSummaryQuerySchema, "query"),
   farmSummary
+);
+
+// Programs the farmer is enrolled in, each with its fields and how many are assessed.
+router.get(
+  "/my/programs",
+  ...farmerOnly,
+  validate(paginationQuerySchema, "query"),
+  myDashboardPrograms
+);
+// The same summary as a farm's, worked out for one program.
+router.get(
+  "/my/programs/:programId/summary",
+  ...farmerOnly,
+  validate(programIdParamSchema, "params"),
+  validate(farmSummaryQuerySchema, "query"),
+  programSummary
 );
 
 export default router;

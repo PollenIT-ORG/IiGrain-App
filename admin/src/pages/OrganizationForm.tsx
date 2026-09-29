@@ -7,6 +7,7 @@ import {
 } from "../store/endpoints/organizationsApi";
 import { showSuccess, showError } from "../lib/toast";
 import { applyServerFieldErrors } from "../lib/serverErrors";
+import { useReturnTo } from "../lib/returnTo";
 import {
   required,
   optionalEmail,
@@ -14,9 +15,9 @@ import {
   isClean,
 } from "../lib/validation";
 import Loader from "../components/Loader";
+import Breadcrumbs from "../components/ui/Breadcrumbs";
 import Select from "../components/ui/Select";
 import PhoneInput from "../components/ui/PhoneInput";
-import { ChevronLeftIcon } from "../components/icons";
 
 function errMsg(err: unknown): string {
   return (
@@ -34,6 +35,7 @@ export default function OrganizationForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const back = useReturnTo("/organizations");
 
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -125,7 +127,7 @@ export default function OrganizationForm() {
         await createOrg(body).unwrap();
         showSuccess("Organization created.");
       }
-      navigate("/organizations");
+      back.go();
     } catch (err) {
       const placed = applyServerFieldErrors(err, setErrors, [
         { field: "code", test: /code/i },
@@ -143,13 +145,21 @@ export default function OrganizationForm() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <button
-          onClick={() => navigate("/organizations")}
-          className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to organizations
-        </button>
+        <Breadcrumbs
+          className="mb-2"
+          items={[
+            { label: "Organizations", to: "/organizations" },
+            ...(isEdit
+              ? [
+                  {
+                    label: detail?.organization.name ?? "Organization",
+                    to: `/organizations/${id}`,
+                  },
+                  { label: "Edit" },
+                ]
+              : [{ label: "Add organization" }]),
+          ]}
+        />
         <h1 className="text-2xl font-bold text-gray-900">
           {isEdit ? "Edit organization" : "Add organization"}
         </h1>
@@ -286,7 +296,7 @@ export default function OrganizationForm() {
             <button
               type="button"
               className="btn-secondary"
-              onClick={() => navigate("/organizations")}
+              onClick={() => back.go()}
             >
               Cancel
             </button>

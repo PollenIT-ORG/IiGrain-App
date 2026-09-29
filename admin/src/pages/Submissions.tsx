@@ -23,6 +23,25 @@ const ROLE_OPTIONS = [
   { value: "assessor", label: "Assessor only" },
 ];
 
+const REVIEW_OPTIONS = [
+  { value: "", label: "All submissions" },
+  { value: "in_review", label: "Waiting for review" },
+  { value: "approved", label: "Approved" },
+];
+
+function ReviewBadge({ status }: { status: Submission["reviewStatus"] }) {
+  const approved = status === "approved";
+  return (
+    <span
+      className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ${
+        approved ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+      }`}
+    >
+      {approved ? "Approved" : "In review"}
+    </span>
+  );
+}
+
 function formatDate(iso: string | null): string {
   return fmtDate(iso);
 }
@@ -46,12 +65,14 @@ export default function Submissions() {
   const [page, setPage] = useState(1);
   const [programId, setProgramId] = useState("");
   const [role, setRole] = useState("");
+  const [reviewStatus, setReviewStatus] = useState("");
 
   const { data, isLoading, isError, error, refetch } = useListSubmissionsQuery({
     page,
     limit: PAGE_SIZE,
     programId: programId || undefined,
     authorRole: (role as "farmer" | "assessor") || undefined,
+    reviewStatus: (reviewStatus as "in_review" | "approved") || undefined,
   });
   const submissions = data?.submissions ?? [];
   const meta = data?.meta ?? null;
@@ -66,7 +87,7 @@ export default function Submissions() {
 
   useEffect(() => {
     setPage(1);
-  }, [programId, role]);
+  }, [programId, role, reviewStatus]);
 
   const totalPages = meta?.totalPages ?? 1;
 
@@ -94,6 +115,12 @@ export default function Submissions() {
           options={ROLE_OPTIONS}
           className="sm:w-52"
         />
+        <Select
+          value={reviewStatus}
+          onChange={setReviewStatus}
+          options={REVIEW_OPTIONS}
+          className="sm:w-52"
+        />
       </div>
 
       <div className="card overflow-hidden">
@@ -118,6 +145,7 @@ export default function Submissions() {
                     <th className="px-5 py-3 font-semibold">By</th>
                     <th className="px-5 py-3 font-semibold">Program</th>
                     <th className="px-5 py-3 font-semibold">Score</th>
+                    <th className="px-5 py-3 font-semibold">Review</th>
                     <th className="px-5 py-3 font-semibold">Submitted</th>
                     <th className="px-5 py-3 text-right font-semibold">View</th>
                   </tr>
@@ -125,7 +153,7 @@ export default function Submissions() {
                 <tbody>
                   {submissions.map((s) => (
                     <tr
-                      key={`${s.fieldId}-${s.authorRole}`}
+                      key={s.assessmentId}
                       className="border-b border-gray-300/70 last:border-0 hover:bg-gray-100/60"
                     >
                       <td className="px-5 py-3.5">
@@ -156,22 +184,31 @@ export default function Submissions() {
                         )}
                       </td>
                       <td className="px-5 py-3.5 whitespace-nowrap text-gray-700">
-                        <span className="font-semibold text-gray-900">
-                          {s.percentage}%
-                        </span>{" "}
-                        <span className="text-xs text-gray-500">
-                          ({s.answered}/{s.totalQuestions})
-                        </span>
+                        {s.reviewStatus === "approved" ? (
+                          <>
+                            <span className="font-semibold text-gray-900">{s.percentage}%</span>{" "}
+                            <span className="text-xs text-gray-500">
+                              ({s.answered}/{s.totalQuestions})
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-xs text-gray-500">
+                            {s.answered}/{s.totalQuestions} answered
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <ReviewBadge status={s.reviewStatus} />
                       </td>
                       <td className="px-5 py-3.5 whitespace-nowrap text-gray-700">
                         {formatDate(s.submittedAt)}
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <button
-                          onClick={() => navigate(`/fields/${s.fieldId}`)}
+                          onClick={() => navigate(`/submissions/${s.assessmentId}`)}
                           className="text-sm font-medium text-primary hover:underline"
                         >
-                          Open
+                          {s.reviewStatus === "approved" ? "Open" : "Review"}
                         </button>
                       </td>
                     </tr>

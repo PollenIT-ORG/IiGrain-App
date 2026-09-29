@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useChangePasswordMutation } from "../store/endpoints/profileApi";
 import { showSuccess, showError } from "../lib/toast";
 import { required, password as validatePassword, isClean } from "../lib/validation";
-import { EyeIcon, EyeOffIcon, ChevronLeftIcon } from "../components/icons";
+import { EyeIcon, EyeOffIcon } from "../components/icons";
+import Breadcrumbs from "../components/ui/Breadcrumbs";
 
 export default function ChangePassword() {
   const navigate = useNavigate();
@@ -44,13 +45,10 @@ export default function ChangePassword() {
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div>
-        <button
-          onClick={() => navigate("/profile")}
-          className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to profile
-        </button>
+        <Breadcrumbs
+          className="mb-2"
+          items={[{ label: "Profile", to: "/profile" }, { label: "Change password" }]}
+        />
         <h1 className="text-2xl font-bold text-gray-900">Change password</h1>
         <p className="mt-1 text-sm text-gray-500">
           Enter your current password and choose a new one.

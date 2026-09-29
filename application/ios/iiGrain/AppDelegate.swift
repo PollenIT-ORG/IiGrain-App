@@ -25,7 +25,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
   /// `didFinishLaunchingWithOptions`.
   ///
   /// The key travels: .env → ios/Podfile (pod install) →
-  /// Config/Env.generated.xcconfig → $(MAPS_API_KEY) → Info.plist `GMSApiKey` →
+  /// Config/Env.generated.xcconfig → $(MAPS_API_KEY_IOS) → Info.plist `GMSApiKey` →
   /// here. It is deliberately never hardcoded in this file, which is committed.
   private func configureGoogleMaps() {
     let apiKey = (Bundle.main.object(forInfoDictionaryKey: "GMSApiKey") as? String)?
@@ -36,7 +36,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       // simulator runs by developers without Maps Platform access).
       NSLog(
         "[Maps] GMSApiKey is empty — maps will render blank. "
-          + "Set MAPS_API_KEY in .env and re-run `pod install`."
+          + "Set MAPS_API_KEY_IOS in .env and re-run `pod install`."
       )
       return
     }

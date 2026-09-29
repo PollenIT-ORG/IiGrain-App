@@ -15,6 +15,8 @@ import AccountScreen from '../screens/account/AccountScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import ChangePasswordScreen from '../screens/profile/ChangePasswordScreen';
+import HelpScreen from '../screens/help/HelpScreen';
+import ContactUsScreen from '../screens/support/ContactUsScreen';
 import { useAssessorVisitStream } from '../hooks/useAssessorVisitStream';
 import type { AssessorStackParamList } from './navigationTypes';
 
@@ -39,6 +41,8 @@ const AssessorNavigator: React.FC = () => {
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+      <Stack.Screen name="Help" component={HelpScreen} />
+      <Stack.Screen name="ContactUs" component={ContactUsScreen} />
     </Stack.Navigator>
   );
 };

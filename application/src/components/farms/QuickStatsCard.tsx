@@ -30,7 +30,11 @@ const Stat: React.FC<StatProps> = ({ icon, value, label, tint, tintBg }) => (
     <View style={[styles.iconCircle, { backgroundColor: tintBg }]}>
       <AppIcon name={icon} size={moderateScale(20)} color={tint} />
     </View>
-    <AppText style={styles.value} numberOfLines={1} adjustsFontSizeToFit>
+    <AppText
+      style={styles.value}
+      numberOfLines={1}
+      adjustsFontSizeToFit
+      minimumFontScale={0.8}>
       {value}
     </AppText>
     <AppText style={styles.label} numberOfLines={2}>
@@ -79,7 +83,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     gap: spacing[2],
-    paddingHorizontal: spacing[3],
+    paddingHorizontal: spacing[2],
   },
   divider: {
     width: borderWidth.thin,

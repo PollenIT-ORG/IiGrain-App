@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   useGetFieldQuery,
@@ -15,10 +15,18 @@ import Loader from "../components/Loader";
 import Select from "../components/ui/Select";
 import MapPicker from "../components/ui/MapPicker";
 import BoundaryMap from "../components/ui/BoundaryMap";
-import type { LatLng, GeoJSONPolygon } from "../lib/geo";
-import { ChevronLeftIcon } from "../components/icons";
+import {
+  areaAcresOf,
+  boundaryToRing,
+  type LatLng,
+  type GeoJSONPolygon,
+} from "../lib/geo";
 import { applyServerFieldErrors } from "../lib/serverErrors";
 import { MAX_AREA_ACRES } from "../lib/validation";
+import { useProgramScope } from "../lib/programScope";
+import { useReturnTo } from "../lib/returnTo";
+import { useProgramCrumbs } from "../lib/useProgramCrumbs";
+import Breadcrumbs from "../components/ui/Breadcrumbs";
 
 function errMsg(err: unknown): string {
   return (
@@ -46,6 +54,9 @@ export default function FieldForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const { programId, to, home } = useProgramScope();
+  const back = useReturnTo(home("/fields"));
+  const programCrumbs = useProgramCrumbs(programId);
 
   const [farmId, setFarmId] = useState("");
   const [name, setName] = useState("");
@@ -56,14 +67,10 @@ export default function FieldForm() {
   const [location, setLocation] = useState("");
   const [coords, setCoords] = useState<LatLng | null>(null);
   const [boundary, setBoundary] = useState<GeoJSONPolygon | null>(null);
-  const [drawnAcres, setDrawnAcres] = useState(0);
-  // Set once the area is typed or loaded, so drawing stops overwriting it.
-  const areaTouched = useRef(false);
-
-  function onAreaDrawn(acres: number) {
-    setDrawnAcres(acres);
-    if (!areaTouched.current && acres > 0) setAreaAcres(String(acres));
-  }
+  // A drawn outline sets the acres, worked out the same way the server does.
+  const drawnAcres = boundary
+    ? Math.max(areaAcresOf(boundaryToRing(boundary)), 0.01)
+    : null;
   const [sowingDate, setSowingDate] = useState("");
   const [expectedHarvest, setExpectedHarvest] = useState("");
   const [isActive, setIsActive] = useState(true);
@@ -100,6 +107,11 @@ export default function FieldForm() {
     .reduce((sum, f) => sum + (f.area_acres ? Number(f.area_acres) : 0), 0);
   const remainingAcres =
     farmArea === null ? null : Math.round((farmArea - otherFieldsArea) * 100) / 100;
+  // The farm total after saving, when the drawn field needs more than is left.
+  const grownFarmAcres =
+    drawnAcres !== null && remainingAcres !== null && drawnAcres > remainingAcres
+      ? Math.round((otherFieldsArea + drawnAcres) * 100) / 100
+      : null;
 
   const {
     data: field,
@@ -119,7 +131,6 @@ export default function FieldForm() {
       setFarmId(field.farm_id);
       setName(field.name);
       setAreaAcres(field.area_acres ?? "");
-      areaTouched.current = field.area_acres != null;
       setCrop(field.crop ?? "");
       setSeason(field.season ?? "");
       setIrrigation(field.irrigation ?? "");
@@ -199,16 +210,20 @@ export default function FieldForm() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const areaNum = areaAcres.trim() === "" ? undefined : Number(areaAcres);
+    // With an outline drawn the server sets the acres, so only a typed value is sent and checked.
+    const areaNum =
+      boundary || areaAcres.trim() === "" ? undefined : Number(areaAcres);
     const fieldErrors: Record<string, string | null> = {
       farm: farmId ? null : "Please select a farm.",
       name: name.trim() ? null : "Field name is required.",
       area:
-        areaNum !== undefined && (Number.isNaN(areaNum) || areaNum <= 0)
-          ? "Area must be a number greater than zero."
-          : areaNum !== undefined && areaNum > MAX_AREA_ACRES
-            ? "Area looks too large. Please check the value."
-            : null,
+        drawnAcres !== null && drawnAcres > MAX_AREA_ACRES
+          ? "This boundary is too large. Please check the points."
+          : areaNum !== undefined && (Number.isNaN(areaNum) || areaNum <= 0)
+            ? "Area must be a number greater than zero."
+            : areaNum !== undefined && areaNum > MAX_AREA_ACRES
+              ? "Area looks too large. Please check the value."
+              : null,
     };
     setErrors(fieldErrors);
     if (fieldErrors.farm || fieldErrors.name || fieldErrors.area) return;
@@ -264,7 +279,7 @@ export default function FieldForm() {
       }
 
       showSuccess(isEdit ? "Field updated." : "Field created.");
-      navigate("/fields");
+      back.go();
     } catch (err) {
       const placed = applyServerFieldErrors(err, setErrors, [
         { field: "area", test: /acre|area/i },
@@ -281,13 +296,18 @@ export default function FieldForm() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <button
-          onClick={() => navigate("/fields")}
-          className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to fields
-        </button>
+        <Breadcrumbs
+          className="mb-2"
+          items={[
+            ...(programId ? programCrumbs : [{ label: "Fields", to: "/fields" }]),
+            ...(isEdit
+              ? [
+                  { label: field?.name ?? "Field", to: to(`/fields/${id}`) },
+                  { label: "Edit" },
+                ]
+              : [{ label: "Add field" }]),
+          ]}
+        />
         <h1 className="text-2xl font-bold text-gray-900">
           {isEdit ? "Edit field" : "Add field"}
         </h1>
@@ -352,16 +372,25 @@ export default function FieldForm() {
                 min="0"
                 max="9999999"
                 step="0.01"
-                className={`input-field ${errors.area ? "input-error" : ""}`}
+                className={`input-field disabled:bg-gray-100 disabled:text-gray-500 ${
+                  errors.area ? "input-error" : ""
+                }`}
                 placeholder="50.5"
-                value={areaAcres}
-                onChange={(e) => {
-                  areaTouched.current = true;
-                  setAreaAcres(e.target.value);
-                }}
+                value={drawnAcres !== null ? String(drawnAcres) : areaAcres}
+                onChange={(e) => setAreaAcres(e.target.value)}
+                disabled={drawnAcres !== null}
               />
               {errors.area ? (
                 <p className="field-error">{errors.area}</p>
+              ) : drawnAcres !== null ? (
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Set by the boundary drawn below.{" "}
+                  {grownFarmAcres !== null && (
+                    <span className="text-amber-600">
+                      The farm total grows to {grownFarmAcres} acres to fit it.
+                    </span>
+                  )}
+                </p>
               ) : remainingAcres !== null ? (
                 <p className="mt-1.5 text-xs text-gray-500">
                   Optional.{" "}
@@ -447,26 +476,13 @@ export default function FieldForm() {
           </div>
 
           <div>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="label mb-0">Mark boundary</label>
-              {drawnAcres > 0 && areaAcres.trim() !== String(drawnAcres) && (
-                <button
-                  type="button"
-                  onClick={() => setAreaAcres(String(drawnAcres))}
-                  className="text-sm font-medium text-primary hover:underline"
-                >
-                  Use drawn area ({drawnAcres.toFixed(2)} acres)
-                </button>
-              )}
-            </div>
+            <label className="label mb-0">Mark boundary</label>
             <div className="mt-2">
-              <BoundaryMap
-                value={boundary}
-                onChange={setBoundary}
-                onAreaChange={onAreaDrawn}
-                height={340}
-              />
+              <BoundaryMap value={boundary} onChange={setBoundary} height={340} />
             </div>
+            <p className="mt-1 text-xs text-gray-500">
+              The field's acres are worked out from the area drawn here.
+            </p>
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2">
@@ -682,7 +698,7 @@ export default function FieldForm() {
             <button
               type="button"
               className="btn-secondary"
-              onClick={() => navigate("/fields")}
+              onClick={() => back.go()}
             >
               Cancel
             </button>

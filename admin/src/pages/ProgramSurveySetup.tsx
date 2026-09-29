@@ -10,6 +10,7 @@ import {
   useCreatePasProgramMutation,
   useUpdatePasProgramMutation,
   useDeletePasProgramMutation,
+  useSetPasProgramLockMutation,
   useUploadPasContractMutation,
   type Program as SurveyLink,
 } from "../store/endpoints/programAdminSurveyApi";
@@ -17,8 +18,11 @@ import { errMsg } from "../lib/errMsg";
 import { useAuth } from "../store/useAuth";
 import { useDialog } from "../components/ui/DialogProvider";
 import { useLiveData } from "../lib/useLiveData";
+import { useTrail } from "../lib/returnTo";
+import { useProgramCrumbs } from "../lib/useProgramCrumbs";
 import { showSuccess, showError } from "../lib/toast";
 import Select from "../components/ui/Select";
+import Breadcrumbs from "../components/ui/Breadcrumbs";
 import Loader from "../components/Loader";
 import ContractPdfPreview from "../components/ContractPdfPreview";
 import { SurveyEditor } from "./ProgramTemplateEditor";
@@ -51,16 +55,9 @@ export default function ProgramSurveySetup() {
     id,
     { skip: !id }
   );
-  const { data: links, refetch: refetchLinks } = useListPasProgramsQuery();
-  useLiveData(["program_admin_survey"], refetchLinks);
-
-  // The link as the list knows it, or the one just created - the list takes a
-  // moment to come back and the questions should not wait for it.
-  const [fresh, setFresh] = useState<SurveyLink | null>(null);
-  const link = useMemo(
-    () => (links ?? []).find((l) => l.program_id === id) ?? fresh,
-    [links, id, fresh]
-  );
+  const { link, setFresh } = useProgramSurveyLink(id);
+  const trail = useTrail();
+  const programCrumbs = useProgramCrumbs(id);
 
   const [step, setStep] = useState<Step>(0);
   // Once a survey exists there is nothing to fill in on the first step - it
@@ -81,20 +78,27 @@ export default function ProgramSurveySetup() {
   return (
     <div className="space-y-6">
       <div>
-        <button
-          onClick={() => navigate(`/programs/${id}`)}
-          className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to the program
-        </button>
+        <Breadcrumbs
+          className="mb-2"
+          items={[
+            ...(trail
+              ? [...trail, { label: program?.name ?? "Program", to: `/programs/${id}` }]
+              : programCrumbs),
+            { label: "Survey and contract" },
+          ]}
+        />
         <h1 className="text-2xl font-bold text-gray-900">
           {hasSurvey ? "The survey" : "Set up the survey"}
         </h1>
         <p className="mt-1 text-sm text-gray-500">{program?.name}</p>
       </div>
 
-      <Steps current={step} done={hasSurvey} onPick={setStep} />
+      <Steps
+        labels={STEPS}
+        current={step}
+        reachable={(i) => i === 0 || hasSurvey}
+        onPick={(i) => setStep(i as Step)}
+      />
 
       {step === 0 && (
         <SurveyStep
@@ -121,27 +125,46 @@ export default function ProgramSurveySetup() {
   );
 }
 
-function Steps({
+export function useProgramSurveyLink(programId: string) {
+  const {
+    data: links,
+    isLoading: loading,
+    refetch: refetchLinks,
+  } = useListPasProgramsQuery();
+  useLiveData(["program_admin_survey"], refetchLinks);
+
+  // The link as the list knows it, or the one just created - the list takes a
+  // moment to come back and the questions should not wait for it.
+  const [fresh, setFresh] = useState<SurveyLink | null>(null);
+  const link = useMemo(
+    () => (links ?? []).find((l) => l.program_id === programId) ?? fresh,
+    [links, programId, fresh]
+  );
+  return { link, setFresh, loading };
+}
+
+export function Steps({
+  labels,
   current,
-  done,
+  reachable: canReach,
   onPick,
 }: {
-  current: Step;
-  done: boolean;
-  onPick: (s: Step) => void;
+  labels: readonly string[];
+  current: number;
+  reachable: (i: number) => boolean;
+  onPick: (i: number) => void;
 }) {
   return (
     <ol className="card flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:gap-1">
-      {STEPS.map((label, i) => {
+      {labels.map((label, i) => {
         const active = i === current;
-        // The later steps need a survey to act on, so they wait for one.
-        const reachable = i === 0 || done;
+        const reachable = canReach(i);
         return (
           <li key={label} className="flex flex-1 items-center gap-2">
             <button
               type="button"
               disabled={!reachable}
-              onClick={() => reachable && onPick(i as Step)}
+              onClick={() => reachable && onPick(i)}
               className={`flex flex-1 items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
                 active ? "bg-primary/5" : "hover:bg-gray-100"
               } disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent`}
@@ -163,7 +186,7 @@ function Steps({
                 {label}
               </span>
             </button>
-            {i < STEPS.length - 1 && (
+            {i < labels.length - 1 && (
               <ChevronRightIcon
                 width={16}
                 height={16}
@@ -179,7 +202,7 @@ function Steps({
 
 // ------------------------------- Step 1: survey -----------------------------
 
-function SurveyStep({
+export function SurveyStep({
   programId,
   link,
   onCreated,
@@ -196,6 +219,7 @@ function SurveyStep({
   const [createTemplate, { isLoading: creating }] = useCreatePasTemplateMutation();
   const [attach, { isLoading: attaching }] = useCreatePasProgramMutation();
   const [detach, { isLoading: removing }] = useDeletePasProgramMutation();
+  const [setLock, { isLoading: locking }] = useSetPasProgramLockMutation();
   const { confirm } = useDialog();
 
   const [name, setName] = useState("");
@@ -271,6 +295,27 @@ function SurveyStep({
     }
   }
 
+  const locked = link?.locked_at !== null && link?.locked_at !== undefined;
+
+  async function handleLock() {
+    if (!link) return;
+    const ok = await confirm({
+      title: locked ? "Unlock this survey?" : "Lock this survey?",
+      message: locked
+        ? "Its questions can be changed again, and farmers cannot start the assessment until it is locked again."
+        : "Its questions can no longer be changed, and farmers can start this program's assessment.",
+      confirmLabel: locked ? "Unlock survey" : "Lock survey",
+    });
+    if (!ok) return;
+    try {
+      const updated = await setLock({ id: link.id, locked: !locked }).unwrap();
+      onCreated(updated);
+      showSuccess(locked ? "Survey unlocked." : "Survey locked. Farmers can start the assessment.");
+    } catch (err) {
+      showError(errMsg(err));
+    }
+  }
+
   if (link) {
     return (
       <>
@@ -280,20 +325,26 @@ function SurveyStep({
               {link.template_name}
             </p>
             <p className="mt-0.5 text-sm text-gray-500">
-              The questions producers answer for this program. Everything here
-              saves as you go.
+              {locked
+                ? "This survey is locked. Its questions are fixed and farmers can start the assessment."
+                : "The questions producers answer for this program. Lock it when it is ready, so farmers can start the assessment."}
             </p>
           </div>
-          {/* A program can drop its survey and start again; what producers
-              have already sent in stays. */}
-          <button
-            className="btn-secondary shrink-0 text-danger hover:border-danger/40"
-            disabled={removing}
-            onClick={handleRemove}
-          >
-            <TrashIcon width={16} height={16} />
-            {removing ? "Removing..." : "Remove survey"}
-          </button>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <button className="btn-secondary" disabled={locking} onClick={() => void handleLock()}>
+              {locking ? "Saving..." : locked ? "Unlock survey" : "Lock survey"}
+            </button>
+            {/* A program can drop its survey and start again; what producers
+                have already sent in stays. */}
+            <button
+              className="btn-secondary text-danger hover:border-danger/40"
+              disabled={removing}
+              onClick={handleRemove}
+            >
+              <TrashIcon width={16} height={16} />
+              {removing ? "Removing..." : "Remove survey"}
+            </button>
+          </div>
         </div>
         <SurveyEditor id={link.template_id} />
         <div className="flex justify-end">
@@ -357,7 +408,7 @@ function SurveyStep({
 
 // ------------------------------ Step 2: contract ----------------------------
 
-function ContractStep({
+export function ContractStep({
   link,
   isPlatformAdmin,
   onBack,
@@ -564,7 +615,7 @@ function ContractStep({
 
 // -------------------------------- Step 3: share -----------------------------
 
-function ShareStep({
+export function ShareStep({
   link,
   programId,
 }: {
@@ -647,7 +698,7 @@ function ShareStep({
       <div className="flex flex-wrap justify-end gap-3">
         <button
           className="btn-secondary"
-          onClick={() => navigate(`/survey-submissions?program=${programId}`)}
+          onClick={() => navigate(`/programs/${programId}`)}
         >
           View submissions
         </button>

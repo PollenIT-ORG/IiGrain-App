@@ -16,7 +16,9 @@ export type SoftDeleteTable =
   | "field_documents"
   | "programs"
   | "program_enrollments"
-  | "program_enrollment_fields";
+  | "program_enrollment_fields"
+  | "faqs"
+  | "contact_enquiries";
 
 function delegateFor(table: SoftDeleteTable) {
   switch (table) {
@@ -36,6 +38,8 @@ function delegateFor(table: SoftDeleteTable) {
     case "programs": return prisma.programs;
     case "program_enrollments": return prisma.program_enrollments;
     case "program_enrollment_fields": return prisma.program_enrollment_fields;
+    case "faqs": return prisma.faqs;
+    case "contact_enquiries": return prisma.contact_enquiries;
   }
 }
 

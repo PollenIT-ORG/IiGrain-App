@@ -25,6 +25,24 @@ export const createProgramSchema = z.object({
   userLimit,
   isActive: z.boolean().optional(),
   showToFarmers: z.boolean().optional(),
+  // Left out or null the program starts from the Global template, "blank" starts it empty, an id copies that template.
+  // Only with "blank": whether the assessment holds multiple choice or input based questions.
+  questionKind: z.enum(["mcq", "input"], { error: "Choose multiple choice or input based." }).optional(),
+  // The name the program's own assessment goes by, and is listed and reused under.
+  assessmentTemplateName: z
+    .string()
+    .trim()
+    .min(2, "Give the template a name of at least two characters.")
+    .max(150, "The name must be 150 characters or fewer.")
+    .optional(),
+  assessmentTemplateId: z
+    .string()
+    .trim()
+    .refine((v) => v === "blank" || z.uuid().safeParse(v).success, {
+      message: "Choose a valid assessment template.",
+    })
+    .nullable()
+    .optional(),
 });
 
 // The toggle on its own, so the list row can flip it without sending a program.
@@ -85,7 +103,9 @@ export const listSubmissionsQuerySchema = z.object({
   page: pageField(1),
   limit: limitField(20, 100),
   programId: z.string().uuid("Invalid program id.").optional(),
+  fieldId: z.string().uuid("Invalid field id.").optional(),
   authorRole: z.enum(["farmer", "assessor"]).optional(),
+  reviewStatus: z.enum(["in_review", "approved"]).optional(),
 });
 
 export const updateEnrollmentFieldsSchema = z.object({

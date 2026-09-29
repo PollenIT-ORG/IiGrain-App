@@ -10,8 +10,9 @@ import { AppText } from '../../components';
 import { ProfileAvatar } from '../../components/account';
 import { COLORS } from '../../constants';
 import { moderateScale } from '../../utils';
-import { useAppDispatch, useAppSelector } from '../../redux/hooks';
-import { logoutThunk } from '../../redux/slices/authSlice';
+import { useAppSelector } from '../../redux/hooks';
+import { useSignOut } from '../../hooks/useSignOut';
+import SignOutGuardModal from '../../components/SignOutGuardModal';
 import { selectProfileIdentity } from '../../redux/selectors/profileSelectors';
 import {
   drawerConfig,
@@ -34,7 +35,6 @@ const useActiveTab = (
 };
 
 const DrawerContent: React.FC<DrawerContentComponentProps> = props => {
-  const dispatch = useAppDispatch();
   const insets = useSafeAreaInsets();
   const identity = useAppSelector(selectProfileIdentity);
   const activeTab = useActiveTab(props);
@@ -65,10 +65,12 @@ const DrawerContent: React.FC<DrawerContentComponentProps> = props => {
     [navigation, goStackRoute],
   );
 
+  const signOut = useSignOut();
+
   const onSignOut = useCallback(() => {
     navigation.closeDrawer();
-    dispatch(logoutThunk());
-  }, [navigation, dispatch]);
+    signOut.requestSignOut().catch(() => undefined);
+  }, [navigation, signOut]);
 
   return (
     <View style={styles.container}>
@@ -147,6 +149,8 @@ const DrawerContent: React.FC<DrawerContentComponentProps> = props => {
         </TouchableOpacity>
         <AppText style={styles.version}>iiGrain • v{APP_VERSION_LABEL}</AppText>
       </View>
+
+      <SignOutGuardModal guard={signOut} />
     </View>
   );
 };

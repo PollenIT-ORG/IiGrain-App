@@ -22,6 +22,28 @@ import {
   selectAssessorFarmerAssessment,
 } from '../../redux/slices/assessorSlice';
 import type { AssessorScreenProps } from '../../navigation/navigationTypes';
+import type { FarmerAssessmentAnswer } from '../../types/assessor';
+
+const formatFarmerAnswer = (q: FarmerAssessmentAnswer): string => {
+  if (!q.answered) {
+    return '—';
+  }
+  switch (q.questionType) {
+    case 'mcq':
+      return q.optionText ?? '—';
+    case 'text':
+    case 'long_text':
+      return q.answerText ?? '—';
+    case 'number':
+      return q.answerNumber !== null ? String(q.answerNumber) : '—';
+    case 'date':
+      return q.answerDate ?? '—';
+    case 'boolean':
+      return q.answerBoolean === null ? '—' : q.answerBoolean ? 'Yes' : 'No';
+    default:
+      return '—';
+  }
+};
 
 const AssessorFarmerAssessmentScreen: React.FC<AssessorScreenProps<'AssessorFarmerAssessment'>> = ({
   route,
@@ -112,7 +134,13 @@ const AssessorFarmerAssessmentScreen: React.FC<AssessorScreenProps<'AssessorFarm
                       {q.code ? <AppText style={styles.code}>{q.code}</AppText> : null}
                       <AppText style={styles.text}>{q.text}</AppText>
                     </View>
-                    <ScorePill score={q.score} />
+                    {q.questionType === 'scored' ? (
+                      <ScorePill score={q.score} answered={q.answered} />
+                    ) : (
+                      <AppText style={styles.answerText} numberOfLines={1}>
+                        {formatFarmerAnswer(q)}
+                      </AppText>
+                    )}
                   </View>
                   {q.comment ? <AppText style={styles.comment}>“{q.comment}”</AppText> : null}
                   {q.evidenceUrls.length > 0 ? (
@@ -170,6 +198,12 @@ const styles = StyleSheet.create({
   qText: { flex: 1, gap: spacing[0.5] },
   code: { ...presets.caption, fontFamily: fonts.semibold, color: COLORS.gray500 },
   text: { ...presets.labelMD, color: COLORS.gray900 },
+  answerText: {
+    ...presets.labelSM,
+    color: COLORS.gray700,
+    maxWidth: '35%',
+    textAlign: 'right',
+  },
   comment: { ...presets.bodySM, color: COLORS.gray700, fontStyle: 'italic' },
   evidenceChip: {
     flexDirection: 'row', alignItems: 'center', gap: spacing[1.5], alignSelf: 'flex-start',

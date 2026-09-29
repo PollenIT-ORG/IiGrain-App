@@ -20,8 +20,23 @@ export const styles = StyleSheet.create({
   body: {
     flexGrow: 1,
     padding: spacing[5],
-    paddingTop: spacing[6],
     gap: spacing[5],
+  },
+  backButton: {
+    position: 'absolute',
+    left: spacing[5],
+    width: scale(40),
+    height: scale(40),
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.white,
+    borderWidth: borderWidth.thin,
+    borderColor: COLORS.gray200,
+    ...shadows.sm,
+  },
+  backPressed: {
+    backgroundColor: COLORS.gray100,
   },
   hero: {
     alignItems: 'center',

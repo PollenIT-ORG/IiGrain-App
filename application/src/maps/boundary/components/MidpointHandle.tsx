@@ -12,8 +12,6 @@ import type { EdgeMidpoint } from '../types';
 
 export interface MidpointHandleProps {
   midpoint: EdgeMidpoint;
-  dragging: boolean;
-  blocked: boolean;
   onPress: (edgeIndex: number, coordinate: LatLng) => void;
   onDragStart: (edgeIndex: number, edgeKey: string) => void;
   onDrag: (edgeIndex: number, point: LatLng) => void;
@@ -31,8 +29,6 @@ const toLatLng = (
 
 const MidpointHandle: React.FC<MidpointHandleProps> = ({
   midpoint,
-  dragging,
-  blocked,
   onPress,
   onDragStart,
   onDrag,
@@ -44,7 +40,7 @@ const MidpointHandle: React.FC<MidpointHandleProps> = ({
     setTracks(true);
     const timer = setTimeout(() => setTracks(false), SETTLE_MS);
     return () => clearTimeout(timer);
-  }, [dragging, blocked]);
+  }, []);
 
   const edgeKey = `${midpoint.fromId}>${midpoint.toId}`;
 
@@ -59,14 +55,9 @@ const MidpointHandle: React.FC<MidpointHandleProps> = ({
       onDragStart={() => onDragStart(midpoint.edgeIndex, edgeKey)}
       onDrag={event => onDrag(midpoint.edgeIndex, toLatLng(event))}
       onDragEnd={event => onDragEnd(midpoint.edgeIndex, toLatLng(event))}
-      zIndex={dragging ? 8 : 4}>
+      zIndex={4}>
       <View style={styles.hitbox}>
-        <View
-          style={[
-            styles.handle,
-            dragging && styles.handleActive,
-            dragging && blocked && styles.handleBlocked,
-          ]}>
+        <View style={styles.handle}>
           <View style={styles.plusH} />
           <View style={styles.plusV} />
         </View>
@@ -96,15 +87,6 @@ const styles = StyleSheet.create({
     borderColor: COLORS.white,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  handleActive: {
-    width: scale(26),
-    height: scale(26),
-    borderRadius: scale(13),
-    borderWidth: 3,
-  },
-  handleBlocked: {
-    backgroundColor: COLORS.danger,
   },
   plusH: {
     position: 'absolute',

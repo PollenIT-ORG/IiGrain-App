@@ -3,16 +3,27 @@ import * as notificationApi from '../../api/notificationApi';
 import type { GetNotificationsParams } from '../../api/notificationApi';
 import type { NotificationsPage } from '../../types/notification';
 import { handleApiError, StandardizedError } from '../../utils/handleApiError';
+import { snapshotOwner, throughOfflineSnapshot } from '../../services/sync/offlineSnapshot';
 
 type ThunkConfig = { rejectValue: StandardizedError };
+
+const FIRST_PAGE_SCOPE = 'notifications:first-page';
+const UNREAD_COUNT_SCOPE = 'notifications:unread-count';
+
+const firstPageScope = (params: GetNotificationsParams | undefined): string | null =>
+  (params?.page ?? 1) === 1 && !params?.unreadOnly && params?.limit === undefined
+    ? FIRST_PAGE_SCOPE
+    : null;
 
 export const fetchNotificationsThunk = createAsyncThunk<
   NotificationsPage,
   GetNotificationsParams | undefined,
   ThunkConfig
->('notifications/fetch', async (params, { rejectWithValue }) => {
+>('notifications/fetch', async (params, { getState, rejectWithValue }) => {
   try {
-    return await notificationApi.getNotifications(params);
+    return await throughOfflineSnapshot(snapshotOwner(getState), firstPageScope(params), () =>
+      notificationApi.getNotifications(params),
+    );
   } catch (error) {
     return rejectWithValue(handleApiError(error));
   }
@@ -32,9 +43,11 @@ export const fetchMoreNotificationsThunk = createAsyncThunk<
 
 export const fetchUnreadCountThunk = createAsyncThunk<number, void, ThunkConfig>(
   'notifications/fetchUnreadCount',
-  async (_arg, { rejectWithValue }) => {
+  async (_arg, { getState, rejectWithValue }) => {
     try {
-      return await notificationApi.getUnreadCount();
+      return await throughOfflineSnapshot(snapshotOwner(getState), UNREAD_COUNT_SCOPE, () =>
+        notificationApi.getUnreadCount(),
+      );
     } catch (error) {
       return rejectWithValue(handleApiError(error));
     }

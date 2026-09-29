@@ -3,8 +3,10 @@ import { authenticate, authorize } from "../middlewares/authenticate.js";
 import { validate } from "../middlewares/validate.js";
 import {
   saveAnswerSchema,
+  saveCategoryAnswersSchema,
   programFieldParamsSchema,
   programFieldCategoryParamsSchema,
+  programFieldRecordParamsSchema,
   programFieldCategoryQuestionParamsSchema,
   programFieldQuestionParamsSchema,
 } from "../validators/assessment.schema.js";
@@ -15,6 +17,10 @@ import {
   assessorQuestionDetail,
   assessorCategoryQuestions,
   saveAssessorAnswer,
+  saveAssessorCategoryAnswers,
+  addAssessorRecord,
+  saveAssessorRecord,
+  removeAssessorRecord,
   assessorReview,
   submitAssessorAssessment,
   farmerAssessment,
@@ -50,6 +56,35 @@ router.get(
   ...assessorOnly,
   validate(programFieldCategoryParamsSchema, "params"),
   assessorCategoryQuestions
+);
+// A whole form of one category, saved together.
+router.put(
+  "/programs/:programId/fields/:fieldId/categories/:categoryId/answers",
+  ...assessorOnly,
+  validate(programFieldCategoryParamsSchema, "params"),
+  validate(saveCategoryAnswersSchema),
+  saveAssessorCategoryAnswers
+);
+// The records of an input based form: add one, change one, remove one.
+router.post(
+  "/programs/:programId/fields/:fieldId/categories/:categoryId/records",
+  ...assessorOnly,
+  validate(programFieldCategoryParamsSchema, "params"),
+  validate(saveCategoryAnswersSchema),
+  addAssessorRecord
+);
+router.put(
+  "/programs/:programId/fields/:fieldId/categories/:categoryId/records/:recordId",
+  ...assessorOnly,
+  validate(programFieldRecordParamsSchema, "params"),
+  validate(saveCategoryAnswersSchema),
+  saveAssessorRecord
+);
+router.delete(
+  "/programs/:programId/fields/:fieldId/categories/:categoryId/records/:recordId",
+  ...assessorOnly,
+  validate(programFieldRecordParamsSchema, "params"),
+  removeAssessorRecord
 );
 router.put(
   "/programs/:programId/fields/:fieldId/questions/:questionId/answer",

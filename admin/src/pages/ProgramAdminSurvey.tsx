@@ -314,7 +314,12 @@ function SurveysTab() {
                     >
                       <td className="px-5 py-3.5">
                         <span className="flex items-center gap-2 font-semibold text-gray-900">
-                          {t.name}
+                          <button
+                            onClick={() => navigate(`/surveys/surveys/${t.id}`)}
+                            className="text-left hover:text-primary hover:underline"
+                          >
+                            {t.name}
+                          </button>
                           {t.is_global && (
                             <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
                               Global

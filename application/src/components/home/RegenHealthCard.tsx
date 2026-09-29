@@ -4,6 +4,7 @@ import { AppIcon, ICONS } from '../AppIcon';
 import AppText from '../AppText/AppText';
 import RegenScoreRing from './RegenScoreRing';
 import MetricBar from './MetricBar';
+import { useAnimatedCounter } from '../../hooks/useAnimatedCounter';
 import { COLORS,
   borderRadius,
   borderWidth,
@@ -19,6 +20,17 @@ interface Metric {
   valueLabel?: string;
   dimmed?: boolean;
 }
+
+interface AnimatedScoreValueProps {
+  score: number;
+}
+
+const AnimatedScoreValue: React.FC<AnimatedScoreValueProps> = ({ score }) => {
+  const animatedScore = useAnimatedCounter(score);
+  return <AppText style={styles.scoreValue}>{animatedScore}</AppText>;
+};
+
+const MemoAnimatedScoreValue = React.memo(AnimatedScoreValue);
 
 interface RegenHealthCardProps {
   score: number;
@@ -54,14 +66,17 @@ const RegenHealthCard: React.FC<RegenHealthCardProps> = ({
       </View>
 
       <View style={styles.row}>
-        <View style={styles.ringCol}>
+        <View
+          style={styles.ringCol}
+          accessible
+          accessibilityLabel={`Regen Health Index ${score} out of ${max}, ${status}`}>
           <RegenScoreRing
             value={score}
             max={max}
             color={COLORS.primary}
             trackColor={COLORS.lightPrimary}>
             <View style={styles.scoreCenter}>
-              <AppText style={styles.scoreValue}>{score}</AppText>
+              <MemoAnimatedScoreValue score={score} />
               <AppText style={styles.scoreMax}>/{max}</AppText>
             </View>
           </RegenScoreRing>

@@ -1,11 +1,17 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '../../../redux/hooks';
 import {
   clearSubmitResult,
   discardAssessmentThunk,
   fetchAssessmentReviewThunk,
+  fetchFieldHistoryThunk,
   fetchAssessmentSummaryThunk,
   fetchCategoryQuestionsThunk,
+  fetchCategoryFormThunk,
+  saveCategoryAnswersThunk,
+  addCategoryRecordThunk,
+  saveCategoryRecordThunk,
+  deleteCategoryRecordThunk,
   fetchFieldRegenIndexThunk,
   fetchQuestionDetailThunk,
   refreshAssessmentSummaryThunk,
@@ -20,6 +26,9 @@ import {
   selectAssessmentSubmitResult,
   selectAssessmentSubmitting,
   selectAssessmentSummary,
+  selectCategoryForm,
+  selectCategoryFormLoading,
+  selectCategoryFormSaving,
   selectCategoryQuestionList,
   selectFieldRegenIndex,
   selectLoadedRegenScope,
@@ -45,11 +54,15 @@ import {
 } from '../assessmentNavigation';
 import { OPEN_ACCESS } from './flowTypes';
 import type {
+  AssessmentAccess,
   AssessmentFlow,
   FlowCategoryScope,
   FlowNavigation,
   FlowQuestionScope,
   FlowSaveAnswerArg,
+  FlowSaveCategoryAnswersArg,
+  FlowRecordScope,
+  FlowSaveRecordArg,
   FlowScope,
   FlowSummaryTarget,
 } from './flowTypes';
@@ -71,12 +84,26 @@ export const useFarmerAssessmentFlow = (
   const categories = useAppSelector(selectAssessmentCategories);
   const categoryList = useAppSelector(selectCategoryQuestionList);
   const questions = useAppSelector(selectQuestionList);
+  const categoryForm = useAppSelector(selectCategoryForm);
   const questionDetail = useAppSelector(selectQuestionDetail);
   const review = useAppSelector(selectAssessmentReview);
   const submitResult = useAppSelector(selectAssessmentSubmitResult);
   const regenIndex = useAppSelector(selectFieldRegenIndex);
   const resumePoint = useAppSelector(selectResumePoint(programId, fieldId));
   const error = useAppSelector(selectAssessmentError);
+
+  const access = useMemo<AssessmentAccess>(() => {
+    if (summary && summary.program.assessmentOpen === false) {
+      return {
+        locked: true,
+        state: 'program_not_open',
+        resolved: true,
+        visitId: null,
+        otherFieldName: null,
+      };
+    }
+    return OPEN_ACCESS;
+  }, [summary]);
 
   const loadedSummaryScope = useAppSelector(selectLoadedSummaryScope);
   const loadedReviewScope = useAppSelector(selectLoadedReviewScope);
@@ -85,6 +112,8 @@ export const useFarmerAssessmentFlow = (
 
   const loadingSummary = useAppSelector(selectSummaryLoading);
   const loadingQuestions = useAppSelector(selectQuestionsLoading);
+  const loadingCategoryForm = useAppSelector(selectCategoryFormLoading);
+  const savingCategoryForm = useAppSelector(selectCategoryFormSaving);
   const loadingQuestion = useAppSelector(selectQuestionLoading);
   const loadingReview = useAppSelector(selectReviewLoading);
   const loadingRegenIndex = useAppSelector(selectRegenIndexLoading);
@@ -114,6 +143,61 @@ export const useFarmerAssessmentFlow = (
     [dispatch],
   );
 
+  const loadCategoryForm = useCallback(
+    async (scope: FlowCategoryScope) => {
+      await dispatch(fetchCategoryFormThunk(scope));
+    },
+    [dispatch],
+  );
+
+  const saveCategoryAnswers = useCallback(
+    async (arg: FlowSaveCategoryAnswersArg) => {
+      const action = await dispatch(saveCategoryAnswersThunk(arg));
+      if (saveCategoryAnswersThunk.fulfilled.match(action)) {
+        return { ok: true, closed: false, message: null };
+      }
+      const closed = action.payload?.code === 'ASSESSMENT_CLOSED';
+      return { ok: false, closed, message: closed ? null : action.payload?.message ?? null };
+    },
+    [dispatch],
+  );
+
+  const addCategoryRecord = useCallback(
+    async (arg: FlowSaveCategoryAnswersArg) => {
+      const action = await dispatch(addCategoryRecordThunk(arg));
+      if (addCategoryRecordThunk.fulfilled.match(action)) {
+        return { ok: true, closed: false, message: null };
+      }
+      const closed = action.payload?.code === 'ASSESSMENT_CLOSED';
+      return { ok: false, closed, message: closed ? null : action.payload?.message ?? null };
+    },
+    [dispatch],
+  );
+
+  const saveCategoryRecord = useCallback(
+    async (arg: FlowSaveRecordArg) => {
+      const action = await dispatch(saveCategoryRecordThunk(arg));
+      if (saveCategoryRecordThunk.fulfilled.match(action)) {
+        return { ok: true, closed: false, message: null };
+      }
+      const closed = action.payload?.code === 'ASSESSMENT_CLOSED';
+      return { ok: false, closed, message: closed ? null : action.payload?.message ?? null };
+    },
+    [dispatch],
+  );
+
+  const deleteCategoryRecord = useCallback(
+    async (arg: FlowRecordScope) => {
+      const action = await dispatch(deleteCategoryRecordThunk(arg));
+      if (deleteCategoryRecordThunk.fulfilled.match(action)) {
+        return { ok: true, closed: false, message: null };
+      }
+      const closed = action.payload?.code === 'ASSESSMENT_CLOSED';
+      return { ok: false, closed, message: closed ? null : action.payload?.message ?? null };
+    },
+    [dispatch],
+  );
+
   const loadQuestionDetail = useCallback(
     (scope: FlowQuestionScope) => {
       dispatch(fetchQuestionDetailThunk(scope));
@@ -124,7 +208,17 @@ export const useFarmerAssessmentFlow = (
   const saveAnswer = useCallback(
     async (arg: FlowSaveAnswerArg) => {
       const action = await dispatch(saveAssessmentAnswerThunk(arg));
-      return saveAssessmentAnswerThunk.fulfilled.match(action);
+      if (saveAssessmentAnswerThunk.fulfilled.match(action)) {
+        return { ok: true, conflict: false, closed: false, message: null };
+      }
+      const conflict = action.payload?.code === 'ASSESSMENT_CONFLICT';
+      const closed = action.payload?.code === 'ASSESSMENT_CLOSED';
+      return {
+        ok: false,
+        conflict,
+        closed,
+        message: conflict || closed ? null : action.payload?.message ?? null,
+      };
     },
     [dispatch],
   );
@@ -132,6 +226,13 @@ export const useFarmerAssessmentFlow = (
   const loadReview = useCallback(
     (scope: FlowScope) => {
       dispatch(fetchAssessmentReviewThunk(scope));
+    },
+    [dispatch],
+  );
+
+  const loadFieldHistory = useCallback(
+    (scope: FlowScope) => {
+      dispatch(fetchFieldHistoryThunk(scope));
     },
     [dispatch],
   );
@@ -190,12 +291,13 @@ export const useFarmerAssessmentFlow = (
     routes: ROUTES,
     supportsDiscard: true,
     supportsRegenIndex: true,
-    access: OPEN_ACCESS,
+    access,
 
     summary,
     categories,
     categoryList,
     questions,
+    categoryForm,
     questionDetail,
     review,
     submitResult,
@@ -211,6 +313,8 @@ export const useFarmerAssessmentFlow = (
 
     loadingSummary,
     loadingQuestions,
+    loadingCategoryForm,
+    savingCategoryForm,
     loadingQuestion,
     loadingReview,
     loadingRegenIndex,
@@ -222,9 +326,15 @@ export const useFarmerAssessmentFlow = (
     loadSummary,
     refreshSummary,
     loadCategoryQuestions,
+    loadCategoryForm,
+    saveCategoryAnswers,
+    addCategoryRecord,
+    saveCategoryRecord,
+    deleteCategoryRecord,
     loadQuestionDetail,
     saveAnswer,
     loadReview,
+    loadFieldHistory,
     submitAssessment,
     clearSubmitResult: clearSubmit,
     loadRegenIndex,

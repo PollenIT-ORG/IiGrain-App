@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { AppIcon, ICONS } from '../AppIcon';
 import AppText from '../AppText/AppText';
@@ -26,11 +26,13 @@ import {
 export interface RecordRowProps {
   module: ModuleKey;
   record: MonitoringRecord;
-  onPress: () => void;
+  onPress: (record: MonitoringRecord) => void;
 }
 
 const RecordRow: React.FC<RecordRowProps> = ({ module, record, onPress }) => {
   const def = moduleDef(module);
+
+  const handlePress = useCallback(() => onPress(record), [onPress, record]);
 
   const title = useMemo(() => recordTitle(module, record), [module, record]);
   const summary = useMemo(() => summaryLine(module, record), [module, record]);
@@ -45,7 +47,7 @@ const RecordRow: React.FC<RecordRowProps> = ({ module, record, onPress }) => {
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       accessibilityRole="button"
       accessibilityLabel={`Open ${title}`}
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>

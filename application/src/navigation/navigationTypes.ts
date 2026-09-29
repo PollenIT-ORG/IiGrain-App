@@ -3,6 +3,9 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { DrawerScreenProps } from '@react-navigation/drawer';
 import type { ModuleKey } from '../types/monitoring';
+import type { LatLng } from '../maps/types';
+
+export type PasswordFlowPurpose = 'reset' | 'setup';
 
 export type AuthStackParamList = {
   Authentication:
@@ -11,17 +14,25 @@ export type AuthStackParamList = {
         enrollmentError?: string;
       }
     | undefined;
-  Role: {
-    fullName: string;
+  Otp: {
     email: string;
-    phone: string;
-    password: string;
-    enrollmentId: string;
+    code?: string;
+    mode?: 'verify' | 'login' | 'reset';
+    purpose?: PasswordFlowPurpose;
   };
-  Otp: { email: string; code?: string; mode?: 'verify' | 'login' | 'reset' };
-  ForgotPassword: undefined;
-  ResetPassword: { email: string; code: string };
+  ForgotPassword: { email?: string; purpose?: PasswordFlowPurpose } | undefined;
+  ResetPassword: { email: string; code: string; purpose?: PasswordFlowPurpose };
+  Help: undefined;
+  ContactUs: ContactUsParams;
 };
+
+export type ContactUsParams =
+  | {
+      email?: string;
+      subject?: string;
+      message?: string;
+    }
+  | undefined;
 
 export type AppTabParamList = {
   Home: undefined;
@@ -40,10 +51,9 @@ export type AppStackParamList = {
 
   OnboardingWelcome: undefined;
   OnboardingChecklist: undefined;
-  OnboardingProgramInfo: undefined;
   Notifications: undefined;
   Account: undefined;
-  Reports: { farmId?: string } | undefined;
+  Reports: { programId?: string } | undefined;
   Profile: undefined;
   EditProfile: undefined;
   ChangePassword: undefined;
@@ -69,40 +79,45 @@ export type AppStackParamList = {
     fieldName?: string;
   };
   AssessmentReview: { programId: string; fieldId: string; locked?: boolean };
+  FarmerComparison: { programId: string; fieldId: string; fieldName?: string };
   FarmerVisitTracking: { visitId?: string } | undefined;
   Help: undefined;
+  ContactUs: ContactUsParams;
   FieldMap: { focusFarmId?: string } | undefined;
   PolygonDebugScreen: undefined;
 
-  BoundaryEditor: { farmId: string; fieldId: string; fieldName?: string };
+  BoundaryEditor: {
+    farmId: string;
+    fieldId?: string;
+    fieldName?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    initialRing?: readonly LatLng[];
+    maxAcres?: number | null;
+    onSave?: (ring: readonly LatLng[] | null) => void;
+  };
   SimpleMap: undefined;
   AndroidLines: undefined;
 
   MonitoringModule: {
-    programId: string;
     fieldId: string;
     module: ModuleKey;
     farmId?: string;
     fieldName?: string;
-    programName?: string;
   };
   MonitoringRecord: {
-    programId: string;
     fieldId: string;
     module: ModuleKey;
     recordId: string;
     farmId?: string;
     fieldName?: string;
-    programName?: string;
   };
   MonitoringRecordForm: {
-    programId: string;
     fieldId: string;
     module: ModuleKey;
     recordId?: string;
     farmId?: string;
     fieldName?: string;
-    programName?: string;
   };
 };
 
@@ -134,6 +149,8 @@ export type AssessorStackParamList = {
   AssessorFarmerAssessment: { programId: string; fieldId: string; fieldName?: string };
   AssessorComparison: { programId: string; fieldId: string; fieldName?: string };
   AssessorVisit: { visitId?: string } | undefined;
+  Help: undefined;
+  ContactUs: ContactUsParams;
   Notifications: undefined;
   Account: undefined;
   Profile: undefined;

@@ -5,7 +5,8 @@ import {
   View,
 } from 'react-native';
 import { COLORS, borderRadius, borderWidth, presets, shadows, spacing } from '../../constants';
-import { formatNumber, scale } from '../../utils';
+import { scale } from '../../utils';
+import { formatAcres } from '../../maps/utils/fieldAcres';
 import { AppText } from '..';
 import type { Field } from '../../types/farm';
 
@@ -39,7 +40,7 @@ const FieldChips = memo(
               onPress={() => onSelect(field.id)}
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}
-              accessibilityLabel={`${field.name}, ${formatNumber(field.areaAcres)} acres`}
+              accessibilityLabel={`${field.name}, ${formatAcres(field.areaAcres)} acres`}
               hitSlop={styles.hitSlop}
               style={({ pressed }) => [
                 styles.chip,
@@ -57,7 +58,7 @@ const FieldChips = memo(
                   {field.name}
                 </AppText>
                 <AppText style={styles.acres}>
-                  {formatNumber(field.areaAcres)} ac
+                  {formatAcres(field.areaAcres)} ac
                 </AppText>
               </View>
             </Pressable>

@@ -13,7 +13,6 @@ import type {
   RecordPayload,
 } from '../types/monitoring';
 
-
 export type FormValue = string | boolean | null;
 
 export type FormValues = Record<string, FormValue>;
@@ -65,7 +64,6 @@ export const numberToText = (n: number): string => {
 
 export const hasValue = (value: MonitoringValue | undefined): boolean =>
   value !== null && value !== undefined && value !== '';
-
 
 const optionLabel = (def: MonitoringFieldDef, raw: string): string =>
   def.options?.find(o => o.value === raw)?.label ?? raw;
@@ -167,7 +165,6 @@ export const recordCoords = (
 export const formatCoords = (latitude: number, longitude: number): string =>
   `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 
-
 export const emptyForm = (module: ModuleKey): FormValues => {
   const values: FormValues = {};
   for (const field of moduleDef(module).fields) {
@@ -224,7 +221,6 @@ export const sanitizeNumberInput = (def: MonitoringFieldDef, text: string): stri
   return negative ? `-${digits}` : digits;
 };
 
-
 const nameOf = (def: MonitoringFieldDef): string => def.errorLabel ?? def.label;
 
 const decimalsOf = (text: string): number => {
@@ -253,9 +249,8 @@ const validateField = (
 
   if (def.type === 'text' || def.type === 'select') {
     if (def.strictEnum && def.options && !def.options.some(o => o.value === text)) {
-      return def.key === 'crop_type'
-        ? 'Crop type must be cash, cover or forage.'
-        : `${nameOf(def)} is not one of the accepted values.`;
+      const allowed = def.options.map(o => o.label).join(', ');
+      return `${nameOf(def)} must be one of: ${allowed}.`;
     }
     if (def.maxLength && text.length > def.maxLength) {
       return `${nameOf(def)} is too long (limit ${def.maxLength}).`;
@@ -339,7 +334,6 @@ export const validateSingleField = (
   const def = moduleDef(module).fields.find(f => f.key === key);
   return def ? validateField(def, values) : undefined;
 };
-
 
 export const buildPayload = (
   module: ModuleKey,

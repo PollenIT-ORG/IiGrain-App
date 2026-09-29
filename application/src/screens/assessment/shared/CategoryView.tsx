@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { BackHandler, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { AppIcon, ICONS } from '../../../components/AppIcon';
 import { AppHeader, AppText, Button } from '../../../components';
@@ -12,15 +12,25 @@ import {
 } from '../../../components/Shimmer';
 import { COLORS, borderRadius, spacing } from '../../../constants';
 import { moderateScale, scale } from '../../../utils';
+import { showSuccess, showToast } from '../../../services/toastService';
 import AssessmentLockedModal from '../../../components/assessment/AssessmentLockedModal';
 import CategorySummaryCard from '../../../components/assessment/CategorySummaryCard';
 import QuestionCard from '../../../components/assessment/QuestionCard';
 import SectionHeader from '../../../components/assessment/SectionHeader';
-import type { AssessmentQuestion } from '../../../types/assessment';
+import CategoryFormView from './CategoryFormView';
+import CategoryRecordsView from './CategoryRecordsView';
+import { questionsForRecord } from '../../../utils/recordAnswers';
+import type { AssessmentQuestion, SaveFormAnswerInput } from '../../../types/assessment';
 import { toCategoryHeaderModel, toQuestionCardItem } from '../assessmentPresenter';
 import { styles } from '../AssessmentCategoryScreenStyle';
 import { useAssessmentFlow } from './useAssessmentFlow';
-import type { AssessmentRole, FlowNavigation } from './flowTypes';
+import type {
+  AssessmentRole,
+  FlowNavigation,
+  SaveCategoryAnswersResult,
+} from './flowTypes';
+
+const MAX_RECORDS = 50;
 
 export interface CategoryViewProps {
   role: AssessmentRole;
@@ -42,12 +52,21 @@ const CategoryView: React.FC<CategoryViewProps> = ({ role, params, navigation })
     access,
     submitted,
     summary,
-    categoryList: list,
-    questions,
-    loadingQuestions: loading,
+    categoryForm: form,
+    loadingCategoryForm: loading,
+    savingCategoryForm,
     error,
-    loadCategoryQuestions,
+    loadedSummaryScope,
+    loadSummary,
+    loadCategoryForm,
+    addCategoryRecord,
+    saveCategoryRecord,
+    deleteCategoryRecord,
   } = flow;
+
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -60,11 +79,11 @@ const CategoryView: React.FC<CategoryViewProps> = ({ role, params, navigation })
     }
   }, [gated]);
 
-  const ready = !!list && list.category.id === categoryId;
+  const ready = !!form && form.category.id === categoryId;
 
   const load = useCallback(() => {
-    loadCategoryQuestions({ programId, fieldId, categoryId });
-  }, [loadCategoryQuestions, programId, fieldId, categoryId]);
+    loadCategoryForm({ programId, fieldId, categoryId });
+  }, [loadCategoryForm, programId, fieldId, categoryId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -74,20 +93,145 @@ const CategoryView: React.FC<CategoryViewProps> = ({ role, params, navigation })
     }, [ready, load]),
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      if (loadedSummaryScope !== `${programId}:${fieldId}`) {
+        loadSummary({ programId, fieldId });
+      }
+    }, [loadSummary, loadedSummaryScope, programId, fieldId]),
+  );
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadCategoryQuestions({ programId, fieldId, categoryId });
+    await loadCategoryForm({ programId, fieldId, categoryId });
     setRefreshing(false);
-  }, [loadCategoryQuestions, programId, fieldId, categoryId]);
+  }, [loadCategoryForm, programId, fieldId, categoryId]);
 
   const header = useMemo(
-    () => (ready && list ? toCategoryHeaderModel(list) : null),
-    [ready, list],
+    () => (ready && form ? toCategoryHeaderModel(form) : null),
+    [ready, form],
   );
   const questionCards = useMemo(
-    () => questions.map((q, i) => toQuestionCardItem(q, i + 1, categoryId)),
-    [questions, categoryId],
+    () =>
+      ready && form ? form.questions.map((q, i) => toQuestionCardItem(q, i + 1, categoryId)) : [],
+    [ready, form, categoryId],
   );
+  const summaryKind = summary?.assessment.questionKind;
+  const kind = ready && form ? form.questionKind ?? summaryKind ?? 'mcq' : 'mcq';
+
+  const records = useMemo(() => (ready && form ? form.records : []), [ready, form]);
+  const editingRecord = useMemo(
+    () => (editingRecordId ? records.find(r => r.id === editingRecordId) ?? null : null),
+    [records, editingRecordId],
+  );
+  const recordQuestions = useMemo(
+    () => (form ? questionsForRecord(form.questions, editingRecord) : []),
+    [form, editingRecord],
+  );
+
+  const reportSaveProblem = useCallback((result: SaveCategoryAnswersResult) => {
+    if (result.closed) {
+      showToast(
+        "This program's assessment is not open yet. It opens once the program office locks the survey.",
+        { type: 'error' },
+      );
+      return;
+    }
+    showToast(result.message ?? 'Could not save this form. Please try again.', {
+      type: 'error',
+    });
+  }, []);
+
+  const openRecord = useCallback(
+    (recordId: string | null) => {
+      if (recordId === null && records.length >= MAX_RECORDS) {
+        showToast(`You can add up to ${MAX_RECORDS} entries here.`, { type: 'error' });
+        return;
+      }
+      setEditingRecordId(recordId);
+      setFormOpen(true);
+    },
+    [records.length],
+  );
+
+  const closeForm = useCallback(() => {
+    setFormOpen(false);
+    setEditingRecordId(null);
+  }, []);
+
+  const handleSaveForm = useCallback(
+    async (answers: SaveFormAnswerInput[]) => {
+      const result = editingRecordId
+        ? await saveCategoryRecord({
+            programId,
+            fieldId,
+            categoryId,
+            recordId: editingRecordId,
+            answers,
+          })
+        : await addCategoryRecord({ programId, fieldId, categoryId, answers });
+      if (!result.ok) {
+        reportSaveProblem(result);
+      }
+      return result.ok;
+    },
+    [
+      addCategoryRecord,
+      saveCategoryRecord,
+      editingRecordId,
+      programId,
+      fieldId,
+      categoryId,
+      reportSaveProblem,
+    ],
+  );
+
+  const handleDeleteRecord = useCallback(
+    async (recordId: string) => {
+      setDeletingId(recordId);
+      const result = await deleteCategoryRecord({ programId, fieldId, categoryId, recordId });
+      setDeletingId(null);
+      if (result.ok) {
+        showSuccess('Entry removed');
+        return;
+      }
+      reportSaveProblem(result);
+    },
+    [deleteCategoryRecord, programId, fieldId, categoryId, reportSaveProblem],
+  );
+
+  const handleFormDone = useCallback(() => {
+    closeForm();
+  }, [closeForm]);
+
+  const headerTitle = useMemo(() => {
+    if (!formOpen) {
+      return categoryName;
+    }
+    return editingRecord ? `Entry ${editingRecord.number}` : 'New entry';
+  }, [formOpen, editingRecord, categoryName]);
+
+  const handleBack = useCallback(() => {
+    if (formOpen) {
+      closeForm();
+      return;
+    }
+    navigation.goBack();
+  }, [formOpen, closeForm, navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!formOpen) {
+        return undefined;
+      }
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        closeForm();
+        return true;
+      });
+      return () => sub.remove();
+    }, [formOpen, closeForm]),
+  );
+
 
   const openQuestion = useCallback(
     (question: AssessmentQuestion) => {
@@ -152,10 +296,13 @@ const CategoryView: React.FC<CategoryViewProps> = ({ role, params, navigation })
           <View style={gateStyles.badge}>
             <AppIcon name={ICONS.LOCK} size={moderateScale(30)} color={COLORS.accent} />
           </View>
-          <AppText style={styles.stateTitle}>Assessment locked</AppText>
+          <AppText style={styles.stateTitle}>
+            {access.state === 'program_not_open' ? 'Opens soon' : 'Assessment locked'}
+          </AppText>
           <AppText style={styles.stateMessage}>
-            You can score {summary?.field.name ?? 'this field'} once you are on it
-            and the visit is marked as arrived.
+            {access.state === 'program_not_open'
+              ? "This assessment opens once the program office locks the survey — you'll be notified."
+              : `You can score ${summary?.field.name ?? 'this field'} once you are on it and the visit is marked as arrived.`}
           </AppText>
           <Button
             title="What do I need to do?"
@@ -182,8 +329,35 @@ const CategoryView: React.FC<CategoryViewProps> = ({ role, params, navigation })
       );
     }
 
-    if (!header) {
+    if (!header || !form) {
       return renderLoading();
+    }
+
+    if (kind === 'input') {
+      if (!formOpen) {
+        return (
+          <CategoryRecordsView
+            categoryName={header.category.title}
+            questions={form.questions}
+            records={records}
+            locked={submitted}
+            busy={savingCategoryForm || deletingId !== null}
+            onOpen={openRecord}
+            onDelete={handleDeleteRecord}
+          />
+        );
+      }
+      return (
+        <CategoryFormView
+          key={editingRecordId ?? 'new'}
+          categoryName={header.category.title}
+          questions={recordQuestions}
+          locked={submitted}
+          saving={savingCategoryForm}
+          onSave={handleSaveForm}
+          onDone={handleFormDone}
+        />
+      );
     }
 
     return (
@@ -218,7 +392,7 @@ const CategoryView: React.FC<CategoryViewProps> = ({ role, params, navigation })
 
   return (
     <View style={styles.safe}>
-      <AppHeader variant="back" title={categoryName} onBack={() => navigation.goBack()} />
+      <AppHeader variant="back" title={headerTitle} onBack={handleBack} />
       {renderBody()}
 
       {access.state !== 'open' ? (

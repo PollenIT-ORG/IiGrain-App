@@ -13,6 +13,7 @@ import FieldSelectSheet, {
   type FieldSheetEmptyState,
   type SelectableField,
 } from '../../components/enroll/FieldSelectSheet';
+import EnrollmentIdPass, { copyEnrollmentId } from '../../components/enroll/EnrollmentIdPass';
 import { EmptyState } from '../../components/farms';
 import {
   AppShimmer,
@@ -47,11 +48,7 @@ import {
   selectFieldsError,
   selectProgramsError,
 } from '../../redux/slices/enrollmentSlice';
-import {
-  selectDashboardFarms,
-  selectDashboardFarmsLoaded,
-} from '../../redux/slices/dashboardSlice';
-import { selectFarms, selectFarmsMeta } from '../../redux/slices/farmSlice';
+import { fetchFarmsThunk, selectFarms, selectFarmsMeta } from '../../redux/slices/farmSlice';
 import { showSuccess, showToast } from '../../services/toastService';
 import { discardAssessmentThunk } from '../../redux/slices/assessmentSlice';
 import type { TabScreenProps } from '../../navigation/navigationTypes';
@@ -77,6 +74,9 @@ const ENROLL_TTL_MS = 5 * 60 * 1000;
 
 const canActOn = (p: AvailableProgram): boolean => p.canEnroll || p.alreadyEnrolled;
 
+const COPY_ID_ACTION = 'copyEnrollmentId';
+const COPY_ID_ACTIONS = [{ name: COPY_ID_ACTION, label: 'Copy Enrollment ID' }];
+
 const SURVEY_FALLBACK =
   "Please complete this program's survey first. You can enroll once your Enrollment ID for it has been issued.";
 
@@ -96,8 +96,6 @@ const EnrollNowScreen: React.FC<TabScreenProps<'EnrollNow'>> = ({ navigation }) 
   const fieldsError = useAppSelector(selectFieldsError);
   const programsLoaded = useAppSelector(selectProgramsLoaded);
   const fieldsLoaded = useAppSelector(selectEnrollableFieldsLoaded);
-  const dashboardFarms = useAppSelector(selectDashboardFarms);
-  const dashboardFarmsLoaded = useAppSelector(selectDashboardFarmsLoaded);
   const farms = useAppSelector(selectFarms);
   const farmsMeta = useAppSelector(selectFarmsMeta);
 
@@ -119,6 +117,7 @@ const EnrollNowScreen: React.FC<TabScreenProps<'EnrollNow'>> = ({ navigation }) 
     () => dispatch(fetchEnrollableFieldsThunk()),
     [dispatch],
   );
+  const loadFarms = useCallback(() => dispatch(fetchFarmsThunk({ page: 1 })), [dispatch]);
 
   useSyncedFetch({
     tags: [Tags.programs],
@@ -130,6 +129,13 @@ const EnrollNowScreen: React.FC<TabScreenProps<'EnrollNow'>> = ({ navigation }) 
     tags: [Tags.enrollableFields],
     run: loadFields,
     hasData: fieldsLoaded,
+    ttlMs: ENROLL_TTL_MS,
+    enabled: sheetOpen,
+  });
+  useSyncedFetch({
+    tags: [Tags.farms],
+    run: loadFarms,
+    hasData: farmsMeta !== null,
     ttlMs: ENROLL_TTL_MS,
     enabled: sheetOpen,
   });
@@ -203,8 +209,7 @@ const EnrollNowScreen: React.FC<TabScreenProps<'EnrollNow'>> = ({ navigation }) 
   }, []);
 
   const sheetEmptyState = useMemo<FieldSheetEmptyState>(() => {
-    const farmCount = Math.max(dashboardFarms.length, farms.length);
-    if (farmCount > 0) {
+    if (farms.length > 0) {
       return {
         icon: ICONS.FIELD,
         title: 'No fields to enroll',
@@ -214,7 +219,7 @@ const EnrollNowScreen: React.FC<TabScreenProps<'EnrollNow'>> = ({ navigation }) 
         onAction: goToFarms,
       };
     }
-    if (dashboardFarmsLoaded || farmsMeta !== null) {
+    if (farmsMeta !== null) {
       return {
         icon: ICONS.FARM,
         title: 'No farms yet',
@@ -232,7 +237,7 @@ const EnrollNowScreen: React.FC<TabScreenProps<'EnrollNow'>> = ({ navigation }) 
       actionLabel: 'Go to Farms',
       onAction: goToFarms,
     };
-  }, [dashboardFarms.length, dashboardFarmsLoaded, farms.length, farmsMeta, goToFarms]);
+  }, [farms.length, farmsMeta, goToFarms]);
 
   const onEnroll = useCallback(async () => {
     if (!selectedProgramId || newFieldIds.length === 0) {
@@ -440,6 +445,7 @@ const EnrollNowScreen: React.FC<TabScreenProps<'EnrollNow'>> = ({ navigation }) 
     const blocked = p.isFull && !p.alreadyEnrolled;
     const ownFields = p.fields ?? [];
     const openCount = ownFields.filter(f => !f.enrolled).length;
+    const enrollmentId = p.enrollmentId;
 
     return (
       <TouchableOpacity
@@ -448,7 +454,15 @@ const EnrollNowScreen: React.FC<TabScreenProps<'EnrollNow'>> = ({ navigation }) 
         disabled={blocked}
         onPress={() => openSheetFor(p.id)}
         accessibilityRole="button"
-        accessibilityLabel={`${p.name}. Choose fields to enroll.`}
+        accessibilityLabel={`${p.name}.${
+          enrollmentId ? ` Enrollment ID ${enrollmentId}.` : ''
+        } Choose fields to enroll.`}
+        accessibilityActions={enrollmentId ? COPY_ID_ACTIONS : undefined}
+        onAccessibilityAction={event => {
+          if (enrollmentId && event.nativeEvent.actionName === COPY_ID_ACTION) {
+            copyEnrollmentId(enrollmentId);
+          }
+        }}
         style={[styles.card, selected && styles.cardSelected, blocked && styles.cardDisabled]}>
         {renderProgramHead(
           p,
@@ -467,16 +481,23 @@ const EnrollNowScreen: React.FC<TabScreenProps<'EnrollNow'>> = ({ navigation }) 
 
         {renderMeta(p)}
 
-        {!blocked ? (
+        {!blocked || enrollmentId ? (
           <View style={styles.cta}>
-            <AppIcon name={ICONS.FIELD} size={moderateScale(15)} color={COLORS.primary} />
-            <AppText style={styles.ctaText}>
-              {ownFields.length === 0
-                ? 'Choose fields'
-                : openCount === 0
-                ? 'All fields enrolled'
-                : `${openCount} field${openCount === 1 ? '' : 's'} available`}
-            </AppText>
+            {!blocked ? (
+              <>
+                <AppIcon name={ICONS.FIELD} size={moderateScale(15)} color={COLORS.primary} />
+                <AppText style={styles.ctaText} numberOfLines={1}>
+                  {ownFields.length === 0
+                    ? 'Choose fields'
+                    : openCount === 0
+                    ? 'All fields enrolled'
+                    : `${openCount} field${openCount === 1 ? '' : 's'} available`}
+                </AppText>
+              </>
+            ) : (
+              <View style={styles.flex} />
+            )}
+            {enrollmentId ? <EnrollmentIdPass enrollmentId={enrollmentId} /> : null}
           </View>
         ) : null}
       </TouchableOpacity>
@@ -795,7 +816,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing[2.5],
     marginTop: spacing[1],
   },
-  ctaText: { ...presets.labelSM, color: COLORS.primary, flexShrink: 1 },
+  ctaText: { ...presets.labelSM, color: COLORS.primary, flex: 1 },
   ctaApplyText: { color: COLORS.validation },
   ctaMuted: { color: COLORS.gray600 },
 });

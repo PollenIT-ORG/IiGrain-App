@@ -57,6 +57,7 @@ import {
   recordTitle,
   summaryLine,
 } from '../../utils/monitoringValues';
+import { deleteDocumentFailure } from '../../utils/monitoringErrors';
 import { useBoundaryPersistence } from '../../maps/boundary';
 import { selectFields } from '../../redux/slices/fieldSlice';
 import type { DocumentKind, MonitoringRecord, UploadFile } from '../../types/monitoring';
@@ -92,14 +93,14 @@ const MonitoringModuleScreen: React.FC<AppScreenProps<'MonitoringModule'>> = ({
   route,
   navigation,
 }) => {
-  const { programId, fieldId, module, farmId, fieldName, programName } = route.params;
+  const { fieldId, module, farmId, fieldName } = route.params;
   const dispatch = useAppDispatch();
   const insets = useSafeAreaInsets();
   const def = moduleDef(module);
 
   React.useEffect(() => {
-    dispatch(setMonitoringScope({ programId, fieldId }));
-  }, [dispatch, programId, fieldId]);
+    dispatch(setMonitoringScope({ fieldId }));
+  }, [dispatch, fieldId]);
 
   const context = useAppSelector(selectMonitoringContext);
   const records = useAppSelector(state => selectModuleRecords(state, module));
@@ -115,14 +116,14 @@ const MonitoringModuleScreen: React.FC<AppScreenProps<'MonitoringModule'>> = ({
   const deletingDocId = useAppSelector(selectDeletingDocumentId);
 
   const loadRecords = useCallback(() => {
-    dispatch(fetchModuleRecordsThunk({ programId, fieldId, module }));
-  }, [dispatch, programId, fieldId, module]);
+    dispatch(fetchModuleRecordsThunk({ fieldId, module }));
+  }, [dispatch, fieldId, module]);
 
   const loadDocuments = useCallback(() => {
-    dispatch(fetchDocumentsThunk({ programId, fieldId, module }));
-  }, [dispatch, programId, fieldId, module]);
+    dispatch(fetchDocumentsThunk({ fieldId, module }));
+  }, [dispatch, fieldId, module]);
 
-  const moduleTag = Tags.monitoringModule(programId, fieldId, module);
+  const moduleTag = Tags.monitoringModule(fieldId, module);
 
   useSyncedFetch({
     tags: [moduleTag],
@@ -181,6 +182,11 @@ const MonitoringModuleScreen: React.FC<AppScreenProps<'MonitoringModule'>> = ({
   }, [showsMap, list, module, def.presence]);
   const showSearch = list.length >= SEARCH_FROM;
 
+  const completedCount = useMemo(
+    () => list.filter(record => record.status === 'completed').length,
+    [list],
+  );
+
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle || !showSearch) {
@@ -197,16 +203,14 @@ const MonitoringModuleScreen: React.FC<AppScreenProps<'MonitoringModule'>> = ({
   const openRecord = useCallback(
     (record: MonitoringRecord) => {
       navigation.navigate('MonitoringRecord', {
-        programId,
         fieldId,
         module,
         recordId: record.id,
         farmId,
         fieldName,
-        programName,
       });
     },
-    [navigation, programId, fieldId, module, farmId, fieldName, programName],
+    [navigation, fieldId, module, farmId, fieldName],
   );
 
   const openRecordById = useCallback(
@@ -221,19 +225,17 @@ const MonitoringModuleScreen: React.FC<AppScreenProps<'MonitoringModule'>> = ({
 
   const addRecord = useCallback(() => {
     navigation.navigate('MonitoringRecordForm', {
-      programId,
       fieldId,
       module,
       farmId,
       fieldName,
-      programName,
     });
-  }, [navigation, programId, fieldId, module, farmId, fieldName, programName]);
+  }, [navigation, fieldId, module, farmId, fieldName]);
 
   const handleUpload = useCallback(
     async (file: UploadFile, kind: DocumentKind) => {
       const action = await dispatch(
-        uploadDocumentThunk({ programId, fieldId, module, kind, file }),
+        uploadDocumentThunk({ fieldId, module, kind, file }),
       );
       if (uploadDocumentThunk.fulfilled.match(action)) {
         showSuccess('File attached');
@@ -243,23 +245,23 @@ const MonitoringModuleScreen: React.FC<AppScreenProps<'MonitoringModule'>> = ({
         });
       }
     },
-    [dispatch, programId, fieldId, module],
+    [dispatch, fieldId, module],
   );
 
   const handleDeleteDocument = useCallback(
     async (documentId: string) => {
       const action = await dispatch(
-        deleteDocumentThunk({ programId, fieldId, documentId, module }),
+        deleteDocumentThunk({ fieldId, documentId, module }),
       );
       if (deleteDocumentThunk.fulfilled.match(action)) {
         showSuccess('File removed');
+      } else if (action.payload?.status === 404) {
+        showSuccess('File removed');
       } else {
-        showToast(action.payload?.message ?? 'Could not remove that file.', {
-          type: 'error',
-        });
+        showToast(deleteDocumentFailure(action.payload), { type: 'error' });
       }
     },
-    [dispatch, programId, fieldId, module],
+    [dispatch, fieldId, module],
   );
 
   const refresh = useCallback(() => {
@@ -272,7 +274,9 @@ const MonitoringModuleScreen: React.FC<AppScreenProps<'MonitoringModule'>> = ({
       <MonitoringContextCard
         title={context?.fieldName || fieldName || 'Field'}
         subtitle={context?.farmName}
-        caption={context?.programName || programName}
+        caption={`${list.length} ${list.length === 1 ? 'record' : 'records'}`}
+        captionIcon="clipboard-text-outline"
+        meta={list.length > 0 ? `${completedCount} completed` : undefined}
         icon={def.icon}
       />
 
@@ -367,7 +371,7 @@ const MonitoringModuleScreen: React.FC<AppScreenProps<'MonitoringModule'>> = ({
         data={filtered}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
-          <RecordRow module={module} record={item} onPress={() => openRecord(item)} />
+          <RecordRow module={module} record={item} onPress={openRecord} />
         )}
         ListHeaderComponent={header}
         ListEmptyComponent={empty()}
@@ -395,13 +399,10 @@ const MonitoringModuleScreen: React.FC<AppScreenProps<'MonitoringModule'>> = ({
         accessibilityRole="button"
         accessibilityLabel={def.addLabel}
         style={[styles.fab, { bottom: insets.bottom + spacing[4] }]}>
-        <AppGradient
-          variant="fab"
-          borderRadius={borderRadius.full}
-          style={StyleSheet.absoluteFill}
-        />
-        <AppIcon name={ICONS.PLUS} size={moderateScale(20)} color={COLORS.white} />
-        <AppText style={styles.fabText}>{def.addLabel}</AppText>
+        <AppGradient variant="fab" style={styles.fabInner}>
+          <AppIcon name={ICONS.PLUS} size={moderateScale(20)} color={COLORS.white} />
+          <AppText style={styles.fabText}>{def.addLabel}</AppText>
+        </AppGradient>
       </TouchableOpacity>
 
       <AttachmentPickerSheet
@@ -497,6 +498,10 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: spacing[4],
+    borderRadius: borderRadius.full,
+    ...shadows.lg,
+  },
+  fabInner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[2],
@@ -504,9 +509,7 @@ const styles = StyleSheet.create({
     paddingRight: spacing[5],
     paddingVertical: spacing[3.5],
     borderRadius: borderRadius.full,
-    backgroundColor: COLORS.primary,
     overflow: 'hidden',
-    ...shadows.lg,
   },
   fabText: {
     ...presets.buttonSM,

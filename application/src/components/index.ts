@@ -20,6 +20,9 @@ export type {
 export { default as AuthHeader } from './AuthHeader/AuthHeader';
 export type { AuthHeaderProps } from './AuthHeader/AuthHeader';
 
+export { AuthStepBar } from './auth';
+export type { AuthStepBarProps } from './auth';
+
 export { default as AuthSwitcher } from './AuthSwitcher/AuthSwitcher';
 export type { AuthMode, AuthSwitcherProps } from './AuthSwitcher/AuthSwitcher';
 
@@ -71,6 +74,9 @@ export type { AppStatusBarProps } from './AppStatusBar/AppStatusBar';
 
 export { default as AppGradient } from './AppGradient/AppGradient';
 export type { AppGradientProps } from './AppGradient/AppGradient';
+
+export { default as AppProgressBar } from './AppProgressBar/AppProgressBar';
+export type { AppProgressBarProps } from './AppProgressBar/AppProgressBar';
 
 export { default as BrandLoader } from './BrandLoader/BrandLoader';
 export type { BrandLoaderProps } from './BrandLoader/BrandLoader';

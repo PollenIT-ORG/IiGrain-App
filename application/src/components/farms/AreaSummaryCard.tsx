@@ -9,7 +9,8 @@ import {
   shadows,
   spacing,
 } from '../../constants';
-import { formatNumber, moderateScale, scale } from '../../utils';
+import { moderateScale, scale } from '../../utils';
+import { formatAcres } from '../../maps/utils/fieldAcres';
 import AppText from '../AppText/AppText';
 import AppGradient from '../AppGradient/AppGradient';
 
@@ -40,8 +41,12 @@ const LegendStat: React.FC<LegendStatProps> = ({ label, value, color }) => (
   <View style={styles.stat} accessible accessibilityLabel={`${label}: ${value} acres`}>
     <View style={styles.statTop}>
       <View style={[styles.dot, { backgroundColor: color }]} />
-      <AppText style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
-        {formatNumber(value)}
+      <AppText
+        style={styles.statValue}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}>
+        {formatAcres(value)}
       </AppText>
     </View>
     <AppText style={styles.statLabel} numberOfLines={2}>
@@ -107,7 +112,7 @@ const AreaSummaryCard: React.FC<AreaSummaryCardProps> = ({ total, used, availabl
           </View>
 
           <AppText style={styles.caption}>
-            {formatNumber(used)} of {formatNumber(total)} acres reported
+            {formatAcres(used)} of {formatAcres(total)} acres reported
           </AppText>
 
           <View style={styles.legendRow}>

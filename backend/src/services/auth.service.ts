@@ -17,6 +17,7 @@ import {
   createUser,
   markLoggedIn,
   updatePassword,
+  clearMustChangePassword,
   type UserWithRole,
 } from "../models/user.model.js";
 import { createOtp, findActiveOtp, consumeOtp } from "../models/otp.model.js";
@@ -121,6 +122,8 @@ export async function checkEmailAvailability(
  */
 export interface EnrollmentLookup {
   enrollmentId: string;
+  /** Sent in full: a name is not a channel someone can be reached on. */
+  fullName: string | null;
   maskedEmail: string;
   maskedPhone: string | null;
   programName: string | null;
@@ -138,6 +141,7 @@ export async function lookupEnrollmentId(
   }
   return {
     enrollmentId: holder.enrollmentId,
+    fullName: holder.fullName,
     maskedEmail: maskEmail(holder.email),
     maskedPhone: maskPhone(holder.phone),
     programName: holder.programName,
@@ -236,9 +240,12 @@ export async function loginWithPassword(
     return fail("invalid_password");
   }
 
+  // Both refusals are a 403, so the code is what tells them apart: a switched
+  // off account needs the contact form, an unverified one needs a new code.
   const blocked = async (
     reason: string,
-    message: string
+    message: string,
+    code: string
   ): Promise<never> => {
     await recordLogin({
       userId: user.id,
@@ -249,20 +256,32 @@ export async function loginWithPassword(
       userAgent: ctx.userAgent,
       reason,
     });
-    throw ApiError.forbidden(message);
+    throw ApiError.forbidden(message, code);
   };
 
   if (!user.is_active) {
     return blocked(
       "account_inactive",
-      "Your account is inactive. Please contact an administrator to reactivate it."
+      "Your account is inactive. Please contact an administrator to reactivate it.",
+      "ACCOUNT_INACTIVE"
     );
   }
 
   if (!user.is_email_verified) {
     return blocked(
       "email_not_verified",
-      "Your email is not verified yet. Request a verification code to continue."
+      "Your email is not verified yet. Request a verification code to continue.",
+      "EMAIL_NOT_VERIFIED"
+    );
+  }
+
+  // A password somebody else chose never becomes a session. No token is issued
+  // until the owner sets their own through the reset flow, which needs none.
+  if (user.must_change_password) {
+    return blocked(
+      "must_change_password",
+      "This is a temporary password. Set your own password to continue.",
+      "PASSWORD_CHANGE_REQUIRED"
     );
   }
 
@@ -289,7 +308,8 @@ export async function requestOtp(email: string): Promise<string> {
   }
   if (!user.is_active) {
     throw ApiError.forbidden(
-      "Your account is inactive. Please contact an administrator to reactivate it."
+      "Your account is inactive. Please contact an administrator to reactivate it.",
+      "ACCOUNT_INACTIVE"
     );
   }
 
@@ -343,7 +363,26 @@ export async function verifyOtp(
       reason: "account_inactive",
     });
     throw ApiError.forbidden(
-      "Your account is inactive. Please contact an administrator to reactivate it."
+      "Your account is inactive. Please contact an administrator to reactivate it.",
+      "ACCOUNT_INACTIVE"
+    );
+  }
+
+  // The same gate as the password path, or signing in by code would be a way
+  // around it. The code is left unconsumed so a real attempt still has one.
+  if (user.must_change_password) {
+    await recordLogin({
+      userId: user.id,
+      email: normalizedEmail,
+      method,
+      status: "failed",
+      ipAddress: ctx.ip,
+      userAgent: ctx.userAgent,
+      reason: "must_change_password",
+    });
+    throw ApiError.forbidden(
+      "Set your own password before signing in.",
+      "PASSWORD_CHANGE_REQUIRED"
     );
   }
 
@@ -372,7 +411,8 @@ export async function forgotPassword(email: string): Promise<string> {
   }
   if (!user.is_active) {
     throw ApiError.forbidden(
-      "Your account is inactive. Please contact an administrator to reactivate it."
+      "Your account is inactive. Please contact an administrator to reactivate it.",
+      "ACCOUNT_INACTIVE"
     );
   }
 
@@ -400,13 +440,16 @@ export async function resetPassword(
   }
   if (!user.is_active) {
     throw ApiError.forbidden(
-      "Your account is inactive. Please contact an administrator to reactivate it."
+      "Your account is inactive. Please contact an administrator to reactivate it.",
+      "ACCOUNT_INACTIVE"
     );
   }
 
   await consumeOtp(otp.id);
   const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
   await updatePassword(user.id, passwordHash);
+  // The owner has chosen it now, so the account opens up.
+  await clearMustChangePassword(user.id);
 
   void sendPasswordChangedEmail({ to: normalizedEmail, fullName: user.full_name });
 }
@@ -432,7 +475,8 @@ export async function verifyResetCode(
   }
   if (!user.is_active) {
     throw ApiError.forbidden(
-      "Your account is inactive. Please contact an administrator to reactivate it."
+      "Your account is inactive. Please contact an administrator to reactivate it.",
+      "ACCOUNT_INACTIVE"
     );
   }
   // Deliberately does not consume the OTP - reset-password will.

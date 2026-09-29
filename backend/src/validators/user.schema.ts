@@ -20,11 +20,12 @@ const roleField = z.enum(ROLE_VALUES, {
     "Role must be one of: farmer, assessor, program_partner, program_administrator, admin.",
 });
 
+// No password here on purpose: the server generates a temporary one and emails
+// it, so nobody in the office ever knows what another person's password is.
 export const createUserSchema = z.object({
   fullName: nameField,
   email: emailField,
   phone: phoneField,
-  password: passwordField,
   role: roleField,
   isActive: z.boolean().optional(),
 });

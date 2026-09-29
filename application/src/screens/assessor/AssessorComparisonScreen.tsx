@@ -26,7 +26,10 @@ import type { AssessorScreenProps } from '../../navigation/navigationTypes';
 import type { ComparisonQuestion } from '../../types/assessor';
 
 const diffMeta = (q: ComparisonQuestion): { text: string; color: string; icon: string } => {
-  if (q.difference === null || q.farmerScore === null || q.assessorScore === null) {
+  if (!q.farmerAnswered || !q.assessorAnswered || q.farmerScore === null || q.assessorScore === null) {
+    return { text: '—', color: COLORS.gray500, icon: 'minus' };
+  }
+  if (q.difference === null) {
     return { text: '—', color: COLORS.gray500, icon: 'minus' };
   }
   if (q.difference === 0) {
@@ -156,11 +159,11 @@ const AssessorComparisonScreen: React.FC<AssessorScreenProps<'AssessorComparison
                     <View style={styles.compareRow}>
                       <View style={styles.scoreCol}>
                         <AppText style={styles.scoreLabel}>Farmer</AppText>
-                        <ScorePill score={q.farmerScore} />
+                        <ScorePill score={q.farmerScore} answered={q.farmerAnswered} />
                       </View>
                       <View style={styles.scoreCol}>
                         <AppText style={styles.scoreLabel}>You</AppText>
-                        <ScorePill score={q.assessorScore} />
+                        <ScorePill score={q.assessorScore} answered={q.assessorAnswered} />
                       </View>
                       <View style={[styles.diffChip, { backgroundColor: addAlpha(diff.color, 0.14) }]}>
                         <AppIcon name={diff.icon} size={moderateScale(13)} color={diff.color} />

@@ -7,6 +7,11 @@ import {
 import {
   clearAssessorSubmitResult,
   fetchAssessorCategoryQuestionsThunk,
+  fetchAssessorCategoryFormThunk,
+  saveAssessorCategoryAnswersThunk,
+  addAssessorCategoryRecordThunk,
+  saveAssessorCategoryRecordThunk,
+  deleteAssessorCategoryRecordThunk,
   fetchAssessorQuestionDetailThunk,
   fetchAssessorReviewThunk,
   fetchAssessorSummaryThunk,
@@ -14,6 +19,9 @@ import {
   saveAssessorAnswerThunk,
   selectAssessorAnswerVersion,
   selectAssessorCategories,
+  selectAssessorCategoryForm,
+  selectAssessorCategoryFormLoading,
+  selectAssessorCategoryFormSaving,
   selectAssessorCategoryQuestionList,
   selectAssessorError,
   selectAssessorLoadedReviewScope,
@@ -49,6 +57,9 @@ import type {
   FlowNavigation,
   FlowQuestionScope,
   FlowSaveAnswerArg,
+  FlowSaveCategoryAnswersArg,
+  FlowRecordScope,
+  FlowSaveRecordArg,
   FlowScope,
   FlowSummaryTarget,
 } from './flowTypes';
@@ -70,6 +81,7 @@ export const useAssessorAssessmentFlow = (
   const categories = useAppSelector(selectAssessorCategories);
   const categoryList = useAppSelector(selectAssessorCategoryQuestionList);
   const questions = useAppSelector(selectAssessorQuestionList);
+  const categoryForm = useAppSelector(selectAssessorCategoryForm);
   const questionDetail = useAppSelector(selectAssessorQuestionDetail);
   const review = useAppSelector(selectAssessorReview);
   const submitResult = useAppSelector(selectAssessorSubmitResult);
@@ -80,6 +92,15 @@ export const useAssessorAssessmentFlow = (
   const visitChecked = useAppSelector(selectAssessorVisitChecked);
 
   const access = useMemo<AssessmentAccess>(() => {
+    if (summary && summary.program.assessmentOpen === false) {
+      return {
+        locked: true,
+        state: 'program_not_open',
+        resolved: true,
+        visitId: null,
+        otherFieldName: null,
+      };
+    }
     if (!activeVisit) {
       return {
         locked: true,
@@ -114,7 +135,7 @@ export const useAssessorAssessmentFlow = (
       visitId: activeVisit.id,
       otherFieldName: null,
     };
-  }, [activeVisit, fieldId, visitChecked]);
+  }, [activeVisit, fieldId, visitChecked, summary]);
 
   const loadedSummaryScope = useAppSelector(selectAssessorLoadedSummaryScope);
   const loadedReviewScope = useAppSelector(selectAssessorLoadedReviewScope);
@@ -122,6 +143,8 @@ export const useAssessorAssessmentFlow = (
 
   const loadingSummary = useAppSelector(selectAssessorSummaryLoading);
   const loadingQuestions = useAppSelector(selectAssessorQuestionsLoading);
+  const loadingCategoryForm = useAppSelector(selectAssessorCategoryFormLoading);
+  const savingCategoryForm = useAppSelector(selectAssessorCategoryFormSaving);
   const loadingQuestion = useAppSelector(selectAssessorQuestionLoading);
   const loadingReview = useAppSelector(selectAssessorReviewLoading);
   const refreshing = useAppSelector(selectAssessorRefreshing);
@@ -149,6 +172,61 @@ export const useAssessorAssessmentFlow = (
     [dispatch],
   );
 
+  const loadCategoryForm = useCallback(
+    async (scope: FlowCategoryScope) => {
+      await dispatch(fetchAssessorCategoryFormThunk(scope));
+    },
+    [dispatch],
+  );
+
+  const saveCategoryAnswers = useCallback(
+    async (arg: FlowSaveCategoryAnswersArg) => {
+      const action = await dispatch(saveAssessorCategoryAnswersThunk(arg));
+      if (saveAssessorCategoryAnswersThunk.fulfilled.match(action)) {
+        return { ok: true, closed: false, message: null };
+      }
+      const closed = action.payload?.code === 'ASSESSMENT_CLOSED';
+      return { ok: false, closed, message: closed ? null : action.payload?.message ?? null };
+    },
+    [dispatch],
+  );
+
+  const addCategoryRecord = useCallback(
+    async (arg: FlowSaveCategoryAnswersArg) => {
+      const action = await dispatch(addAssessorCategoryRecordThunk(arg));
+      if (addAssessorCategoryRecordThunk.fulfilled.match(action)) {
+        return { ok: true, closed: false, message: null };
+      }
+      const closed = action.payload?.code === 'ASSESSMENT_CLOSED';
+      return { ok: false, closed, message: closed ? null : action.payload?.message ?? null };
+    },
+    [dispatch],
+  );
+
+  const saveCategoryRecord = useCallback(
+    async (arg: FlowSaveRecordArg) => {
+      const action = await dispatch(saveAssessorCategoryRecordThunk(arg));
+      if (saveAssessorCategoryRecordThunk.fulfilled.match(action)) {
+        return { ok: true, closed: false, message: null };
+      }
+      const closed = action.payload?.code === 'ASSESSMENT_CLOSED';
+      return { ok: false, closed, message: closed ? null : action.payload?.message ?? null };
+    },
+    [dispatch],
+  );
+
+  const deleteCategoryRecord = useCallback(
+    async (arg: FlowRecordScope) => {
+      const action = await dispatch(deleteAssessorCategoryRecordThunk(arg));
+      if (deleteAssessorCategoryRecordThunk.fulfilled.match(action)) {
+        return { ok: true, closed: false, message: null };
+      }
+      const closed = action.payload?.code === 'ASSESSMENT_CLOSED';
+      return { ok: false, closed, message: closed ? null : action.payload?.message ?? null };
+    },
+    [dispatch],
+  );
+
   const loadQuestionDetail = useCallback(
     (scope: FlowQuestionScope) => {
       dispatch(fetchAssessorQuestionDetailThunk(scope));
@@ -159,7 +237,17 @@ export const useAssessorAssessmentFlow = (
   const saveAnswer = useCallback(
     async (arg: FlowSaveAnswerArg) => {
       const action = await dispatch(saveAssessorAnswerThunk(arg));
-      return saveAssessorAnswerThunk.fulfilled.match(action);
+      if (saveAssessorAnswerThunk.fulfilled.match(action)) {
+        return { ok: true, conflict: false, closed: false, message: null };
+      }
+      const conflict = action.payload?.code === 'ASSESSMENT_CONFLICT';
+      const closed = action.payload?.code === 'ASSESSMENT_CLOSED';
+      return {
+        ok: false,
+        conflict,
+        closed,
+        message: conflict || closed ? null : action.payload?.message ?? null,
+      };
     },
     [dispatch],
   );
@@ -170,6 +258,8 @@ export const useAssessorAssessmentFlow = (
     },
     [dispatch],
   );
+
+  const loadFieldHistory = loadReview;
 
   const submitAssessment = useCallback(
     async (scope: FlowScope) => {
@@ -224,6 +314,7 @@ export const useAssessorAssessmentFlow = (
     categories,
     categoryList,
     questions,
+    categoryForm,
     questionDetail,
     review,
     submitResult,
@@ -239,6 +330,8 @@ export const useAssessorAssessmentFlow = (
 
     loadingSummary,
     loadingQuestions,
+    loadingCategoryForm,
+    savingCategoryForm,
     loadingQuestion,
     loadingReview,
     loadingRegenIndex: false,
@@ -250,9 +343,15 @@ export const useAssessorAssessmentFlow = (
     loadSummary,
     refreshSummary,
     loadCategoryQuestions,
+    loadCategoryForm,
+    saveCategoryAnswers,
+    addCategoryRecord,
+    saveCategoryRecord,
+    deleteCategoryRecord,
     loadQuestionDetail,
     saveAnswer,
     loadReview,
+    loadFieldHistory,
     submitAssessment,
     clearSubmitResult: clearSubmit,
     loadRegenIndex,

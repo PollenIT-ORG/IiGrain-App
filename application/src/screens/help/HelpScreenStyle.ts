@@ -66,4 +66,66 @@ export const styles = StyleSheet.create({
   rowTexts: { flex: 1, gap: spacing[0.5] },
   rowLabel: { ...presets.labelLG, color: COLORS.gray900 },
   rowHint: { ...presets.bodySM, color: COLORS.gray600 },
+
+  faqRow: {
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[4],
+    gap: spacing[2],
+  },
+  faqHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+  },
+  faqQuestion: {
+    ...presets.labelLG,
+    flex: 1,
+    color: COLORS.gray900,
+  },
+  faqQuestionOpen: {
+    color: COLORS.primary,
+  },
+  faqAnswer: {
+    ...presets.bodySM,
+    color: COLORS.gray700,
+    lineHeight: scale(20),
+  },
+  faqAnswerCollapsed: {
+    color: COLORS.gray600,
+  },
+
+  shimmerCard: {
+    padding: spacing[4],
+    gap: spacing[4],
+  },
+
+  empty: {
+    ...presets.bodySM,
+    color: COLORS.gray600,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[6],
+    textAlign: 'center',
+  },
+
+  notice: {
+    marginBottom: spacing[5],
+  },
+
+  contactCard: {
+    borderWidth: borderWidth.thin,
+    borderColor: addAlpha(COLORS.primary, 0.28),
+    backgroundColor: addAlpha(COLORS.primary, 0.06),
+    borderRadius: borderRadius.lg,
+    padding: spacing[4],
+    gap: spacing[3],
+    marginBottom: spacing[5],
+  },
+  contactTitle: {
+    ...presets.labelLG,
+    color: COLORS.gray900,
+  },
+  contactText: {
+    ...presets.bodySM,
+    color: COLORS.gray700,
+  },
 });

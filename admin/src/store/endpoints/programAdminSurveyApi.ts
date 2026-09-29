@@ -124,6 +124,8 @@ export interface Program {
   token: string;
   link: string;
   is_active: boolean;
+  // Set once the survey is locked, which opens the program's assessment to farmers.
+  locked_at: string | null;
   created_at: string;
   submission_count?: number;
 }
@@ -203,8 +205,18 @@ export interface ListSubmissionsParams {
   category?: Category;
   /** Everything one program received, whatever survey it came through. */
   programId?: string;
+  referral?: string;
+  createdFrom?: string;
+  createdTo?: string;
   search?: string;
 }
+
+// The cards count the rows the table lists, so they take the same filters
+// without the status one, which would empty every card it does not match.
+export type SubmissionStatsParams = Omit<
+  ListSubmissionsParams,
+  "page" | "limit" | "status"
+>;
 
 const BASE = "/program-admin-surveys";
 
@@ -433,6 +445,14 @@ export const programAdminSurveyApi = apiSlice.injectEndpoints({
       query: (id) => ({ url: `${BASE}/programs/${id}`, method: "DELETE" }),
       invalidatesTags: ["PasPrograms"],
     }),
+    setPasProgramLock: build.mutation<Program, { id: string; locked: boolean }>({
+      query: ({ id, locked }) => ({
+        url: `${BASE}/programs/${id}/lock`,
+        method: locked ? "POST" : "DELETE",
+      }),
+      transformResponse: (res: ApiSuccess<{ program: Program }>) => res.data.program,
+      invalidatesTags: (_r, _e, { id }) => ["PasPrograms", { type: "PasProgram", id }, "PasTemplates"],
+    }),
     sharePasProgram: build.mutation<
       { sent: number },
       { id: string; emails: string[] }
@@ -530,15 +550,16 @@ export const programAdminSurveyApi = apiSlice.injectEndpoints({
       }),
       providesTags: ["PasSubmissions"],
     }),
-    // Counts for the whole panel, or for one program's survey.
+    // Counts for the whole panel, for one program, or for whatever the
+    // submissions page is filtered to.
     pasSubmissionStats: build.query<
       Record<string, number>,
-      { programId?: string } | void
+      SubmissionStatsParams | void
     >({
       query: (arg) => ({
         url: `${BASE}/submissions/stats`,
         method: "GET",
-        params: arg?.programId ? { programId: arg.programId } : undefined,
+        params: arg ?? undefined,
       }),
       transformResponse: (res: ApiSuccess<{ stats: Record<string, number> }>) =>
         res.data.stats,
@@ -628,6 +649,7 @@ export const {
   useCreatePasProgramMutation,
   useUpdatePasProgramMutation,
   useDeletePasProgramMutation,
+  useSetPasProgramLockMutation,
   useSharePasProgramMutation,
   useListPasContractsQuery,
   useGetPasContractQuery,

@@ -33,6 +33,7 @@ export {
   MIN_AREA_SQM,
   SOFT_MAX_VERTICES,
   UNDO_LIMIT,
+  USE_OVERLAY_HANDLES,
 } from './engine/boundaryConfig';
 
 export { useBoundaryDraft, type UseBoundaryDraft } from './hooks/useBoundaryDraft';
@@ -73,6 +74,13 @@ export { default as VertexMarker } from './components/VertexMarker';
 export type { VertexMarkerProps } from './components/VertexMarker';
 export { default as MidpointHandle } from './components/MidpointHandle';
 export type { MidpointHandleProps } from './components/MidpointHandle';
+export { default as BoundaryHandleLayer } from './components/BoundaryHandleLayer';
+export type {
+  BoundaryHandleLayerProps,
+  BoundaryHandleLayerHandle,
+} from './components/BoundaryHandleLayer';
+export { default as BoundaryDrawTutorial } from './components/BoundaryDrawTutorial';
+export type { BoundaryDrawTutorialProps } from './components/BoundaryDrawTutorial';
 export { default as AreaReadout, nextAreaUnit } from './components/AreaReadout';
 export { default as BoundaryStats } from './components/BoundaryStats';
 export type { BoundaryStatsProps } from './components/BoundaryStats';

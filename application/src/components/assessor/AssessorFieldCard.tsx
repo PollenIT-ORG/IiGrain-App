@@ -13,7 +13,8 @@ import {
   shadows,
   spacing,
 } from '../../constants';
-import { addAlpha, capitalize, formatNumber, moderateScale } from '../../utils';
+import { addAlpha, capitalize, moderateScale } from '../../utils';
+import { formatAcres } from '../../maps/utils/fieldAcres';
 import type { AssessorFieldEntry } from '../../types/assessor';
 
 export type AssessorVisitPhase = 'en_route' | 'arrived';
@@ -109,7 +110,7 @@ const AssessorFieldCard: React.FC<AssessorFieldCardProps> = ({
       out.push({
         key: 'area',
         icon: ICONS.AREA,
-        label: `${formatNumber(field.areaAcres)} acres`,
+        label: `${formatAcres(field.areaAcres)} acres`,
       });
     }
     if (field.location) {

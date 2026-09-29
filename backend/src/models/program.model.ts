@@ -19,6 +19,10 @@ export interface PublicProgram {
   // Whether a survey is attached. The toggle above cannot be turned on without
   // one, so the panel needs to know.
   has_survey: boolean;
+  // The assessment the program's farmers and assessors answer, and the template it started from.
+  assessment_template_id: string;
+  assessment_template_name: string;
+  assessment_source_template_id: string | null;
   created_by: string | null;
   enrolled_count: number;
   created_at: Date;
@@ -43,6 +47,8 @@ const PROGRAM_SELECT = {
   created_by: true,
   created_at: true,
   updated_at: true,
+  assessment_template_id: true,
+  assessment_template: { select: { name: true, program_id: true, copied_from_id: true } },
   organizations: { select: { name: true } },
   _count: {
     select: {
@@ -54,7 +60,10 @@ const PROGRAM_SELECT = {
 
 type ProgramRow = Prisma.programsGetPayload<{ select: typeof PROGRAM_SELECT }>;
 
+type ProgramDb = Prisma.TransactionClient | typeof prisma;
+
 function toPublicProgram(p: ProgramRow): PublicProgram {
+  const template = p.assessment_template;
   return {
     id: p.id,
     org_id: p.org_id,
@@ -69,6 +78,11 @@ function toPublicProgram(p: ProgramRow): PublicProgram {
     is_active: p.is_active,
     show_to_farmers: p.show_to_farmers,
     has_survey: p._count.program_admin_surveys > 0,
+    assessment_template_id: p.assessment_template_id,
+    assessment_template_name: template.name,
+    // A program's own copy points back to its source, null when it started blank; a shared template is its own source.
+    assessment_source_template_id:
+      template.program_id === p.id ? template.copied_from_id : p.assessment_template_id,
     created_by: p.created_by,
     enrolled_count: p._count.program_enrollments,
     created_at: p.created_at,
@@ -87,12 +101,14 @@ export interface CreateProgramInput {
   userLimit: number | null;
   isActive: boolean;
   createdBy: string | null;
+  assessmentTemplateId: string;
 }
 
 export async function createProgram(
-  input: CreateProgramInput
+  input: CreateProgramInput,
+  db: ProgramDb = prisma
 ): Promise<PublicProgram> {
-  const row = await prisma.programs.create({
+  const row = await db.programs.create({
     data: {
       org_id: input.orgId,
       name: input.name,
@@ -104,6 +120,7 @@ export async function createProgram(
       user_limit: input.userLimit,
       is_active: input.isActive,
       created_by: input.createdBy,
+      assessment_template_id: input.assessmentTemplateId,
     },
     select: PROGRAM_SELECT,
   });
@@ -555,6 +572,8 @@ export interface AvailableProgram {
    * they can see the program and open its survey, but not enrol.
    */
   can_enroll: boolean;
+  /** The Enrollment ID this farmer holds for the program, null until one is issued. */
+  enrollment_id: string | null;
   name: string;
   code: string | null;
   description: string | null;
@@ -617,6 +636,7 @@ export async function listAvailableProgramsForFarmer(
       already_enrolled: boolean;
       survey_token: string | null;
       can_enroll: boolean;
+      enrollment_id: string | null;
       show_to_farmers: boolean;
       survey_acres: unknown;
     }>
@@ -635,29 +655,37 @@ export async function listAvailableProgramsForFarmer(
              -- Holding an Enrollment ID for this program is what allows
              -- enrolling. It lives on the accepted survey submission, or on the
              -- enrolment itself for farmers who predate the survey flow.
-             EXISTS (
-               SELECT 1
-                 FROM program_admin_survey_submissions sub
-                 JOIN website_users wu ON wu.id = sub.website_user_id
-                 JOIN users usr
-                   ON lower(usr.email) = lower(wu.email)
-                  AND usr.deleted_at IS NULL
-                 JOIN program_admin_surveys psv
-                   ON psv.id = sub.survey_id AND psv.deleted_at IS NULL
-                WHERE sub.deleted_at IS NULL
-                  AND sub.enrollment_id IS NOT NULL
-                  AND usr.id = ${farmerId}::uuid
-                  AND psv.program_id = p.id
-               UNION ALL
-               SELECT 1
-                 FROM program_enrollments pe3
-                WHERE pe3.deleted_at IS NULL
-                  AND pe3.enrollment_id IS NOT NULL
-                  AND pe3.farmer_id = ${farmerId}::uuid
-                  AND pe3.program_id = p.id
-             ) AS can_enroll,
+             eid.enrollment_id IS NOT NULL AS can_enroll,
+             eid.enrollment_id,
              sacres.total_acres AS survey_acres
         FROM programs p
+        -- The ID on the enrolment comes first as it is the one on record, then the latest survey ID.
+        LEFT JOIN LATERAL (
+          SELECT ids.enrollment_id
+            FROM (
+              SELECT pe3.enrollment_id, 0 AS pref, pe3.created_at
+                FROM program_enrollments pe3
+               WHERE pe3.deleted_at IS NULL
+                 AND pe3.enrollment_id IS NOT NULL
+                 AND pe3.farmer_id = ${farmerId}::uuid
+                 AND pe3.program_id = p.id
+              UNION ALL
+              SELECT sub.enrollment_id, 1 AS pref, sub.created_at
+                FROM program_admin_survey_submissions sub
+                JOIN website_users wu ON wu.id = sub.website_user_id
+                JOIN users usr
+                  ON lower(usr.email) = lower(wu.email)
+                 AND usr.deleted_at IS NULL
+                JOIN program_admin_surveys psv
+                  ON psv.id = sub.survey_id AND psv.deleted_at IS NULL
+               WHERE sub.deleted_at IS NULL
+                 AND sub.enrollment_id IS NOT NULL
+                 AND usr.id = ${farmerId}::uuid
+                 AND psv.program_id = p.id
+            ) ids
+           ORDER BY ids.pref, ids.created_at DESC
+           LIMIT 1
+        ) eid ON true
         LEFT JOIN LATERAL (
           SELECT COUNT(*)::int AS c
             FROM program_enrollments pe
@@ -738,6 +766,7 @@ export async function listAvailableProgramsForFarmer(
       user_limit: r.user_limit,
       survey_token: r.survey_token,
       can_enroll: r.can_enroll,
+      enrollment_id: r.enrollment_id,
       enrolled_count: r.enrolled_count,
       is_full: r.user_limit !== null && r.enrolled_count >= r.user_limit,
       already_enrolled: r.already_enrolled,
@@ -826,12 +855,16 @@ export interface SubmissionRow {
   answered: number;
   total_questions: number;
   percentage: string;
+  review_status: string;
+  assessment_id: string;
   submitted_at: Date | null;
 }
 
 export interface ListSubmissionsFilters {
   programId?: string;
+  fieldId?: string;
   authorRole?: "farmer" | "assessor";
+  reviewStatus?: "in_review" | "approved";
   /** Limits the list to the programs this person runs. */
   programOwnerId?: string;
   limit: number;
@@ -844,7 +877,9 @@ export async function listSubmissions(
   const where = Prisma.sql`
     fa.status = 'submitted'
     ${filters.programId ? Prisma.sql`AND fa.program_id = ${filters.programId}::uuid` : Prisma.empty}
+    ${filters.fieldId ? Prisma.sql`AND fa.field_id = ${filters.fieldId}::uuid` : Prisma.empty}
     ${filters.authorRole ? Prisma.sql`AND fa.author_role = ${filters.authorRole}` : Prisma.empty}
+    ${filters.reviewStatus ? Prisma.sql`AND fa.review_status = ${filters.reviewStatus}` : Prisma.empty}
     ${
       // A subquery, not a join: this clause is also used by the count, which
       // reads from field_assessments alone.
@@ -872,6 +907,8 @@ export async function listSubmissions(
            fa.answered             AS answered,
            fa.total_questions      AS total_questions,
            fa.percentage           AS percentage,
+           fa.review_status        AS review_status,
+           fa.id                   AS assessment_id,
            fa.submitted_at         AS submitted_at
       FROM field_assessments fa
       JOIN fields f  ON f.id = fa.field_id

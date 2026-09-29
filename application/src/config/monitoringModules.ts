@@ -133,6 +133,12 @@ const CROP_TYPES: MonitoringSelectOption[] = [
   { value: 'forage', label: 'Forage' },
 ];
 
+const INTENSIFICATION_ZONES: MonitoringSelectOption[] = [
+  { value: '1', label: 'Zone 1' },
+  { value: '2', label: 'Zone 2' },
+  { value: '3', label: 'Zone 3' },
+];
+
 const YIELD_UNITS = opts(['bu / acre', 'lbs / acre', 'tons / acre', 'cwt / acre']);
 
 
@@ -766,6 +772,109 @@ const NUTRIENT: MonitoringModuleDef = {
   ],
 };
 
+const CROP_INTENSIFICATION: MonitoringModuleDef = {
+  key: 'crop_intensification',
+  label: 'Crop Intensification',
+  description: 'Record cropping intensity and fallow reduction',
+  icon: 'layers-triple-outline',
+  tone: 'success',
+  noun: 'intensification record',
+  addLabel: 'Add Intensification Record',
+  emptyTitle: 'No intensification recorded',
+  emptyMessage:
+    'Add how many crops this field carries per rotation, and whether fallow has been cut.',
+  dateKey: 'event_date',
+  titleKey: 'zone',
+  summaryKeys: ['crops_per_period', 'period_years'],
+  defaultDocumentKind: 'document',
+  fields: [
+    { key: 'event_date', label: 'Event Date', errorLabel: 'Event date', type: 'date' },
+    {
+      key: 'zone',
+      label: 'Zone',
+      errorLabel: 'Zone',
+      type: 'select',
+      width: 'half',
+      options: INTENSIFICATION_ZONES,
+      strictEnum: true,
+      helper: 'The worksheet only recognises zones 1, 2 and 3.',
+    },
+    { key: 'in_use', label: 'In Use?', type: 'boolean', width: 'half' },
+    {
+      key: 'crops_per_period',
+      label: 'Crops per Period',
+      errorLabel: 'Crops per period',
+      type: 'number',
+      width: 'half',
+      min: 0,
+      max: 99,
+      decimals: 2,
+      placeholder: '0.00',
+      unit: 'crops',
+    },
+    {
+      key: 'period_years',
+      label: 'Period',
+      errorLabel: 'Period in years',
+      type: 'number',
+      width: 'half',
+      min: 1,
+      max: 10,
+      decimals: 2,
+      placeholder: '1.00',
+      unit: 'yrs',
+      helper: 'How many years the rotation covers.',
+    },
+    { key: 'fallow_eliminated', label: 'Fallow Eliminated?', type: 'boolean' },
+  ],
+};
+
+const ANIMAL_INTEGRATION: MonitoringModuleDef = {
+  key: 'animal_integration',
+  label: 'Animal Integration',
+  description: 'Record grazing livestock on this field',
+  icon: 'cow',
+  tone: 'warning',
+  noun: 'grazing record',
+  addLabel: 'Add Grazing Record',
+  emptyTitle: 'No grazing recorded',
+  emptyMessage: 'Add each herd grazed on this field, with how long they stayed.',
+  dateKey: 'event_date',
+  titleKey: 'animal_breed',
+  summaryKeys: ['grazing_period', 'biomass_foraged_pct'],
+  defaultDocumentKind: 'document',
+  fields: [
+    { key: 'event_date', label: 'Event Date', errorLabel: 'Event date', type: 'date' },
+    {
+      key: 'animal_breed',
+      label: 'Animal Breed',
+      errorLabel: 'Animal breed',
+      type: 'text',
+      maxLength: 150,
+      placeholder: 'e.g. Angus cattle',
+    },
+    {
+      key: 'grazing_period',
+      label: 'Grazing Period',
+      errorLabel: 'Grazing period',
+      type: 'text',
+      maxLength: 100,
+      placeholder: 'e.g. 3 weeks after harvest',
+    },
+    {
+      key: 'biomass_foraged_pct',
+      label: 'Biomass Foraged',
+      errorLabel: 'Biomass foraged percent',
+      type: 'number',
+      min: 0,
+      max: 100,
+      decimals: 2,
+      placeholder: '0.00',
+      unit: '%',
+    },
+  ],
+};
+
 export const MONITORING_MODULES: Record<ModuleKey, MonitoringModuleDef> = {
   training: TRAINING,
   soil_samples: SOIL_SAMPLES,
@@ -776,6 +885,8 @@ export const MONITORING_MODULES: Record<ModuleKey, MonitoringModuleDef> = {
   amendment: AMENDMENT,
   crop: CROP,
   nutrient: NUTRIENT,
+  crop_intensification: CROP_INTENSIFICATION,
+  animal_integration: ANIMAL_INTEGRATION,
 };
 
 export const MONITORING_MODULE_LIST: readonly MonitoringModuleDef[] = MODULE_KEYS.map(
@@ -783,6 +894,13 @@ export const MONITORING_MODULE_LIST: readonly MonitoringModuleDef[] = MODULE_KEY
 );
 
 export const moduleDef = (key: ModuleKey): MonitoringModuleDef => MONITORING_MODULES[key];
+
+const FIELD_POINT_KEYS: readonly string[] = ['point_label', 'latitude', 'longitude'];
+
+export const takesFieldPoints = (key: ModuleKey): boolean => {
+  const { fields } = MONITORING_MODULES[key];
+  return FIELD_POINT_KEYS.every(k => fields.some(f => f.key === k));
+};
 
 export const fieldDef = (
   module: ModuleKey,

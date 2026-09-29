@@ -9,7 +9,9 @@ export type ModuleKey =
   | 'tillage'
   | 'amendment'
   | 'crop'
-  | 'nutrient';
+  | 'nutrient'
+  | 'crop_intensification'
+  | 'animal_integration';
 
 export const MODULE_KEYS: readonly ModuleKey[] = [
   'training',
@@ -21,6 +23,8 @@ export const MODULE_KEYS: readonly ModuleKey[] = [
   'amendment',
   'crop',
   'nutrient',
+  'crop_intensification',
+  'animal_integration',
 ];
 
 export const isModuleKey = (value: string): value is ModuleKey =>
@@ -41,8 +45,12 @@ export interface MonitoringContext {
   fieldName: string;
   farmName: string;
   ownerId: string;
-  programId: string;
-  programName: string;
+}
+
+export interface MonitoringField {
+  fieldId: string;
+  fieldName: string;
+  areaAcres: number | null;
 }
 
 export interface ModuleSummary {
@@ -69,21 +77,7 @@ export interface MonitoringDocument extends FieldDocument {
   docKind: DocumentKind;
 }
 
-export interface MonitoringProgram {
-  programId: string;
-  programName: string;
-  startDateISO: string | null;
-  fieldIds: string[];
-}
-
 export type MonitoringFieldErrors = Record<string, string>;
-
-export interface MonitoringWriteFailure {
-  message: string;
-  fieldErrors: MonitoringFieldErrors;
-  notFound: boolean;
-  notEnrolled: boolean;
-}
 
 export interface RecordPayload {
   status: ModuleStatus;
@@ -95,14 +89,6 @@ export interface RecordPatch {
   status?: ModuleStatus;
   notes?: string | null;
   values?: MonitoringValues;
-}
-
-export interface UploadTarget {
-  programId: string;
-  fieldId: string;
-  module: DocumentModule;
-  recordId?: string | null;
-  kind?: DocumentKind;
 }
 
 export interface UploadFile {

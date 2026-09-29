@@ -1,9 +1,7 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
-import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { AppIcon, ICONS } from '../../components/AppIcon';
-import { AppText, Button } from '../../components';
-import AppGradient from '../../components/AppGradient/AppGradient';
-import { EmptyState } from '../../components/farms';
+import { AppProgressBar, AppText, Button, ConfirmationModal } from '../../components';
 import {
   AppShimmer,
   AppShimmerCard,
@@ -12,25 +10,17 @@ import {
   SHIMMER_RADIUS,
 } from '../../components/Shimmer';
 import ModuleRow from '../../components/monitoring/ModuleRow';
-import ProgramPicker from '../../components/monitoring/ProgramPicker';
 import { COLORS, borderRadius, borderWidth, presets, shadows, spacing } from '../../constants';
 import { addAlpha, moderateScale, scale } from '../../utils';
-import { moduleDef } from '../../config/monitoringModules';
+import { moduleDef, takesFieldPoints } from '../../config/monitoringModules';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import { useSyncedFetch } from '../../hooks/useSyncedFetch';
 import { Tags } from '../../redux/syncTags';
 import {
-  fetchFarmProgramsThunk,
   fetchModulesThunk,
-  selectChosenProgramId,
-  selectFarmPrograms,
-  selectFarmProgramsLoaded,
-  selectFieldProgram,
   selectModules,
   selectModulesError,
   selectModulesLoading,
-  selectProgramsError,
-  selectProgramsLoading,
   setMonitoringScope,
 } from '../../redux/slices/monitoringSlice';
 import type { ModuleKey } from '../../types/monitoring';
@@ -41,10 +31,17 @@ export interface MonitoringModulesViewProps {
   fieldId: string;
   fieldName: string;
   fieldSubtitle?: string;
+  hasBoundary: boolean;
+  onDrawBoundary: () => void;
   navigation: AppScreenProps<'FieldDetails'>['navigation'];
 }
 
-const HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 } as const;
+const LOCK_TITLE = 'Draw your field first';
+
+const LOCK_MESSAGE =
+  'Soil samples are saved point by point on your field, so the app needs to know ' +
+  'the shape of your field before you can add them. Draw the boundary once and ' +
+  'every corner becomes a sampling point, ready for you to fill in.';
 
 const ModulesShimmer: React.FC = () => (
   <AppShimmerList
@@ -70,69 +67,30 @@ const MonitoringModulesView: React.FC<MonitoringModulesViewProps> = ({
   fieldId,
   fieldName,
   fieldSubtitle,
+  hasBoundary,
+  onDrawBoundary,
   navigation,
 }) => {
+  const [lockedModule, setLockedModule] = useState<ModuleKey | null>(null);
   const dispatch = useAppDispatch();
 
-  const allPrograms = useAppSelector(state => selectFarmPrograms(state, farmId));
-  const programsLoaded = useAppSelector(state => selectFarmProgramsLoaded(state, farmId));
-  const programsLoading = useAppSelector(selectProgramsLoading);
-  const programsError = useAppSelector(selectProgramsError);
-
-  const loadPrograms = useCallback(() => {
-    dispatch(fetchFarmProgramsThunk({ farmId }));
-  }, [dispatch, farmId]);
-
-  useSyncedFetch({
-    tags: [Tags.monitoringPrograms(farmId)],
-    run: loadPrograms,
-    hasData: programsLoaded,
-    enabled: !!farmId,
-  });
-
-  const programs = useMemo(
-    () => allPrograms.filter(p => p.fieldIds.includes(fieldId)),
-    [allPrograms, fieldId],
-  );
-
-  const chosenId = useAppSelector(state => selectChosenProgramId(state, fieldId));
-  const programId = useMemo(() => {
-    if (chosenId && programs.some(p => p.programId === chosenId)) {
-      return chosenId;
-    }
-    return programs[0]?.programId ?? null;
-  }, [chosenId, programs]);
-
-  const program = programs.find(p => p.programId === programId) ?? null;
-
-  const chooseProgram = useCallback(
-    (nextId: string) => {
-      dispatch(selectFieldProgram({ fieldId, programId: nextId }));
-    },
-    [dispatch, fieldId],
-  );
-
-  useEffect(() => {
-    if (programId) {
-      dispatch(setMonitoringScope({ programId, fieldId }));
-    }
-  }, [dispatch, programId, fieldId]);
+  React.useEffect(() => {
+    dispatch(setMonitoringScope({ fieldId }));
+  }, [dispatch, fieldId]);
 
   const modules = useAppSelector(selectModules);
   const modulesLoading = useAppSelector(selectModulesLoading);
   const modulesError = useAppSelector(selectModulesError);
 
   const loadModules = useCallback(() => {
-    if (programId) {
-      dispatch(fetchModulesThunk({ programId, fieldId }));
-    }
-  }, [dispatch, programId, fieldId]);
+    dispatch(fetchModulesThunk({ fieldId }));
+  }, [dispatch, fieldId]);
 
   useSyncedFetch({
-    tags: programId ? [Tags.monitoring(programId, fieldId)] : [],
+    tags: [Tags.monitoring(fieldId)],
     run: loadModules,
     hasData: modules !== null,
-    enabled: !!programId,
+    enabled: !!fieldId,
   });
 
   const totals = useMemo(() => {
@@ -153,143 +111,37 @@ const MonitoringModulesView: React.FC<MonitoringModulesViewProps> = ({
   const percent =
     totals.total > 0 ? Math.round((totals.completed / totals.total) * 100) : 0;
 
+  const isLocked = useCallback(
+    (module: ModuleKey) => !hasBoundary && takesFieldPoints(module),
+    [hasBoundary],
+  );
+
   const openModule = useCallback(
     (module: ModuleKey) => {
-      if (!programId) {
+      if (isLocked(module)) {
+        setLockedModule(module);
         return;
       }
       navigation.navigate('MonitoringModule', {
-        programId,
         fieldId,
         module,
         farmId,
         fieldName,
-        programName: program?.programName,
       });
     },
-    [navigation, programId, fieldId, farmId, fieldName, program],
+    [isLocked, navigation, fieldId, farmId, fieldName],
   );
 
-  const goToEnrol = useCallback(() => {
-    navigation.navigate(
-      'Shell',
-      { screen: 'MainTabs', params: { screen: 'EnrollNow' } },
-      { pop: true },
-    );
-  }, [navigation]);
+  const closeLockNotice = useCallback(() => setLockedModule(null), []);
 
-  if (!programsLoaded && programsLoading) {
-    return (
-      <View style={styles.wrap}>
-        <AppShimmer width="100%" height={scale(58)} radius={SHIMMER_RADIUS.lg} />
-        <ModulesShimmer />
-      </View>
-    );
-  }
+  const drawBoundaryFromNotice = useCallback(() => {
+    setLockedModule(null);
+    onDrawBoundary();
+  }, [onDrawBoundary]);
 
-  if (!programsLoaded && programsError) {
-    return (
-      <View style={styles.stateBox}>
-        <View style={styles.stateIcon}>
-          <AppIcon name={ICONS.ERROR} size={moderateScale(28)} color={COLORS.gray600} />
-        </View>
-        <AppText style={styles.stateText}>{programsError}</AppText>
-        <TouchableOpacity onPress={loadPrograms} hitSlop={HIT_SLOP} accessibilityRole="button">
-          <AppText style={styles.retryText}>Retry</AppText>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  if (programs.length === 0) {
-    return (
-      <EmptyState
-        icon="clipboard-plus-outline"
-        title="Not enrolled in a program"
-        message="Records are kept per field and per program. Enrol this field in a program to start recording training, soil samples, irrigation and the rest."
-        actionLabel="Enrol this field"
-        onAction={goToEnrol}
-      />
-    );
-  }
-
-  return (
-    <View style={styles.wrap}>
-      <ProgramPicker
-        programs={programs}
-        selectedId={programId}
-        onSelect={chooseProgram}
-      />
-
-      {modules ? (
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryHead}>
-            <View style={styles.summaryTexts}>
-              <AppText style={styles.summaryTitle}>Program Data</AppText>
-              <AppText style={styles.summarySub} numberOfLines={1}>
-                {fieldSubtitle ? `${fieldName} · ${fieldSubtitle}` : fieldName}
-              </AppText>
-            </View>
-
-            <View style={styles.percentPill}>
-              <AppText style={styles.percentValue}>{percent}%</AppText>
-              <AppText style={styles.percentLabel}>done</AppText>
-            </View>
-          </View>
-
-          <View style={styles.track}>
-            {percent > 0 ? (
-              <AppGradient
-                variant="progress"
-                borderRadius={borderRadius.full}
-                style={[styles.fill, { width: `${Math.max(percent, 4)}%` }]}
-              />
-            ) : null}
-          </View>
-
-          <View style={styles.summaryStats}>
-            <View style={styles.stat}>
-              <View style={styles.statIcon}>
-                <AppIcon
-                  name={ICONS.CHECK}
-                  size={moderateScale(14)}
-                  color={COLORS.primary}
-                />
-              </View>
-              <AppText style={styles.statValue}>{totals.completed}</AppText>
-              <AppText style={styles.statLabel}>Completed</AppText>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.stat}>
-              <View style={styles.statIcon}>
-                <AppIcon
-                  name="clipboard-text-outline"
-                  size={moderateScale(14)}
-                  color={COLORS.primary}
-                />
-              </View>
-              <AppText style={styles.statValue}>{totals.total}</AppText>
-              <AppText style={styles.statLabel}>Records</AppText>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.stat}>
-              <View style={styles.statIcon}>
-                <AppIcon
-                  name={ICONS.EVIDENCE}
-                  size={moderateScale(14)}
-                  color={COLORS.primary}
-                />
-              </View>
-              <AppText style={styles.statValue}>{totals.documents}</AppText>
-              <AppText style={styles.statLabel}>Files</AppText>
-            </View>
-          </View>
-        </View>
-      ) : null}
-
-      {!modules && modulesLoading ? (
-        <ModulesShimmer />
-      ) : !modules && modulesError ? (
+  if (!modules) {
+    if (modulesError) {
+      return (
         <View style={styles.stateBox}>
           <View style={styles.stateIcon}>
             <AppIcon name={ICONS.ERROR} size={moderateScale(28)} color={COLORS.gray600} />
@@ -303,31 +155,107 @@ const MonitoringModulesView: React.FC<MonitoringModulesViewProps> = ({
             style={styles.retryButton}
           />
         </View>
-      ) : modules ? (
-        <>
-          <View style={styles.sectionHead}>
-            <AppText style={styles.sectionTitle}>MODULES</AppText>
-            <View style={styles.sectionChip}>
-              <AppText style={styles.sectionChipText}>
-                {totals.started} of {modules.length} started
-              </AppText>
-            </View>
+      );
+    }
+    return (
+      <View style={styles.wrap}>
+        <AppShimmer width="100%" height={scale(148)} radius={SHIMMER_RADIUS.lg} />
+        <ModulesShimmer />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.wrap}>
+      <View style={styles.summaryCard}>
+        <View style={styles.summaryHead}>
+          <View style={styles.summaryTexts}>
+            <AppText style={styles.summaryTitle}>Field Monitoring</AppText>
+            <AppText style={styles.summarySub} numberOfLines={1}>
+              {fieldSubtitle ? `${fieldName} · ${fieldSubtitle}` : fieldName}
+            </AppText>
           </View>
 
-          <View style={styles.list}>
-            {modules.map(summary => (
-              <ModuleRow
-                key={summary.module}
-                def={moduleDef(summary.module)}
-                summary={summary}
-                onPress={() => openModule(summary.module)}
+          <View style={styles.percentPill}>
+            <AppText style={styles.percentValue}>{percent}%</AppText>
+            <AppText style={styles.percentLabel}>done</AppText>
+          </View>
+        </View>
+
+        <AppProgressBar percent={percent} height={scale(8)} />
+
+        <View style={styles.summaryStats}>
+          <View style={styles.stat}>
+            <View style={styles.statIcon}>
+              <AppIcon
+                name={ICONS.CHECK}
+                size={moderateScale(14)}
+                color={COLORS.primary}
               />
-            ))}
+            </View>
+            <AppText style={styles.statValue}>{totals.completed}</AppText>
+            <AppText style={styles.statLabel}>Completed</AppText>
           </View>
-        </>
-      ) : null}
+          <View style={styles.statDivider} />
+          <View style={styles.stat}>
+            <View style={styles.statIcon}>
+              <AppIcon
+                name="clipboard-text-outline"
+                size={moderateScale(14)}
+                color={COLORS.primary}
+              />
+            </View>
+            <AppText style={styles.statValue}>{totals.total}</AppText>
+            <AppText style={styles.statLabel}>Records</AppText>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.stat}>
+            <View style={styles.statIcon}>
+              <AppIcon
+                name={ICONS.EVIDENCE}
+                size={moderateScale(14)}
+                color={COLORS.primary}
+              />
+            </View>
+            <AppText style={styles.statValue}>{totals.documents}</AppText>
+            <AppText style={styles.statLabel}>Files</AppText>
+          </View>
+        </View>
+      </View>
 
-      {modulesLoading && modules ? (
+      <View style={styles.sectionHead}>
+        <AppText style={styles.sectionTitle}>MODULES</AppText>
+        <View style={styles.sectionChip}>
+          <AppText style={styles.sectionChipText}>
+            {totals.started} of {modules.length} started
+          </AppText>
+        </View>
+      </View>
+
+      <View style={styles.list}>
+        {modules.map(summary => (
+          <ModuleRow
+            key={summary.module}
+            def={moduleDef(summary.module)}
+            summary={summary}
+            locked={isLocked(summary.module)}
+            onPress={openModule}
+          />
+        ))}
+      </View>
+
+      <ConfirmationModal
+        visible={lockedModule !== null}
+        icon="vector-polygon"
+        title={LOCK_TITLE}
+        message={LOCK_MESSAGE}
+        confirmLabel="Draw boundary"
+        cancelLabel="Not now"
+        onConfirm={drawBoundaryFromNotice}
+        onCancel={closeLockNotice}
+      />
+
+      {modulesLoading ? (
         <View style={styles.refreshRow}>
           <ActivityIndicator size="small" color={COLORS.primary} />
           <AppText style={styles.refreshText}>Refreshing…</AppText>
@@ -389,17 +317,6 @@ const styles = StyleSheet.create({
     ...presets.labelSM,
     fontSize: moderateScale(10),
     color: COLORS.primary,
-  },
-
-  track: {
-    height: scale(8),
-    borderRadius: borderRadius.full,
-    backgroundColor: COLORS.gray200,
-    overflow: 'hidden',
-  },
-  fill: {
-    height: '100%',
-    borderRadius: borderRadius.full,
   },
 
   summaryStats: {
@@ -478,10 +395,6 @@ const styles = StyleSheet.create({
     ...presets.bodySM,
     color: COLORS.gray700,
     textAlign: 'center',
-  },
-  retryText: {
-    ...presets.labelMD,
-    color: COLORS.primary,
   },
   retryButton: {
     minWidth: scale(140),

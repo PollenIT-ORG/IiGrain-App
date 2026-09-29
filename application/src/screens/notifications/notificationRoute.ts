@@ -36,10 +36,9 @@ export const targetForRedirect = (
 
     case 'assessment_comparison':
       return programId && fieldId
-        ? {
-            screen: 'AssessorComparison',
-            params: { programId, fieldId },
-          }
+        ? isAssessor
+          ? { screen: 'AssessorComparison', params: { programId, fieldId } }
+          : { screen: 'FarmerComparison', params: { programId, fieldId } }
         : null;
 
     case 'visit_tracking':

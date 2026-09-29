@@ -1,5 +1,17 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type SyntheticEvent,
+} from "react";
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import {
   useGetProgramQuery,
   useLazySuggestProgramCodeQuery,
@@ -8,9 +20,22 @@ import {
 } from "../store/endpoints/programsApi";
 import { showSuccess, showError } from "../lib/toast";
 import { required, isClean } from "../lib/validation";
+import { useReturnTo, useTrail } from "../lib/returnTo";
+import { useProgramCrumbs } from "../lib/useProgramCrumbs";
+import { useAuth } from "../store/useAuth";
 import Loader from "../components/Loader";
 import Select from "../components/ui/Select";
-import { ChevronLeftIcon } from "../components/icons";
+import Breadcrumbs from "../components/ui/Breadcrumbs";
+import { ChevronLeftIcon, ChevronRightIcon } from "../components/icons";
+import AssessmentCategories from "./AssessmentCategories";
+import {
+  ContractStep,
+  ShareStep,
+  Steps,
+  SurveyStep,
+  useProgramSurveyLink,
+} from "./ProgramSurveySetup";
+import type { Program } from "../types";
 
 function errMsg(err: unknown): string {
   return (
@@ -31,10 +56,201 @@ const STATUS_OPTIONS = [
   { value: "inactive", label: "Inactive" },
 ];
 
+const STEPS = ["Program", "Assessment", "Survey", "Contract", "Share"] as const;
+
 export default function ProgramForm() {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const location = useLocation();
+  const { id = "" } = useParams();
   const isEdit = Boolean(id);
+  const [params, setParams] = useSearchParams();
+  const back = useReturnTo("/programs");
+  const trail = useTrail();
+  const programCrumbs = useProgramCrumbs(id);
+  const creating = Boolean(
+    (location.state as { creating?: boolean } | null)?.creating
+  );
+  const { user } = useAuth();
+  const isPlatformAdmin =
+    user?.role === "admin" || user?.role === "super_admin";
+
+  const {
+    data: program,
+    isLoading: loading,
+    isError: loadError,
+  } = useGetProgramQuery(id, { skip: !isEdit });
+  const { link, setFresh, loading: loadingLink } = useProgramSurveyLink(id);
+
+  // Opening the assessment of a new program saves it first; the steps after it need the saved program.
+  function reachable(i: number): boolean {
+    if (i === 0) return true;
+    if (!isEdit) return i === 1;
+    return i <= 2 || Boolean(link);
+  }
+
+  const requested = Number(params.get("step")) - 1;
+  const step =
+    isEdit && requested >= 0 && requested < STEPS.length && reachable(requested) ? requested : 0;
+
+  function setStep(next: number) {
+    setParams({ step: String(next + 1) }, { replace: true, state: location.state });
+  }
+
+  const details = useRef<DetailsStepHandle>(null);
+
+  function pickStep(next: number) {
+    if (isEdit) setStep(next);
+    else if (next === 1) void details.current?.submit();
+  }
+
+  useEffect(() => {
+    if (loadError) {
+      showError("Program not found.");
+      navigate("/programs");
+    }
+  }, [loadError, navigate]);
+
+  if (isEdit && (loading || (step >= 2 && loadingLink))) {
+    return <Loader variant="fullPage" message="Loading program..." />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <Breadcrumbs
+          className="mb-2"
+          items={
+            isEdit
+              ? [...programCrumbs, { label: creating ? "Setup" : "Edit" }]
+              : [
+                  ...(trail ?? [{ label: "Programs", to: "/programs" }]),
+                  { label: "Add program" },
+                ]
+          }
+        />
+        <h1 className="text-2xl font-bold text-gray-900">
+          {isEdit && !creating ? "Edit program" : "Add program"}
+        </h1>
+        <p className="mt-1 text-sm text-gray-500">
+          {step > 0
+            ? program?.name
+            : isEdit
+              ? "Update this scheme's details and enrollment limit."
+              : "Create a scheme. Enroll farmers and their fields afterwards."}
+        </p>
+      </div>
+
+      <Steps labels={STEPS} current={step} reachable={reachable} onPick={pickStep} />
+
+      {step === 0 && (
+        <DetailsStep
+          ref={details}
+          program={program}
+          onCancel={() => back.go()}
+          onCreated={(created) =>
+            navigate(`/programs/${created.id}/edit?step=2`, {
+              replace: true,
+              state: { from: `/programs/${created.id}`, creating: true },
+            })
+          }
+          onUpdated={(continueSetup) =>
+            continueSetup ? setStep(1) : back.go()
+          }
+        />
+      )}
+      {step === 1 && (
+        <AssessmentStep
+          programId={id}
+          onBack={() => setStep(0)}
+          onNext={() => setStep(2)}
+        />
+      )}
+      {step === 2 && (
+        <>
+          <SurveyStep
+            programId={id}
+            link={link}
+            onCreated={setFresh}
+            onRemoved={() => {
+              setFresh(null);
+              setStep(2);
+            }}
+            onNext={() => setStep(3)}
+          />
+          {!link && (
+            <div className="flex justify-between gap-3">
+              <button className="btn-secondary" onClick={() => setStep(1)}>
+                <ChevronLeftIcon width={16} height={16} />
+                Back to the assessment
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() => navigate(`/programs/${id}`)}
+              >
+                Finish later
+              </button>
+            </div>
+          )}
+        </>
+      )}
+      {step === 3 && (
+        <ContractStep
+          key={link?.id ?? "none"}
+          link={link}
+          isPlatformAdmin={isPlatformAdmin}
+          onBack={() => setStep(2)}
+          onNext={() => setStep(4)}
+        />
+      )}
+      {step === 4 && <ShareStep link={link} programId={id} />}
+    </div>
+  );
+}
+
+function AssessmentStep({
+  programId,
+  onBack,
+  onNext,
+}: {
+  programId: string;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <>
+      <div className="card p-6">
+        <AssessmentCategories programId={programId} />
+      </div>
+      <div className="flex justify-between gap-3">
+        <button className="btn-secondary" onClick={onBack}>
+          <ChevronLeftIcon width={16} height={16} />
+          Back to the program
+        </button>
+        <button className="btn-primary" onClick={onNext}>
+          Continue to the survey
+          <ChevronRightIcon width={16} height={16} />
+        </button>
+      </div>
+    </>
+  );
+}
+
+interface DetailsStepHandle {
+  submit: () => Promise<void>;
+}
+
+interface DetailsStepProps {
+  program: Program | undefined;
+  onCancel: () => void;
+  onCreated: (created: Program) => void;
+  onUpdated: (continueSetup: boolean) => void;
+}
+
+const DetailsStep = forwardRef<DetailsStepHandle, DetailsStepProps>(function DetailsStep(
+  { program, onCancel, onCreated, onUpdated },
+  ref
+) {
+  const isEdit = Boolean(program);
 
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -48,12 +264,6 @@ export default function ProgramForm() {
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   // A code typed by hand is never overwritten by the suggested one.
   const [codeTouched, setCodeTouched] = useState(false);
-
-  const {
-    data: program,
-    isLoading: loading,
-    isError: loadError,
-  } = useGetProgramQuery(id ?? "", { skip: !isEdit });
 
   const [createProgram, { isLoading: creating }] = useCreateProgramMutation();
   const [updateProgram, { isLoading: updating }] = useUpdateProgramMutation();
@@ -101,13 +311,6 @@ export default function ProgramForm() {
     return () => clearTimeout(t);
   }, [name, codeTouched, askForCode]);
 
-  useEffect(() => {
-    if (loadError) {
-      showError("Program not found.");
-      navigate("/programs");
-    }
-  }, [loadError, navigate]);
-
   function validate(): boolean {
     const next: Record<string, string | null> = {
       name: required(name, "Program name"),
@@ -136,9 +339,8 @@ export default function ProgramForm() {
     return isClean(next);
   }
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!validate()) return;
+  async function submitForm(continueSetup: boolean) {
+    if (saving || !validate()) return;
 
     const body = {
       name: name.trim(),
@@ -152,206 +354,197 @@ export default function ProgramForm() {
     };
 
     try {
-      if (isEdit && id) {
-        await updateProgram({ id, body }).unwrap();
+      if (program) {
+        await updateProgram({ id: program.id, body }).unwrap();
         showSuccess("Program updated.");
+        onUpdated(continueSetup);
       } else {
-        await createProgram(body).unwrap();
+        // A new program starts from the Global template; the next step can swap it or start blank.
+        const created = await createProgram(body).unwrap();
         showSuccess("Program created.");
+        onCreated(created);
       }
-      navigate("/programs");
     } catch (err) {
       showError(errMsg(err));
     }
   }
 
-  if (isEdit && loading) {
-    return <Loader variant="fullPage" message="Loading program..." />;
+  function handleSubmit(e: SyntheticEvent, continueSetup: boolean) {
+    e.preventDefault();
+    void submitForm(continueSetup);
   }
 
+  useImperativeHandle(ref, () => ({ submit: () => submitForm(false) }));
+
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <button
-          onClick={() => navigate("/programs")}
-          className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-primary"
-        >
-          <ChevronLeftIcon width={16} height={16} />
-          Back to programs
-        </button>
-        <h1 className="text-2xl font-bold text-gray-900">
-          {isEdit ? "Edit program" : "Add program"}
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          {isEdit
-            ? "Update this scheme's details and enrollment limit."
-            : "Create a scheme. Enroll farmers and their fields afterwards."}
+    <div className="card p-6 sm:p-8">
+      <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-5" noValidate>
+        <p className="text-xs text-gray-500">
+          Fields marked <span className="text-danger">*</span> are required.
         </p>
-      </div>
 
-      <div className="card p-6 sm:p-8">
-        <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-          <p className="text-xs text-gray-500">
-            Fields marked <span className="text-danger">*</span> are required.
-          </p>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div>
-              <label htmlFor="name" className="label">
-                Program name <span className="text-danger">*</span>
-              </label>
-              <input
-                id="name"
-                className={`input-field ${errors.name ? "input-error" : ""}`}
-                placeholder="Govt Wheat Scheme 2026"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={150}
-              />
-              {errors.name && <p className="field-error">{errors.name}</p>}
-            </div>
-            <div>
-              <label htmlFor="code" className="label">
-                Code
-              </label>
-              <input
-                id="code"
-                className="input-field"
-                placeholder="GWS-2026"
-                value={code}
-                onChange={(e) => {
-                  setCode(e.target.value);
-                  setCodeTouched(true);
-                }}
-                maxLength={50}
-              />
-              <p className="mt-1.5 text-xs text-gray-500">
-                Filled in from the program name. Change it if you use codes of
-                your own.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div>
-              <label htmlFor="type" className="label">
-                Type
-              </label>
-              <Select
-                id="type"
-                value={type}
-                onChange={setType}
-                options={TYPE_OPTIONS}
-              />
-            </div>
-            <div>
-              <label htmlFor="status" className="label">
-                Status
-              </label>
-              <Select
-                id="status"
-                value={isActive ? "active" : "inactive"}
-                onChange={(v) => setIsActive(v === "active")}
-                options={STATUS_OPTIONS}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div>
-              <label htmlFor="startDate" className="label">
-                Start date
-              </label>
-              <input
-                id="startDate"
-                type="date"
-                className={`input-field ${errors.dates ? "input-error" : ""}`}
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <label htmlFor="endDate" className="label">
-                End date
-              </label>
-              <input
-                id="endDate"
-                type="date"
-                className={`input-field ${errors.dates ? "input-error" : ""}`}
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
-          </div>
-          {errors.dates && <p className="field-error -mt-3">{errors.dates}</p>}
-
+        <div className="grid gap-5 sm:grid-cols-2">
           <div>
-            <label className="label">Enrollment limit (farmers)</label>
-            <div className="flex items-center gap-3">
-              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/30"
-                  checked={unlimited}
-                  onChange={(e) => setUnlimited(e.target.checked)}
-                />
-                No Limit
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="1000000"
-                step="1"
-                className={`input-field w-40 ${errors.userLimit ? "input-error" : ""} ${
-                  unlimited ? "opacity-50" : ""
-                }`}
-                placeholder="e.g. 50"
-                value={userLimit}
-                onChange={(e) => setUserLimit(e.target.value)}
-                disabled={unlimited}
-              />
-            </div>
-            {errors.userLimit ? (
-              <p className="field-error">{errors.userLimit}</p>
-            ) : (
-              <p className="mt-1.5 text-xs text-gray-500">
-                Maximum farmers that can enroll. Check “No Limit” for no cap.
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="description" className="label">
-              Description
+            <label htmlFor="name" className="label">
+              Program name <span className="text-danger">*</span>
             </label>
-            <textarea
-              id="description"
-              className="input-field min-h-[90px] resize-y"
-              placeholder="A short description of this scheme (optional)"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              maxLength={2000}
+            <input
+              id="name"
+              className={`input-field ${errors.name ? "input-error" : ""}`}
+              placeholder="Govt Wheat Scheme 2026"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={150}
+            />
+            {errors.name && <p className="field-error">{errors.name}</p>}
+          </div>
+          <div>
+            <label htmlFor="code" className="label">
+              Code
+            </label>
+            <input
+              id="code"
+              className="input-field"
+              placeholder="GWS-2026"
+              value={code}
+              onChange={(e) => {
+                setCode(e.target.value);
+                setCodeTouched(true);
+              }}
+              maxLength={50}
+            />
+            <p className="mt-1.5 text-xs text-gray-500">
+              Filled in from the program name. Change it if you use codes of
+              your own.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label htmlFor="type" className="label">
+              Type
+            </label>
+            <Select
+              id="type"
+              value={type}
+              onChange={setType}
+              options={TYPE_OPTIONS}
             />
           </div>
+          <div>
+            <label htmlFor="status" className="label">
+              Status
+            </label>
+            <Select
+              id="status"
+              value={isActive ? "active" : "inactive"}
+              onChange={(v) => setIsActive(v === "active")}
+              options={STATUS_OPTIONS}
+            />
+          </div>
+        </div>
 
-          <div className="flex justify-end gap-3 pt-2">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label htmlFor="startDate" className="label">
+              Start date
+            </label>
+            <input
+              id="startDate"
+              type="date"
+              className={`input-field ${errors.dates ? "input-error" : ""}`}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="endDate" className="label">
+              End date
+            </label>
+            <input
+              id="endDate"
+              type="date"
+              className={`input-field ${errors.dates ? "input-error" : ""}`}
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </div>
+        </div>
+        {errors.dates && <p className="field-error -mt-3">{errors.dates}</p>}
+
+        <div>
+          <label className="label">Enrollment limit (farmers)</label>
+          <div className="flex items-center gap-3">
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/30"
+                checked={unlimited}
+                onChange={(e) => setUnlimited(e.target.checked)}
+              />
+              No Limit
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="1000000"
+              step="1"
+              className={`input-field w-40 ${errors.userLimit ? "input-error" : ""} ${
+                unlimited ? "opacity-50" : ""
+              }`}
+              placeholder="e.g. 50"
+              value={userLimit}
+              onChange={(e) => setUserLimit(e.target.value)}
+              disabled={unlimited}
+            />
+          </div>
+          {errors.userLimit ? (
+            <p className="field-error">{errors.userLimit}</p>
+          ) : (
+            <p className="mt-1.5 text-xs text-gray-500">
+              Maximum farmers that can enroll. Check “No Limit” for no cap.
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="description" className="label">
+            Description
+          </label>
+          <textarea
+            id="description"
+            className="input-field min-h-[90px] resize-y"
+            placeholder="A short description of this scheme (optional)"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            maxLength={2000}
+          />
+        </div>
+
+        <div className="flex flex-wrap justify-end gap-3 pt-2">
+          <button type="button" className="btn-secondary" onClick={onCancel}>
+            Cancel
+          </button>
+          {isEdit && (
             <button
               type="button"
+              disabled={saving}
               className="btn-secondary"
-              onClick={() => navigate("/programs")}
+              onClick={(e) => handleSubmit(e, true)}
             >
-              Cancel
+              Save and continue
             </button>
-            <button type="submit" disabled={saving} className="btn-primary">
-              {saving
-                ? "Saving..."
-                : isEdit
-                  ? "Save changes"
-                  : "Create program"}
-            </button>
-          </div>
-        </form>
-      </div>
+          )}
+          <button type="submit" disabled={saving} className="btn-primary">
+            {saving
+              ? "Saving..."
+              : isEdit
+                ? "Save changes"
+                : "Create and continue"}
+          </button>
+        </div>
+      </form>
     </div>
   );
-}
+});

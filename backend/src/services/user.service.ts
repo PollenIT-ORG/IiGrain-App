@@ -3,6 +3,7 @@ import ApiError from "../utils/ApiError.js";
 import { sendWelcomeEmail, sendPasswordChangedEmail } from "./mailer.service.js";
 import { canCreateRole, canManageUser } from "../config/rbac.js";
 import { getDefaultOrgId } from "./tenancy.service.js";
+import { generateTempPassword } from "../utils/tempPassword.js";
 import { revokeAllForUser } from "../models/refreshToken.model.js";
 import {
   findRoleByName,
@@ -14,6 +15,7 @@ import {
   updateUser,
   setUserStatus,
   updatePassword,
+  clearMustChangePassword,
   emailExists,
   setUserOrg,
   setUserAvatar,
@@ -43,7 +45,6 @@ interface CreateUserInput {
   fullName: string;
   email: string;
   phone: string;
-  password: string;
   role: string;
   isActive?: boolean;
 }
@@ -74,7 +75,10 @@ export async function createUser(
     throw ApiError.badRequest(`"${input.role}" is not a valid role.`);
   }
 
-  const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
+  // The office never picks the password. One is generated, emailed, and the
+  // account stays shut until the owner replaces it through the reset flow.
+  const tempPassword = generateTempPassword();
+  const passwordHash = await bcrypt.hash(tempPassword, SALT_ROUNDS);
 
   const user = await createUserByAdmin({
     roleId: role.id,
@@ -84,6 +88,7 @@ export async function createUser(
     passwordHash,
     isActive: input.isActive ?? true,
     isEmailVerified: true,
+    mustChangePassword: true,
   });
 
   const defaultOrgId = await getDefaultOrgId();
@@ -94,7 +99,7 @@ export async function createUser(
   void sendWelcomeEmail({
     to: email,
     fullName: input.fullName,
-    password: input.password,
+    password: tempPassword,
   });
 
   broadcastToAdmins("users");
@@ -388,6 +393,8 @@ export async function changeOwnPassword(
 
   const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
   await updatePassword(userId, passwordHash);
+  // Covers the case of a temporary password replaced from inside the account.
+  await clearMustChangePassword(userId);
 
   void sendPasswordChangedEmail({ to: user.email, fullName: user.full_name });
 }
