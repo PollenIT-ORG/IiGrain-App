@@ -200,7 +200,7 @@ const FormField = React.memo(function FormFieldImpl({
 });
 
 export interface CategoryFormViewProps {
-  categoryName: string;
+  title: string;
   questions: AssessmentQuestionDetail[];
   locked: boolean;
   saving: boolean;
@@ -209,7 +209,7 @@ export interface CategoryFormViewProps {
 }
 
 const CategoryFormView: React.FC<CategoryFormViewProps> = ({
-  categoryName,
+  title,
   questions,
   locked,
   saving,
@@ -372,7 +372,7 @@ const CategoryFormView: React.FC<CategoryFormViewProps> = ({
         bottomOffset={spacing[6]}>
         <View style={styles.meterCard}>
           <View style={styles.meterHead}>
-            <AppText style={styles.meterTitle}>{categoryName}</AppText>
+            <AppText style={styles.meterTitle}>{title}</AppText>
             <AppText style={styles.meterCount}>
               {answeredCount} of {questions.length}
             </AppText>

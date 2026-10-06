@@ -415,10 +415,16 @@ export async function getFieldRegenIndex(
     answered: r.answered,
   }));
 
-  const totalScore = rows.reduce((s, r) => s + r.total_score, 0);
-  const maxScore = rows.reduce((s, r) => s + r.max_score, 0);
-  const regenHealthIndex =
+  const totalScore = rows.reduce((s, r) => s + Number(r.total_score), 0);
+  const maxScore = rows.reduce((s, r) => s + Number(r.max_score), 0);
+  let regenHealthIndex =
     maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : null;
+
+  // Once approved, the score the office gave stands, whether it scored each answer, each category or the whole form.
+  const submission = await findFieldAssessment(fieldId, programId, "farmer");
+  if (submission?.status === "submitted" && submission.review_status === "approved") {
+    regenHealthIndex = Math.round(Number(submission.percentage));
+  }
 
   const scored = rows.filter((r) => r.percentage !== null);
   const topCategory =

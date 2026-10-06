@@ -47,7 +47,7 @@ them is a path Phase 3 rewrites:
 create farm → appears in list and dashboard
 create field (location + boundary) → appears under the farm
 edit field, edit boundary
-enrol a field in a program
+enrolla field in a program
 download an assessment → answer → submit → history + RHI update
 monitoring: create / edit / delete a record in each of the nine modules
 upload and delete a field document, a monitoring document, an evidence file

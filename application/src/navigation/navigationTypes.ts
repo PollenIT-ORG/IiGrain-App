@@ -36,7 +36,7 @@ export type ContactUsParams =
 
 export type AppTabParamList = {
   Home: undefined;
-  Assessment: { fieldId?: string; programId?: string } | undefined;
+  Assessment: { fieldId?: string; programId?: string; fieldName?: string } | undefined;
   EnrollNow: undefined;
   Farms: undefined;
   More: undefined;
@@ -84,7 +84,6 @@ export type AppStackParamList = {
   Help: undefined;
   ContactUs: ContactUsParams;
   FieldMap: { focusFarmId?: string } | undefined;
-  PolygonDebugScreen: undefined;
 
   BoundaryEditor: {
     farmId: string;

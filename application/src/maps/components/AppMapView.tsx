@@ -6,7 +6,6 @@ import React, {
   useRef,
 } from 'react';
 import {
-  Platform,
   StyleSheet,
   View,
   type StyleProp,
@@ -18,7 +17,6 @@ import MapView, {
   type MapPressEvent,
   type Region,
 } from 'react-native-maps';
-import { Env } from '../../config/env';
 import { AGRI_MAP_STYLE, AGRI_MAP_STYLE_PREVIEW } from '../config/mapStyle';
 import {
   COORDINATE_PRECISION,
@@ -30,19 +28,7 @@ import {
 import type { AppMapHandle, LatLng, MapEdgePadding, MapKind, MapRegion } from '../types';
 import { regionFromZoom, roundCoordinate } from '../utils/geo';
 
-const MAPS_KEYED = Env.MAPS_API_KEY.length > 0;
-const MAP_PROVIDER =
-  Platform.OS === 'ios' && !MAPS_KEYED ? undefined : PROVIDER_GOOGLE;
-
-if (__DEV__ && !MAPS_KEYED) {
-  console.warn(
-    '[maps] MAPS_API_KEY is empty. ' +
-      (Platform.OS === 'ios'
-        ? 'Falling back to Apple MapKit — branded styling is disabled. '
-        : 'Google tiles will render blank. ') +
-      'Set MAPS_API_KEY in iiGrain/.env, then re-run `pod install`.',
-  );
-}
+const MAP_PROVIDER = PROVIDER_GOOGLE;
 
 export type MapStyleVariant = 'default' | 'preview';
 

@@ -81,8 +81,11 @@ readMeFolder/
 task zip
 
 ARCHIVE-GUIDE
-ARCHIVE-FOR-CLAUDE
 
 ReadMeFolder
 PERFORMANCE
-CLAUDE
+sh1Data.md
+
+# Kotlin compiler cache & stale JS bundle (build output)
+android/.kotlin/
+android/app/src/main/assets/index.android.bundle

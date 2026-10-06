@@ -17,17 +17,42 @@ export type ChangedResource =
   | "program_admin_survey"
   | "faqs"
   | "contact_enquiries"
-  | "assessments";
+  | "assessments"
+  | "login_logs"
+  | "email_settings";
+
+// Writes often arrive in bursts. A message goes out once they pause, and never later than MAX_WAIT_MS after the first.
+const QUIET_MS = 250;
+const MAX_WAIT_MS = 1000;
+const pendingForAdmins = new Map<ChangedResource, Record<string, unknown>>();
+let adminTimer: ReturnType<typeof setTimeout> | null = null;
+let firstPendingAt = 0;
+
+function flushAdminChanges(): void {
+  adminTimer = null;
+  const batch = [...pendingForAdmins];
+  pendingForAdmins.clear();
+  try {
+    const room = getIO().to("admins");
+    for (const [resource, detail] of batch) {
+      room.emit("data:changed", { resource, ...detail });
+    }
+  } catch {
+    // socket not ready; ignore
+  }
+}
 
 export function broadcastToAdmins(
   resource: ChangedResource,
   detail: Record<string, unknown> = {}
 ): void {
-  try {
-    getIO().to("admins").emit("data:changed", { resource, ...detail });
-  } catch {
-    // socket not ready; ignore
-  }
+  const now = Date.now();
+  if (pendingForAdmins.size === 0) firstPendingAt = now;
+  pendingForAdmins.set(resource, { ...pendingForAdmins.get(resource), ...detail });
+  if (adminTimer) clearTimeout(adminTimer);
+  const wait = Math.max(0, Math.min(QUIET_MS, firstPendingAt + MAX_WAIT_MS - now));
+  adminTimer = setTimeout(flushAdminChanges, wait);
+  adminTimer.unref();
 }
 
 export function broadcastToUsers(
@@ -45,9 +70,9 @@ export function broadcastToUsers(
   }
 }
 
-// What the website producer's own screens react to. Everything that moves their
+// What a producer's survey status page reacts to. Everything that moves their
 // application forward is one of these.
-export type WebsiteEvent =
+export type ApplicationEvent =
   | "submission_scored"
   | "band_changed"
   | "contract_sent"
@@ -56,32 +81,13 @@ export type WebsiteEvent =
   | "withdrawn";
 
 /**
- * Tells one website account that their application moved. Every device signed
- * in as that account is in the room, so the dashboard updates without a reload
- * no matter who made the change.
- */
-export function notifyWebsiteUser(
-  websiteUserId: string,
-  event: WebsiteEvent,
-  detail: Record<string, unknown> = {}
-): void {
-  try {
-    getIO()
-      .to(`website:${websiteUserId}`)
-      .emit("application:changed", { event, ...detail });
-  } catch (err) {
-    logger.debug?.("notifyWebsiteUser failed", err);
-  }
-}
-
-/**
  * The standalone survey app has no account, so its status page joins a room by
  * submission id (resolved from the magic-link status token). Every application
  * change is sent here too, so that page updates live without a refresh.
  */
 export function notifySubmission(
   submissionId: string,
-  event: WebsiteEvent,
+  event: ApplicationEvent,
   detail: Record<string, unknown> = {}
 ): void {
   try {

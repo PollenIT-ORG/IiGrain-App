@@ -4,11 +4,11 @@ import prisma from "../db/prisma.js";
 /**
  * An Enrollment ID belongs to one person and one program. It is issued when a
  * survey submission is accepted, and it is what lets that person register and
- * then enrol in that program.
+ * then enroll in that program.
  *
  * It can sit in two places. Anyone who came through a survey has it on their
  * submission. Farmers enrolled before this rule existed have no submission at
- * all, so the backfill put one on their enrolment instead. Every check here
+ * all, so the backfill put one on their enrollment instead. Every check here
  * looks at both, otherwise older farmers would be locked out of their own
  * programs.
  */
@@ -213,7 +213,7 @@ export async function enrollmentIdForProgram(
 
 /**
  * A fresh, unused Enrollment ID in the IIG-YYYY-NNNNNN shape. Used when your
- * team enrols someone by hand, so every enrolment carries an ID and the rest of
+ * team enrolls someone by hand, so every enrollment carries an ID and the rest of
  * the flow keeps working for them.
  */
 export async function issueEnrollmentId(): Promise<string> {

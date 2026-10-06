@@ -16,7 +16,7 @@ import {
 import {
   signContractSchema,
   contractTokenParamSchema,
-} from "../validators/web.schema.js";
+} from "../validators/contract.schema.js";
 import { surveyTokenParamSchema } from "../validators/programAdminSurvey.schema.js";
 import {
   structure,

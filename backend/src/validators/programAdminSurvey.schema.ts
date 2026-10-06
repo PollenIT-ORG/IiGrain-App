@@ -168,30 +168,46 @@ export const setCategorySchema = z.object({
   reason: optionalText(250),
 });
 
+function fromNotAfterTo(q: { createdFrom?: string; createdTo?: string }): boolean {
+  if (!q.createdFrom || !q.createdTo) return true;
+  const from = Date.parse(q.createdFrom);
+  const to = Date.parse(q.createdTo);
+  return Number.isNaN(from) || Number.isNaN(to) || from <= to;
+}
+
+const FROM_TO_ERROR = {
+  message: "The end of the date range cannot be before its start.",
+  path: ["createdTo"],
+};
+
 // The cards count the same rows the table lists, so they take the same filters.
 // Status is deliberately not one of them: picking a status would empty the five
 // cards it does not match.
-export const submissionStatsQuerySchema = z.object({
-  programId: z.string().uuid("Choose a valid program.").optional(),
-  category: categoryEnum.optional(),
-  referral: z.string().trim().max(100).optional(),
-  createdFrom: z.string().trim().max(40).optional(),
-  createdTo: z.string().trim().max(40).optional(),
-  search: z.string().trim().max(100).optional(),
-});
+export const submissionStatsQuerySchema = z
+  .object({
+    programId: z.string().uuid("Choose a valid program.").optional(),
+    category: categoryEnum.optional(),
+    referral: z.string().trim().max(100).optional(),
+    createdFrom: z.string().trim().max(40).optional(),
+    createdTo: z.string().trim().max(40).optional(),
+    search: z.string().trim().max(100).optional(),
+  })
+  .refine(fromNotAfterTo, FROM_TO_ERROR);
 
-export const listSubmissionsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(5000).default(20),
-  status: z.string().trim().max(40).optional(),
-  category: categoryEnum.optional(),
-  // The program the submissions came in for, whatever survey they came through.
-  programId: z.string().uuid("Choose a valid program.").optional(),
-  referral: z.string().trim().max(100).optional(),
-  createdFrom: z.string().trim().max(40).optional(),
-  createdTo: z.string().trim().max(40).optional(),
-  search: z.string().trim().max(100).optional(),
-});
+export const listSubmissionsQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(5000).default(20),
+    status: z.string().trim().max(40).optional(),
+    category: categoryEnum.optional(),
+    // The program the submissions came in for, whatever survey they came through.
+    programId: z.string().uuid("Choose a valid program.").optional(),
+    referral: z.string().trim().max(100).optional(),
+    createdFrom: z.string().trim().max(40).optional(),
+    createdTo: z.string().trim().max(40).optional(),
+    search: z.string().trim().max(100).optional(),
+  })
+  .refine(fromNotAfterTo, FROM_TO_ERROR);
 
 export type TemplateCreateBody = z.infer<typeof templateCreateSchema>;
 export type TemplateUpdateBody = z.infer<typeof templateUpdateSchema>;

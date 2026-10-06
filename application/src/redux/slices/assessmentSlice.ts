@@ -627,6 +627,20 @@ export const selectMyHistory = (s: HasAssessment): MyAssessmentField[] =>
 export const selectMyHistoryRaw = (s: HasAssessment): MyAssessmentField[] | null =>
   s.assessment.myHistory;
 export const selectMyHistoryCount = (s: HasAssessment): number => s.assessment.myHistoryCount;
+
+const namedProgramRow = (
+  rows: MyAssessmentField[] | null | undefined,
+  programId: string,
+): MyAssessmentField | undefined =>
+  rows?.find(row => row.programId === programId && row.programName.trim() !== '');
+
+export const selectAssessmentProgramName =
+  (programId: string) =>
+  (s: HasAssessment): string =>
+    (
+      namedProgramRow(s.assessment.myFields?.fields, programId) ??
+      namedProgramRow(s.assessment.myHistory, programId)
+    )?.programName.trim() ?? '';
 export const selectMyHistoryLoading = (s: HasAssessment): boolean =>
   s.assessment.loadingMyHistory;
 

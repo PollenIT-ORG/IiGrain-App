@@ -21,7 +21,6 @@ import { useProgramScope } from "../lib/programScope";
 import { useReturnTo, useTrail } from "../lib/returnTo";
 import { useProgramCrumbs } from "../lib/useProgramCrumbs";
 import Breadcrumbs from "../components/ui/Breadcrumbs";
-import { useLiveData } from "../lib/useLiveData";
 import { showSuccess, showError } from "../lib/toast";
 import { openApiPdf } from "../lib/openPdf";
 import { useDialog } from "../components/ui/DialogProvider";
@@ -103,7 +102,7 @@ export default function ProgramSubmissionDetail() {
       ? "Back to survey"
       : "Back to Submissions";
 
-  const { data, isLoading, isError, error, refetch } = useGetPasSubmissionQuery(
+  const { data, isLoading, isError, error } = useGetPasSubmissionQuery(
     id,
     { skip: !id }
   );
@@ -113,7 +112,6 @@ export default function ProgramSubmissionDetail() {
     skip: !templateId,
   });
 
-  useLiveData(["program_admin_survey"], refetch);
 
   const [setCategory, { isLoading: savingBand }] = useSetPasCategoryMutation();
   const [sendContract, { isLoading: sending }] = useSendPasContractMutation();

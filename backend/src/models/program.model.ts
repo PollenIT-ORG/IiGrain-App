@@ -486,7 +486,7 @@ export async function findEnrollment(
 }
 
 export interface EnrollInput {
-  /** The Enrollment ID to record against this enrolment. */
+  /** The Enrollment ID to record against this enrollment. */
   enrollmentId?: string | null;
   programId: string;
   farmerId: string;
@@ -507,8 +507,8 @@ export async function createEnrollment(
         assessor_id: input.assessorId,
         enrolled_by: input.enrolledBy,
         note: input.note,
-        // Every enrolment carries an ID: the one from their accepted survey
-        // where there is one, otherwise a fresh one for a manual enrolment.
+        // Every enrollment carries an ID: the one from their accepted survey
+        // where there is one, otherwise a fresh one for a manual enrollment.
         enrollment_id: input.enrollmentId,
       },
       select: { id: true },
@@ -569,7 +569,7 @@ export interface AvailableProgram {
   survey_token: string | null;
   /**
    * Whether this farmer holds an Enrollment ID for this program. Without one
-   * they can see the program and open its survey, but not enrol.
+   * they can see the program and open its survey, but not enroll.
    */
   can_enroll: boolean;
   /** The Enrollment ID this farmer holds for the program, null until one is issued. */
@@ -654,12 +654,12 @@ export async function listAvailableProgramsForFarmer(
              ) AS already_enrolled,
              -- Holding an Enrollment ID for this program is what allows
              -- enrolling. It lives on the accepted survey submission, or on the
-             -- enrolment itself for farmers who predate the survey flow.
+             -- enrollment itself for farmers who predate the survey flow.
              eid.enrollment_id IS NOT NULL AS can_enroll,
              eid.enrollment_id,
              sacres.total_acres AS survey_acres
         FROM programs p
-        -- The ID on the enrolment comes first as it is the one on record, then the latest survey ID.
+        -- The ID on the enrollment comes first as it is the one on record, then the latest survey ID.
         LEFT JOIN LATERAL (
           SELECT ids.enrollment_id
             FROM (

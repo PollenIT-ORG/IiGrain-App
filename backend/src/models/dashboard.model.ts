@@ -535,7 +535,7 @@ const MY_PROGRAM_ASSESSMENTS = (programId: string, farmerId: string) => Prisma.s
    WHERE fa.program_id = ${programId}::uuid
      AND fa.author_role = 'farmer' AND fa.status = 'submitted' AND fa.review_status = 'approved' AND fa.submitted_at IS NOT NULL`;
 
-// First viewable year: not before the farmer registered, else their first enrolment or submission in the program, else the program's year.
+// First viewable year: not before the farmer registered, else their first enrollment or submission in the program, else the program's year.
 export async function getProgramStartYear(programId: string, farmerId: string): Promise<number> {
   const rows = await prisma.$queryRaw<{ start_year: number }[]>(Prisma.sql`
     SELECT GREATEST(
@@ -610,7 +610,7 @@ export async function getProgramCategoryScoresByYear(
      ORDER BY ac.sort_order ASC, ac.created_at ASC;`);
 }
 
-/** The farmer's latest events in one program: submitted and started assessments, and the enrolment itself. */
+/** The farmer's latest events in one program: submitted and started assessments, and the enrollment itself. */
 export async function getProgramRecentActivity(
   programId: string,
   farmerId: string,

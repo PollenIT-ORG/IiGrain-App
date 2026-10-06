@@ -17,7 +17,6 @@ import {
 import { errMsg } from "../lib/errMsg";
 import { useAuth } from "../store/useAuth";
 import { useDialog } from "../components/ui/DialogProvider";
-import { useLiveData } from "../lib/useLiveData";
 import { useTrail } from "../lib/returnTo";
 import { useProgramCrumbs } from "../lib/useProgramCrumbs";
 import { showSuccess, showError } from "../lib/toast";
@@ -129,9 +128,7 @@ export function useProgramSurveyLink(programId: string) {
   const {
     data: links,
     isLoading: loading,
-    refetch: refetchLinks,
   } = useListPasProgramsQuery();
-  useLiveData(["program_admin_survey"], refetchLinks);
 
   // The link as the list knows it, or the one just created - the list takes a
   // moment to come back and the questions should not wait for it.

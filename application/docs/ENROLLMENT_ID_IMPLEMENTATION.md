@@ -109,7 +109,7 @@ two kinds need two different actions.
 
 ## 3. Enrolling — unchanged, plus one defence
 
-No Enrollment ID field was added to the enrol flow; the server matches the
+No Enrollment ID field was added to the enrollflow; the server matches the
 logged-in farmer's ID itself.
 
 The new `400 Please complete this program's survey first.` is handled anyway,
@@ -121,7 +121,7 @@ for the farmer who had the sheet open while their standing changed:
 3. `Tags.programs` is invalidated, so the list refetches and that card flips to
    "Apply" by itself.
 
-Every other enrol failure keeps its existing toast.
+Every other enrollfailure keeps its existing toast.
 
 ---
 
@@ -232,7 +232,7 @@ backend also sends a generic `BAD_REQUEST` / `CONFLICT` code).
 - [ ] `can_enroll: false`, `survey_url: null` → muted, not pressable
 - [ ] Both kinds present → two sections with counts; one kind → single title
 - [ ] Already-enrolled program stays in the enroll section
-- [ ] Force the enrol 400 → dialog with "Take survey", list refreshes to "Apply"
+- [ ] Force the enroll400 → dialog with "Take survey", list refreshes to "Apply"
 - [ ] Pull down on the list → refreshes; pull down on "No programs available" → refreshes
 - [ ] Open the sheet with no fields → tap the action → **sheet closes** and the Farms tab appears
 - [ ] Create a farm, return, reopen the sheet → copy has changed to "No farms yet" → "Add a field"

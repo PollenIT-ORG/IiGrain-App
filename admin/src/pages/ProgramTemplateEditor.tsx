@@ -21,7 +21,6 @@ import {
 import { errMsg } from "../lib/errMsg";
 import { useForward, useTrail } from "../lib/returnTo";
 import { useAuth } from "../store/useAuth";
-import { useLiveData } from "../lib/useLiveData";
 import { showSuccess, showError } from "../lib/toast";
 import { useDialog } from "../components/ui/DialogProvider";
 import Select from "../components/ui/Select";
@@ -60,10 +59,9 @@ export function SurveyEditor({
   const { user } = useAuth();
   const isPlatformAdmin =
     user?.role === "admin" || user?.role === "super_admin";
-  const { data, isLoading, isError, error, refetch } = useGetPasTemplateQuery(id, {
+  const { data, isLoading, isError, error } = useGetPasTemplateQuery(id, {
     skip: !id,
   });
-  useLiveData(["program_admin_survey"], refetch);
 
   if (isLoading) return <Loader variant="fullPage" message="Loading survey..." />;
   if (isError || !data) {

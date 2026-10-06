@@ -8,6 +8,7 @@ import rateLimit from "express-rate-limit";
 
 import env from "./config/env.js";
 import apiRoutes from "./routes/index.js";
+import { broadcastLiveChanges } from "./middlewares/liveChanges.js";
 import notFound from "./middlewares/notFound.js";
 import errorHandler from "./middlewares/errorHandler.js";
 import ApiResponse from "./utils/ApiResponse.js";
@@ -60,6 +61,7 @@ app.get("/", (_req: Request, res: Response) => {
   });
 });
 
+app.use(env.apiPrefix || "/", broadcastLiveChanges);
 app.use(env.apiPrefix || "/", apiRoutes);
 
 app.use(notFound);

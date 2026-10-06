@@ -1,10 +1,7 @@
 import { useParams } from "react-router-dom";
-import { apiSlice } from "../store/api";
-import { useAppDispatch } from "../store/hooks";
 import { useGetProgramQuery } from "../store/endpoints/programsApi";
 import { useGetTemplateQuery } from "../store/endpoints/assessmentApi";
 import { useAuth } from "../store/useAuth";
-import { useLiveData } from "./useLiveData";
 import { useProgramCrumbs } from "./useProgramCrumbs";
 import type { Crumb } from "../components/ui/Breadcrumbs";
 import type { AssessmentTemplate, Program } from "../types";
@@ -73,15 +70,7 @@ export interface AssessmentScope {
 export function useAssessmentScope(programIdProp?: string): AssessmentScope {
   const params = useParams<{ programId: string; templateId: string }>();
   const { user } = useAuth();
-  const dispatch = useAppDispatch();
   const programId = programIdProp ?? params.programId;
-
-  // Someone else changing the bank or swapping the program's template shows up here without a reload.
-  useLiveData(["assessments", "programs"], () => {
-    dispatch(
-      apiSlice.util.invalidateTags(["AssessmentTemplates", "AssessmentTemplate", "AssessmentCategories", "AssessmentQuestions", "Program"])
-    );
-  });
 
   const programQuery = useGetProgramQuery(programId ?? "", { skip: !programId });
   const templateId = programId ? programQuery.data?.assessment_template_id : params.templateId;

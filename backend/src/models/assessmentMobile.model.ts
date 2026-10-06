@@ -1760,6 +1760,7 @@ export interface FieldCategoryScoreRow {
   name: string;
   sort_order: number;
   answered: number;
+  // A form filled in several times counts as the average of its records, once.
   total_score: number;
   max_score: number;
   percentage: number | null;
@@ -1771,29 +1772,53 @@ export async function getFieldCategoryScores(
   authorRole: "farmer" | "assessor" = "farmer"
 ): Promise<FieldCategoryScoreRow[]> {
   return prisma.$queryRaw<FieldCategoryScoreRow[]>(Prisma.sql`
+    WITH answers AS (
+      SELECT aq.category_id, ar.question_id, ar.record_id, aq.max_score,
+             COALESCE(ar.review_score, ar.score) AS final_score
+        FROM assessment_responses ar
+        JOIN assessment_questions aq
+               ON aq.id = ar.question_id
+              AND aq.deleted_at IS NULL AND aq.is_active = true
+       WHERE ar.deleted_at IS NULL
+         AND ar.author_role = ${authorRole}
+         AND ar.field_id = ${fieldId}::uuid
+         AND ar.program_id = ${programId}::uuid
+    ),
+    per_record AS (
+      SELECT category_id, record_id,
+             COALESCE(SUM(final_score), 0) AS score,
+             COALESCE(SUM(max_score) FILTER (WHERE final_score IS NOT NULL), 0) AS max_score
+        FROM answers
+       GROUP BY category_id, record_id
+    ),
+    per_category AS (
+      SELECT category_id, AVG(score) AS score, AVG(max_score) AS max_score
+        FROM per_record
+       GROUP BY category_id
+    ),
+    counts AS (
+      SELECT category_id,
+             COUNT(DISTINCT question_id) AS answered,
+             COUNT(*) FILTER (WHERE final_score IS NOT NULL) AS scored
+        FROM answers
+       GROUP BY category_id
+    )
     SELECT ac.id,
            ac.name,
            ac.sort_order,
-           COUNT(DISTINCT ar.question_id)::int        AS answered,
-           COALESCE(SUM(COALESCE(ar.review_score, ar.score)), 0)::int AS total_score,
-           COALESCE(SUM(aq.max_score) FILTER (WHERE COALESCE(ar.review_score, ar.score) IS NOT NULL), 0)::int AS max_score,
-           CASE WHEN COUNT(ar.id) FILTER (WHERE COALESCE(ar.review_score, ar.score) IS NOT NULL) > 0
-                THEN ROUND((COALESCE(SUM(COALESCE(ar.review_score, ar.score)), 0)::numeric
-                             / NULLIF(SUM(aq.max_score) FILTER (WHERE COALESCE(ar.review_score, ar.score) IS NOT NULL), 0)) * 100, 2)
-                ELSE NULL END                         AS percentage
+           COALESCE(n.answered, 0)::int                AS answered,
+           COALESCE(pc.score, 0)::float8               AS total_score,
+           COALESCE(pc.max_score, 0)::float8           AS max_score,
+           CASE WHEN COALESCE(n.scored, 0) > 0 AND COALESCE(pc.max_score, 0) > 0
+                THEN ROUND((pc.score / pc.max_score * 100)::numeric, 2)
+                ELSE NULL END                          AS percentage
       FROM assessment_categories ac
-      JOIN assessment_questions aq
-             ON aq.category_id = ac.id
-            AND aq.deleted_at IS NULL AND aq.is_active = true
-      LEFT JOIN assessment_responses ar
-             ON ar.question_id = aq.id
-            AND ar.deleted_at IS NULL
-            AND ar.author_role = ${authorRole}
-            AND ar.field_id = ${fieldId}::uuid
-            AND ar.program_id = ${programId}::uuid
+      LEFT JOIN per_category pc ON pc.category_id = ac.id
+      LEFT JOIN counts n ON n.category_id = ac.id
      WHERE ac.deleted_at IS NULL AND ac.is_active = true
        AND ac.template_id = ${programTemplate(programId)}
-     GROUP BY ac.id
-     HAVING COUNT(aq.id) > 0
+       AND EXISTS (
+             SELECT 1 FROM assessment_questions aq
+              WHERE aq.category_id = ac.id AND aq.deleted_at IS NULL AND aq.is_active = true)
      ORDER BY ac.sort_order ASC, ac.created_at ASC;`);
 }

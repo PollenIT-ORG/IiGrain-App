@@ -5,5 +5,6 @@ declare module '@env' {
   export const API_BASE_URL: string;
   export const API_PREFIX: string;
   export const API_TIMEOUT: string;
-  export const MAPS_API_KEY: string;
+  export const MAPS_API_KEY_ANDROID: string;
+  export const MAPS_API_KEY_IOS: string;
 }

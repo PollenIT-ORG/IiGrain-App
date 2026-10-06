@@ -17,7 +17,6 @@ import ProgramStatusBadge from "../components/ProgramStatusBadge";
 import ProgramShareModal from "../components/ProgramShareModal";
 import Loader from "../components/Loader";
 import Breadcrumbs from "../components/ui/Breadcrumbs";
-import { useLiveData } from "../lib/useLiveData";
 import AssessmentCategories from "./AssessmentCategories";
 import { SurveySubmissionsModule } from "./ProgramSubmissions";
 import { EnrolledFarmersModule } from "./EnrolledFarmers";
@@ -26,10 +25,7 @@ import type { Program } from "../types";
 
 /** The survey attached to this program, if it has one. */
 function useSurveyLink(programId: string): SurveyLink | null {
-  const { data: links, refetch } = useListPasProgramsQuery();
-  useLiveData(["program_admin_survey"], () => {
-    void refetch();
-  });
+  const { data: links } = useListPasProgramsQuery();
   return (links ?? []).find((l) => l.program_id === programId) ?? null;
 }
 

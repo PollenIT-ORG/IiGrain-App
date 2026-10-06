@@ -34,15 +34,16 @@ const AssessmentSummaryCard: React.FC<AssessmentSummaryCardProps> = ({
   }, [onContinue]);
 
   const isComplete = summary.status === 'COMPLETED';
+  const heading = title || summary.title;
 
   return (
     <View
       style={styles.card}
-      accessibilityLabel={`${title} assessment card`}>
+      accessibilityLabel={`${heading} assessment card`}>
 
       <View style={styles.titleRow}>
         <AppText style={styles.title} numberOfLines={2}>
-          {title ? title : summary.title}
+          {heading}
         </AppText>
         {summary.reviewStatus ? (
           <View

@@ -575,6 +575,13 @@ export const selectAssessorHistory = createSelector(
 export const selectAssessorHistoryLoading = (s: HasAssessor): boolean =>
   s.assessor.loadingFieldsOverview;
 
+export const selectAssessorProgramName =
+  (programId: string) =>
+  (s: HasAssessor): string =>
+    s.assessor.fieldsOverview?.fields
+      .find(entry => entry.program.id === programId && entry.program.name.trim() !== '')
+      ?.program.name.trim() ?? '';
+
 export const selectAssessorSummary = (s: HasAssessor): FieldAssessmentSummary | null => s.assessor.summary;
 export const selectAssessorLoadedSummaryScope = (s: HasAssessor): string | null =>
   s.assessor.loadedSummaryScope;

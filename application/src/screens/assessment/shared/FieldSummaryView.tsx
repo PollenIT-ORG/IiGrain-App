@@ -34,7 +34,9 @@ import type { AssessmentCategory } from '../../../types/assessment';
 import {
   isAssessmentComplete,
   toCategoryItems,
+  toRegenScoring,
   toSummaryCardModel,
+  toSummaryHeaderTitle,
 } from '../assessmentPresenter';
 import { styles } from '../AssessmentScreenStyle';
 import { useAssessmentFlow } from './useAssessmentFlow';
@@ -60,6 +62,7 @@ const FieldSummaryView: React.FC<FieldSummaryViewProps> = ({
     supportsRegenIndex,
     access,
     summary,
+    programName,
     categories,
     regenIndex,
     resumePoint,
@@ -142,8 +145,8 @@ const FieldSummaryView: React.FC<FieldSummaryViewProps> = ({
   const onRetry = useCallback(() => loadSummary(target), [loadSummary, target]);
 
   const summaryCard = useMemo(
-    () => (summary ? toSummaryCardModel(summary, { submitted }) : null),
-    [summary, submitted],
+    () => (summary ? toSummaryCardModel(summary, { submitted, programName }) : null),
+    [summary, submitted, programName],
   );
   const categoryItems = useMemo(() => toCategoryItems(categories), [categories]);
 
@@ -242,9 +245,7 @@ const FieldSummaryView: React.FC<FieldSummaryViewProps> = ({
     [canDiscard, discarding],
   );
 
-  const headerTitle = summaryReady
-    ? summary?.assessment.title || fieldName || 'Assessment'
-    : fieldName || 'Assessment';
+  const headerTitle = toSummaryHeaderTitle(summaryReady ? summary : null, fieldName);
 
   const renderSkeleton = () => (
     <View style={styles.body}>
@@ -309,11 +310,9 @@ const FieldSummaryView: React.FC<FieldSummaryViewProps> = ({
             tintColor={COLORS.primary}
           />
         }>
-        <AppText style={styles.fieldCaption}>
-          {role === 'assessor' && !summary.field.farmName
-            ? summary.field.name
-            : `${summary.field.farmName} - ${summary.field.name}`}
-        </AppText>
+        {summary.field.farmName ? (
+          <AppText style={styles.fieldCaption}>{summary.field.farmName}</AppText>
+        ) : null}
 
         {role === 'assessor' && submitted ? (
           <View style={extras.lockBanner}>
@@ -387,6 +386,7 @@ const FieldSummaryView: React.FC<FieldSummaryViewProps> = ({
           <FieldRegenIndexCard
             data={regenReady ? regenIndex : null}
             loading={loadingRegenIndex}
+            scoring={toRegenScoring(summary)}
           />
         ) : null}
 

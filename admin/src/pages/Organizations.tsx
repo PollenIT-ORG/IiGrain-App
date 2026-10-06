@@ -5,7 +5,6 @@ import {
   useDeleteOrganizationMutation,
 } from "../store/endpoints/organizationsApi";
 import { showSuccess, showError } from "../lib/toast";
-import { useLiveData } from "../lib/useLiveData";
 import { useDialog } from "../components/ui/DialogProvider";
 import Select from "../components/ui/Select";
 import Loader from "../components/Loader";
@@ -43,13 +42,12 @@ export default function Organizations() {
   const [searchInput, setSearchInput] = useState("");
   const [status, setStatus] = useState<"" | "active" | "inactive">("");
 
-  const { data, isLoading, isError, error, refetch } = useListOrganizationsQuery({
+  const { data, isLoading, isError, error } = useListOrganizationsQuery({
     page,
     limit: PAGE_SIZE,
     status: status || undefined,
     search: search || undefined,
   });
-  useLiveData(["organizations"], refetch);
   const organizations = data?.organizations ?? [];
   const meta = data?.meta ?? null;
 

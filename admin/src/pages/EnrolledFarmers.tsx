@@ -9,7 +9,6 @@ import {
 } from "../store/endpoints/programsApi";
 import { useListUsersQuery } from "../store/endpoints/usersApi";
 import { showSuccess, showError } from "../lib/toast";
-import { useLiveData } from "../lib/useLiveData";
 import { scopeFor } from "../lib/programScope";
 import { useHere } from "../lib/returnTo";
 import { useProgramCrumbs } from "../lib/useProgramCrumbs";
@@ -83,7 +82,7 @@ export function EnrolledFarmersModule({
   const [search, setSearch] = useState("");
   const [assessorFilter, setAssessorFilter] = useState("");
 
-  const { data, isLoading, isFetching, isError, error, refetch } =
+  const { data, isLoading, isFetching, isError, error } =
     useListEnrollmentsPagedQuery(
       {
         programId: id,
@@ -100,7 +99,6 @@ export function EnrolledFarmersModule({
   const enrollments = data?.enrollments ?? [];
   const meta = data?.meta ?? null;
 
-  useLiveData(["enrollments", "assignments"], refetch);
 
   const { data: assessorsData } = useListUsersQuery({
     page: 1,

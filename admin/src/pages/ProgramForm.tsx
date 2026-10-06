@@ -18,6 +18,7 @@ import {
   useCreateProgramMutation,
   useUpdateProgramMutation,
 } from "../store/endpoints/programsApi";
+import { useSeedOnce } from "../lib/useSeedOnce";
 import { showSuccess, showError } from "../lib/toast";
 import { required, isClean } from "../lib/validation";
 import { useReturnTo, useTrail } from "../lib/returnTo";
@@ -77,6 +78,7 @@ export default function ProgramForm() {
   const {
     data: program,
     isLoading: loading,
+    isFetching: refreshing,
     isError: loadError,
   } = useGetProgramQuery(id, { skip: !isEdit });
   const { link, setFresh, loading: loadingLink } = useProgramSurveyLink(id);
@@ -146,6 +148,7 @@ export default function ProgramForm() {
         <DetailsStep
           ref={details}
           program={program}
+          refreshing={refreshing}
           onCancel={() => back.go()}
           onCreated={(created) =>
             navigate(`/programs/${created.id}/edit?step=2`, {
@@ -241,13 +244,14 @@ interface DetailsStepHandle {
 
 interface DetailsStepProps {
   program: Program | undefined;
+  refreshing: boolean;
   onCancel: () => void;
   onCreated: (created: Program) => void;
   onUpdated: (continueSetup: boolean) => void;
 }
 
 const DetailsStep = forwardRef<DetailsStepHandle, DetailsStepProps>(function DetailsStep(
-  { program, onCancel, onCreated, onUpdated },
+  { program, refreshing, onCancel, onCreated, onUpdated },
   ref
 ) {
   const isEdit = Boolean(program);
@@ -269,26 +273,24 @@ const DetailsStep = forwardRef<DetailsStepHandle, DetailsStepProps>(function Det
   const [updateProgram, { isLoading: updating }] = useUpdateProgramMutation();
   const saving = creating || updating;
 
-  useEffect(() => {
-    if (program) {
-      setName(program.name);
-      setCode(program.code ?? "");
-      // An existing code stands; one that was never set still gets suggested.
-      setCodeTouched(Boolean(program.code));
-      setType(program.type ?? "");
-      setDescription(program.description ?? "");
-      setStartDate(program.start_date ?? "");
-      setEndDate(program.end_date ?? "");
-      if (program.user_limit === null) {
-        setUnlimited(true);
-        setUserLimit("");
-      } else {
-        setUnlimited(false);
-        setUserLimit(String(program.user_limit));
-      }
-      setIsActive(program.is_active);
+  useSeedOnce(program, program?.id, refreshing, (p) => {
+    setName(p.name);
+    setCode(p.code ?? "");
+    // An existing code stands; one that was never set still gets suggested.
+    setCodeTouched(Boolean(p.code));
+    setType(p.type ?? "");
+    setDescription(p.description ?? "");
+    setStartDate(p.start_date ?? "");
+    setEndDate(p.end_date ?? "");
+    if (p.user_limit === null) {
+      setUnlimited(true);
+      setUserLimit("");
+    } else {
+      setUnlimited(false);
+      setUserLimit(String(p.user_limit));
     }
-  }, [program]);
+    setIsActive(p.is_active);
+  });
 
   // Suggest a code from the name - the initials and a free number - so nobody
   // has to invent one. It follows the name until the code is edited by hand.
@@ -319,7 +321,7 @@ const DetailsStep = forwardRef<DetailsStepHandle, DetailsStepProps>(function Det
     };
     if (!unlimited) {
       const n = Number(userLimit);
-      // A limit of zero would let nobody enrol, so the server starts at 1 and
+      // A limit of zero would let nobody enroll, so the server starts at 1 and
       // "no limit" is the checkbox rather than a zero.
       if (
         userLimit.trim() === "" ||
@@ -338,6 +340,11 @@ const DetailsStep = forwardRef<DetailsStepHandle, DetailsStepProps>(function Det
     setErrors(next);
     return isClean(next);
   }
+
+  const datesError =
+    startDate && endDate && endDate < startDate
+      ? "End date cannot be before start date."
+      : errors.dates;
 
   async function submitForm(continueSetup: boolean) {
     if (saving || !validate()) return;
@@ -453,7 +460,7 @@ const DetailsStep = forwardRef<DetailsStepHandle, DetailsStepProps>(function Det
             <input
               id="startDate"
               type="date"
-              className={`input-field ${errors.dates ? "input-error" : ""}`}
+              className={`input-field ${datesError ? "input-error" : ""}`}
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
             />
@@ -465,13 +472,14 @@ const DetailsStep = forwardRef<DetailsStepHandle, DetailsStepProps>(function Det
             <input
               id="endDate"
               type="date"
-              className={`input-field ${errors.dates ? "input-error" : ""}`}
+              min={startDate || undefined}
+              className={`input-field ${datesError ? "input-error" : ""}`}
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
             />
           </div>
         </div>
-        {errors.dates && <p className="field-error -mt-3">{errors.dates}</p>}
+        {datesError && <p className="field-error -mt-3">{datesError}</p>}
 
         <div>
           <label className="label">Enrollment limit (farmers)</label>

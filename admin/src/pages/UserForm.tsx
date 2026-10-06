@@ -5,6 +5,7 @@ import {
   useCreateUserMutation,
   useUpdateUserMutation,
 } from "../store/endpoints/usersApi";
+import { useSeedOnce } from "../lib/useSeedOnce";
 import { showSuccess, showError } from "../lib/toast";
 import { applyServerFieldErrors } from "../lib/serverErrors";
 import { useReturnTo } from "../lib/returnTo";
@@ -67,6 +68,7 @@ export default function UserForm() {
   const {
     data: existingUser,
     isLoading: loading,
+    isFetching: refreshing,
     isError: loadError,
   } = useGetUserQuery(id ?? "", { skip: !isEdit });
 
@@ -74,14 +76,12 @@ export default function UserForm() {
   const [updateUser, { isLoading: updating }] = useUpdateUserMutation();
   const saving = creating || updating;
 
-  useEffect(() => {
-    if (existingUser) {
-      setFullName(existingUser.full_name ?? "");
-      setEmail(existingUser.email);
-      setPhone(existingUser.phone ?? "");
-      setRole((existingUser.role as UserRole) ?? "farmer");
-    }
-  }, [existingUser]);
+  useSeedOnce(existingUser, existingUser?.id, refreshing, (u) => {
+    setFullName(u.full_name ?? "");
+    setEmail(u.email);
+    setPhone(u.phone ?? "");
+    setRole((u.role as UserRole) ?? "farmer");
+  });
 
   useEffect(() => {
     if (loadError) {

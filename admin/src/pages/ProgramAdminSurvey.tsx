@@ -17,7 +17,6 @@ import {
 import { useListProgramsQuery } from "../store/endpoints/programsApi";
 import { errMsg } from "../lib/errMsg";
 import { useAuth } from "../store/useAuth";
-import { useLiveData } from "../lib/useLiveData";
 import { showSuccess, showError } from "../lib/toast";
 import { useConfirmCascadeDelete } from "../lib/confirmDelete";
 import { openApiPdf } from "../lib/openPdf";
@@ -218,7 +217,7 @@ function SurveysTab() {
     refetch,
   } = useListPasTemplatesQuery();
   // The link rows tell us which program each survey is attached to.
-  const { data: links, isLoading: linksLoading, refetch: refetchLinks } =
+  const { data: links, isLoading: linksLoading } =
     useListPasProgramsQuery();
   // Programs come from the Programs module (100 is the API's page cap).
   const { data: programData } = useListProgramsQuery({ page: 1, limit: 100 });
@@ -226,10 +225,6 @@ function SurveysTab() {
   const confirmDelete = useConfirmCascadeDelete();
   const [makeTemplateGlobal] = useMakePasTemplateGlobalMutation();
   const { confirm } = useDialog();
-  useLiveData(["program_admin_survey"], () => {
-    void refetch();
-    void refetchLinks();
-  });
 
   const [share, setShare] = useState<Program | null>(null);
   const [linking, setLinking] = useState<Template | null>(null);
@@ -581,7 +576,6 @@ function ContractsTab({
   const [deleteContract] = useDeletePasContractMutation();
   const [makeGlobal] = useMakePasContractGlobalMutation();
   const { confirm } = useDialog();
-  useLiveData(["program_admin_survey"], refetch);
 
   const saving = savingNew || uploading;
   const [name, setName] = useState("");

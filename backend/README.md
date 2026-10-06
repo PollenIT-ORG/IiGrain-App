@@ -1,6 +1,6 @@
 # 🚜 Farmer App - Backend
 
-Production-grade REST API for the Farmer App, built with **Node.js + Express + PostgreSQL (Neon)**, written in **TypeScript**.
+Production-grade REST API for the Farmer App, built with **Node.js + Express + PostgreSQL**, written in **TypeScript**.
 
 This document is the **living reference** for the backend - every time we add a feature, we update this file so anyone (you, the admin-panel dev, the mobile dev) knows exactly what exists and how to use it.
 
@@ -13,7 +13,7 @@ This document is the **living reference** for the backend - every time we add a 
 | Language       | TypeScript 5 (strict mode)          |
 | Runtime        | Node.js (>= 18, ES Modules)         |
 | Framework      | Express 4                           |
-| Database       | PostgreSQL (Neon, serverless)       |
+| Database       | PostgreSQL                          |
 | DB Driver      | `pg` (raw SQL via a connection pool)|
 | File Storage   | Cloudinary                          |
 | Security       | Helmet, CORS, rate limiting         |
@@ -84,7 +84,8 @@ backend/
 │   └── server.ts               # Entry point: starts server, sync/seed, shutdown
 │
 ├── postman/
-│   └── farmer-app.postman_collection.json   # Import into Postman to hit the API
+│   ├── farmer-app.master.postman_collection.json   # Postman: every endpoint
+│   └── build-collections.ts                        # Rebuilds the Postman and Hoppscotch collections
 ├── dist/                       # Compiled JS output (gitignored, created by build)
 ├── .env                        # Secrets (gitignored)
 ├── .env.example                # Template for .env
@@ -114,7 +115,7 @@ Copy the template and fill in real values:
 ```bash
 cp .env.example .env
 ```
-> The real `.env` already contains the Neon DB URL and Cloudinary credentials for this project. **It is gitignored - never commit it.**
+> Fill in your own values. **`.env` is gitignored - never commit it.** Where each key comes from is explained in [THIRD-PARTY-SERVICES.md](../THIRD-PARTY-SERVICES.md), and the full setup (including Docker) is in [MASTER-README.md](../MASTER-README.md).
 
 ### 3. Verify the database connection
 ```bash
@@ -131,7 +132,7 @@ For production, build first, then start the compiled output:
 npm run build      # compiles src/*.ts → dist/*.js
 npm start          # runs node dist/server.js
 ```
-Server starts on `https://api.farmer.tcqitsolution.com`.
+Server starts on `http://localhost:5000`.
 
 ### Available scripts
 | Script              | What it does                                            |
@@ -152,14 +153,14 @@ Server starts on `https://api.farmer.tcqitsolution.com`.
 | `PORT`                   | no       | `5000`        | Port the server listens on                   |
 | `CORS_ORIGIN`            | no       | `*`           | Comma-separated allowed origins (`*` = all)  |
 | `API_PREFIX`             | no       | `/api/v1`     | Base path all API routes mount under (re-version the API via env, no code change) |
-| `DATABASE_URL`           | **yes**  | -             | PostgreSQL connection string (Neon)          |
+| `DATABASE_URL`           | **yes**  | -             | PostgreSQL connection string              |
 | `DB_SYNC`                | no       | `false`       | `true` → run pending migrations on startup   |
 | `DB_SEED`                | no       | `false`       | `true` → seed baseline data (roles) on startup |
 | `CLOUDINARY_CLOUD_NAME`  | **yes**  | -             | Cloudinary cloud name                        |
 | `CLOUDINARY_API_KEY`     | **yes**  | -             | Cloudinary API key                           |
 | `CLOUDINARY_API_SECRET`  | **yes**  | -             | Cloudinary API secret                        |
 | `JWT_SECRET`             | **yes**  | -             | Secret used to sign JWTs (use a long random value) |
-| `JWT_EXPIRES_IN`         | no       | `7d`          | Token lifetime (e.g. `7d`, `12h`)            |
+| `JWT_EXPIRES_IN`         | no       | `15m`         | Access token lifetime (e.g. `15m`, `1h`)     |
 | `OTP_LENGTH`             | no       | `6`           | Number of digits in generated OTPs           |
 | `OTP_EXPIRY_MINUTES`     | no       | `10`          | How long an OTP stays valid                  |
 | `SMTP_ENABLED`           | no       | `false`       | `false` → OTPs printed to terminal; `true` → emailed via SMTP |
@@ -492,17 +493,19 @@ That's it - the global error handler and response format apply automatically.
 
 ---
 
-## 📮 Postman
+## 📮 Postman and Hoppscotch
 
-Import `postman/farmer-app.postman_collection.json` into Postman. It includes all
-health + auth requests with collection variables:
+Two master collections hold every endpoint (255 requests), with a ready made
+environment each:
 
-- `baseUrl` (default `https://api.farmer.tcqitsolution.com`) and `apiPrefix` (default `/api/v1`)
-- `token` - auto-saved by the test scripts on Register / Login / Verify OTP, then
-  used automatically by **Get Me**.
+- Postman: `postman/farmer-app.master.postman_collection.json` and
+  `postman/farmer-app.master.postman_environment.json`. Guide: [postman/README.md](postman/README.md).
+- Hoppscotch: `hoppscotch/master-collection.json` and
+  `hoppscotch/master-environment.json`. Guide: [hoppscotch/README.md](hoppscotch/README.md).
 
-Typical flow: **Register** (or **Login**) → token is saved → hit **Get Me**. For OTP:
-**Request OTP** → copy the code from the server terminal → **Verify OTP**.
+Run **Auth, Login** first. The token and the ids from responses are saved for you.
+After a route change, rebuild both with `npx tsx postman/build-collections.ts`.
+Live updates over Socket.IO are explained in [SOCKETS.md](SOCKETS.md).
 
 ---
 
@@ -510,7 +513,7 @@ Typical flow: **Register** (or **Login**) → token is saved → hit **Get Me**.
 
 | Date       | Change                                                            |
 | ---------- | ----------------------------------------------------------------- |
-| 2026-06-23 | Initial backend setup: folder structure, global error middleware, consistent API responses, Cloudinary + Neon config, health endpoints. |
+| 2026-06-23 | Initial backend setup: folder structure, global error middleware, consistent API responses, Cloudinary + database config, health endpoints. |
 | 2026-06-23 | Migrated the whole backend from JavaScript to **TypeScript** (strict mode, NodeNext). Added `tsconfig.json`, shared `src/types/`, `tsx` dev runner, and `build`/`typecheck` scripts. |
 | 2026-06-23 | Centralized the API base path into the `API_PREFIX` env var (default `/api/v1`). Re-versioning the API is now an env edit - no code change. |
 | 2026-06-23 | Added flag-driven DB sync/seed (`DB_SYNC`, `DB_SEED`) with a migration runner + ledger. Created `roles`, `users`, `otp_codes`, `login_logs` tables; seeded roles (farmer, assessor, program_partner, admin). |

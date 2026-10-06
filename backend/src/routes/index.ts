@@ -20,7 +20,6 @@ import fieldModuleRoutes from "./fieldModule.routes.js";
 import notificationRoutes from "./notification.routes.js";
 import faqRoutes from "./faq.routes.js";
 import contactEnquiryRoutes from "./contactEnquiry.routes.js";
-import webRoutes from "./web.routes.js";
 import programAdminSurveyRoutes from "./programAdminSurvey.routes.js";
 import programAdminSurveyPublicRoutes from "./programAdminSurveyPublic.routes.js";
 
@@ -50,9 +49,6 @@ router.use("/notifications", notificationRoutes);
 router.use("/faqs", faqRoutes);
 router.use("/contact-enquiries", contactEnquiryRoutes);
 
-// Public website (eligibility survey, contract signing, contact form).
-router.use("/web", webRoutes);
-// Admin portal screens for that flow.
 // Program Admin Survey module - admin portal (scoped) + public survey link.
 router.use("/program-admin-surveys", programAdminSurveyRoutes);
 router.use("/program-admin-survey", programAdminSurveyPublicRoutes);

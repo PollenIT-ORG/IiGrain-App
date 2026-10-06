@@ -153,6 +153,10 @@ const EMPTY_FIELDS: EnrollableField[] = [];
 
 export const selectAvailablePrograms = (s: HasEnrollment): AvailableProgram[] =>
   s.enrollment.availablePrograms ?? EMPTY_PROGRAMS;
+export const selectEnrollmentProgramName =
+  (programId: string) =>
+  (s: HasEnrollment): string =>
+    s.enrollment.availablePrograms?.find(program => program.id === programId)?.name.trim() ?? '';
 export const selectEnrollableFields = (s: HasEnrollment): EnrollableField[] =>
   s.enrollment.enrollableFields ?? EMPTY_FIELDS;
 export const selectProgramsLoaded = (s: HasEnrollment): boolean => s.enrollment.programsLoaded;

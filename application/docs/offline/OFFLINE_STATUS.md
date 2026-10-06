@@ -7,7 +7,7 @@ Last updated: 2026-09-14 (last-known-good data + assessment offline package)
 | | |
 |---|---|
 | Tests | **633 / 633 passing, 44 suites** (full run 2026-09-14, after the last-known-good work and the code-review fix). No suite logged after completion and no test sent a request to the real assessment API. One earlier run showed Jest's "a worker process has failed to exit gracefully" notice -- not attributed |
-| Code review | ECC `code-reviewer` agent: 0 CRITICAL, **1 HIGH -- fixed** (offline summary header count not updated after an online save; see "Local work always wins") |
+| Code review | Review result: 0 CRITICAL, **1 HIGH -- fixed** (offline summary header count not updated after an online save; see "Local work always wins") |
 | TypeScript | **PASS** (`tsc --noEmit`, exit 0) |
 | ESLint | **0 errors**, 13 warnings (2026-09-15). The 58 errors are gone: `jest.setup.js` now declares the Jest environment (`/* eslint-env jest */`), and dead code (unused imports, variables, a leftover tab-indicator animation and an unnecessary hook dependency) was removed from `FarmsScreen`, `FieldMapView`, `FarmDetailsScreen`, `AuthHeaderStyle` and `FarmSelectorSheet` with no behaviour change. The warnings are `no-bitwise` and `react-native/no-inline-styles` |
 | Android build | **PASS** after this pass -- `assembleDebug -PreactNativeArchitectures=arm64-v8a` (3m 3s, `app-debug.apk` 84 MB), installed on the phone over the previous build with data kept. Previous pass: all-ABI `assembleRelease` PASS; release not rebuilt in this pass |
@@ -178,7 +178,7 @@ review that silently omits questions.
   answered count, percentage and status are recomputed from the stored answers -- but never
   below the count already stored, because the local answers can be a subset of the server's
   while a package is not READY (server 26 answered, device 1 row must not become 1). Found by
-  the ECC `code-reviewer` agent: before this, an online save left the offline summary header
+  code review: before this, an online save left the offline summary header
   one answer behind. Covered by three tests in `assessmentPackage.test.ts`.
 - Server progress (answered, percentage, status) is applied to the local assessment unless
   there are unsent local answers. Previously any local answer blocked it, which would have

@@ -39,7 +39,6 @@ import {
 import { usePasSubmissionStatsQuery } from "../store/endpoints/programAdminSurveyApi";
 import ProgramSubmissionCards from "../components/ProgramSubmissionCards";
 import { isProgramAdmin } from "../lib/access";
-import { useLiveData } from "../lib/useLiveData";
 import { showSuccess, showError } from "../lib/toast";
 
 const axisStyle = { fontSize: 12, fill: "#495057" };
@@ -195,15 +194,10 @@ export default function Dashboard() {
     undefined,
     { skip: !platformView }
   );
-  const { data: programStats, refetch: refetchPrograms } =
+  const { data: programStats } =
     useGetProgramDashboardQuery();
-  const { data: pasStats, refetch: refetchPas } = usePasSubmissionStatsQuery();
+  const { data: pasStats } = usePasSubmissionStatsQuery();
 
-  useLiveData(["submissions", "enrollments", "dashboard"], () => {
-    if (platformView) refetch();
-    void refetchPrograms();
-  });
-  useLiveData(["program_admin_survey"], refetchPas);
 
   const kpis = data?.kpis;
   // The same charts for everyone, drawn from their own figures.

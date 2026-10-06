@@ -10,7 +10,6 @@ import { errMsg } from "../lib/errMsg";
 import { useForward, useTrail } from "../lib/returnTo";
 import { useAuth } from "../store/useAuth";
 import { useGetCurrentOrganizationQuery } from "../store/endpoints/organizationsApi";
-import { useLiveData } from "../lib/useLiveData";
 import { showSuccess, showError } from "../lib/toast";
 import { useDialog } from "../components/ui/DialogProvider";
 import Loader from "../components/Loader";
@@ -57,11 +56,10 @@ export function ContractEditor({
     user?.role === "admin" || user?.role === "super_admin";
   // Letterhead details for the exported PDF.
   const { data: org } = useGetCurrentOrganizationQuery();
-  const { data, isLoading, isError, error, refetch } = useGetPasContractQuery(id, {
+  const { data, isLoading, isError, error } = useGetPasContractQuery(id, {
     skip: !id,
   });
   const [save, { isLoading: saving }] = useUpdatePasContractMutation();
-  useLiveData(["program_admin_survey"], refetch);
 
   const [name, setName] = useState("");
   const [intro, setIntro] = useState("");

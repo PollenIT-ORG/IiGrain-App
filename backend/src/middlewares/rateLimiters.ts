@@ -104,7 +104,7 @@ export const importLimiter: RequestHandler = env.rateLimit.enabled
     })
   : passthrough;
 
-// The website contact form is unauthenticated, so cap how often one client can
+// The contact form is unauthenticated, so cap how often one client can
 // post. Generous enough that a genuine visitor never notices.
 export const contactLimiter = makeLimiter(
   60 * 60 * 1000,

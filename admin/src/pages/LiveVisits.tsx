@@ -16,7 +16,6 @@ import {
   type Visit,
 } from "../store/endpoints/visitsApi";
 import { getSocket, joinVisitRoom } from "../lib/socket";
-import { useLiveData } from "../lib/useLiveData";
 import Loader from "../components/Loader";
 import { fmtDate, fmtTime } from "../lib/datetime";
 
@@ -252,9 +251,6 @@ function FitBounds({ visit }: { visit: Visit | null }) {
 
 export default function LiveVisits() {
   const { data: initial, isLoading, refetch } = useListActiveVisitsQuery();
-  // Refetch the active-visits list when a visit starts or ends (the backend
-  // broadcasts a "visits" change to all admins).
-  useLiveData(["visits"], refetch);
   const [visits, setVisits] = useState<Record<string, Visit>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
 

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useListSubmissionsQuery } from "../store/endpoints/programsApi";
 import { useListProgramsQuery } from "../store/endpoints/programsApi";
-import { useLiveData } from "../lib/useLiveData";
 import Select from "../components/ui/Select";
 import Loader from "../components/Loader";
 import { ChevronLeftIcon, ChevronRightIcon } from "../components/icons";
@@ -67,7 +66,7 @@ export default function Submissions() {
   const [role, setRole] = useState("");
   const [reviewStatus, setReviewStatus] = useState("");
 
-  const { data, isLoading, isError, error, refetch } = useListSubmissionsQuery({
+  const { data, isLoading, isError, error } = useListSubmissionsQuery({
     page,
     limit: PAGE_SIZE,
     programId: programId || undefined,
@@ -77,7 +76,6 @@ export default function Submissions() {
   const submissions = data?.submissions ?? [];
   const meta = data?.meta ?? null;
 
-  useLiveData(["submissions"], refetch);
 
   const { data: programsData } = useListProgramsQuery({ page: 1, limit: 100 });
   const PROGRAM_OPTIONS = [

@@ -5,6 +5,7 @@ import {
   useCreateOrganizationMutation,
   useUpdateOrganizationMutation,
 } from "../store/endpoints/organizationsApi";
+import { useSeedOnce } from "../lib/useSeedOnce";
 import { showSuccess, showError } from "../lib/toast";
 import { applyServerFieldErrors } from "../lib/serverErrors";
 import { useReturnTo } from "../lib/returnTo";
@@ -50,6 +51,7 @@ export default function OrganizationForm() {
   const {
     data: detail,
     isLoading: loading,
+    isFetching: refreshing,
     isError: loadError,
   } = useGetOrganizationQuery(id ?? "", { skip: !isEdit });
 
@@ -57,19 +59,16 @@ export default function OrganizationForm() {
   const [updateOrg, { isLoading: updating }] = useUpdateOrganizationMutation();
   const saving = creating || updating;
 
-  useEffect(() => {
-    if (detail?.organization) {
-      const o = detail.organization;
-      setName(o.name);
-      setCode(o.code);
-      codeManuallyEdited.current = true;
-      setContactEmail(o.contact_email ?? "");
-      setContactPhone(o.contact_phone ?? "");
-      setAddress(o.address ?? "");
-      setDescription(o.description ?? "");
-      setIsActive(o.is_active);
-    }
-  }, [detail]);
+  useSeedOnce(detail?.organization, detail?.organization.id, refreshing, (o) => {
+    setName(o.name);
+    setCode(o.code);
+    codeManuallyEdited.current = true;
+    setContactEmail(o.contact_email ?? "");
+    setContactPhone(o.contact_phone ?? "");
+    setAddress(o.address ?? "");
+    setDescription(o.description ?? "");
+    setIsActive(o.is_active);
+  });
 
   function handleNameChange(v: string) {
     setName(v);

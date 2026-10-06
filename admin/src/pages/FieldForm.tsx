@@ -10,6 +10,7 @@ import {
   type SoilBody,
 } from "../store/endpoints/fieldsApi";
 import { useListFarmsQuery } from "../store/endpoints/farmsApi";
+import { useSeedOnce } from "../lib/useSeedOnce";
 import { showSuccess, showError } from "../lib/toast";
 import Loader from "../components/Loader";
 import Select from "../components/ui/Select";
@@ -116,50 +117,47 @@ export default function FieldForm() {
   const {
     data: field,
     isLoading: loading,
+    isFetching: refreshing,
     isError: loadError,
   } = useGetFieldQuery(id ?? "", { skip: !isEdit });
 
-  const { data: soil } = useGetFieldSoilQuery(id ?? "", { skip: !isEdit });
+  const { data: soil, isFetching: refreshingSoil } = useGetFieldSoilQuery(id ?? "", { skip: !isEdit });
 
   const [createField, { isLoading: creating }] = useCreateFieldMutation();
   const [updateField, { isLoading: updating }] = useUpdateFieldMutation();
   const [saveSoil, { isLoading: savingSoil }] = useSaveFieldSoilMutation();
   const saving = creating || updating || savingSoil;
 
-  useEffect(() => {
-    if (field) {
-      setFarmId(field.farm_id);
-      setName(field.name);
-      setAreaAcres(field.area_acres ?? "");
-      setCrop(field.crop ?? "");
-      setSeason(field.season ?? "");
-      setIrrigation(field.irrigation ?? "");
-      setLocation(field.location ?? "");
-      setCoords(
-        field.latitude != null && field.longitude != null
-          ? { lat: field.latitude, lng: field.longitude }
-          : null
-      );
-      setSowingDate(field.sowing_date ?? "");
-      setExpectedHarvest(field.expected_harvest ?? "");
-      setBoundary(field.boundary ?? null);
-      setIsActive(field.is_active);
-    }
-  }, [field]);
+  useSeedOnce(field, field?.id, refreshing, (f) => {
+    setFarmId(f.farm_id);
+    setName(f.name);
+    setAreaAcres(f.area_acres ?? "");
+    setCrop(f.crop ?? "");
+    setSeason(f.season ?? "");
+    setIrrigation(f.irrigation ?? "");
+    setLocation(f.location ?? "");
+    setCoords(
+      f.latitude != null && f.longitude != null
+        ? { lat: f.latitude, lng: f.longitude }
+        : null
+    );
+    setSowingDate(f.sowing_date ?? "");
+    setExpectedHarvest(f.expected_harvest ?? "");
+    setBoundary(f.boundary ?? null);
+    setIsActive(f.is_active);
+  });
 
-  useEffect(() => {
-    if (soil) {
-      setPh(soil.ph ?? "");
-      setOrganicMatter(soil.organic_matter ?? "");
-      setNitrogen(soil.nitrogen ?? "");
-      setPhosphorus(soil.phosphorus ?? "");
-      setPotassium(soil.potassium ?? "");
-      setMoisture(soil.moisture ?? "");
-      setTexture(soil.texture ?? "");
-      setSoilNotes(soil.notes ?? "");
-      setTestedOn(soil.tested_on ?? "");
-    }
-  }, [soil]);
+  useSeedOnce(soil ?? undefined, id, refreshingSoil, (s) => {
+    setPh(s.ph ?? "");
+    setOrganicMatter(s.organic_matter ?? "");
+    setNitrogen(s.nitrogen ?? "");
+    setPhosphorus(s.phosphorus ?? "");
+    setPotassium(s.potassium ?? "");
+    setMoisture(s.moisture ?? "");
+    setTexture(s.texture ?? "");
+    setSoilNotes(s.notes ?? "");
+    setTestedOn(s.tested_on ?? "");
+  });
 
   useEffect(() => {
     if (loadError) {
@@ -208,8 +206,14 @@ export default function FieldForm() {
     return null;
   }
 
+  const harvestError =
+    sowingDate && expectedHarvest && expectedHarvest < sowingDate
+      ? "Expected harvest cannot be before the sowing date."
+      : null;
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (harvestError) return;
     // With an outline drawn the server sets the acres, so only a typed value is sent and checked.
     const areaNum =
       boundary || areaAcres.trim() === "" ? undefined : Number(areaAcres);
@@ -505,10 +509,12 @@ export default function FieldForm() {
               <input
                 id="expectedHarvest"
                 type="date"
-                className="input-field"
+                min={sowingDate || undefined}
+                className={`input-field ${harvestError ? "input-error" : ""}`}
                 value={expectedHarvest}
                 onChange={(e) => setExpectedHarvest(e.target.value)}
               />
+              {harvestError && <p className="field-error">{harvestError}</p>}
             </div>
           </div>
 

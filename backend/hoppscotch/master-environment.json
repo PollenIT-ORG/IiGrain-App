@@ -1,0 +1,161 @@
+{
+  "v": 1,
+  "name": "Farmer App (local)",
+  "variables": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api/v1",
+      "secret": false
+    },
+    {
+      "key": "token",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "adminEmail",
+      "value": "superadmin@farmerapp.com",
+      "secret": false
+    },
+    {
+      "key": "adminPassword",
+      "value": "change_this_strong_password",
+      "secret": false
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "organizationId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "farmId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "fieldId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "docId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "programId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "categoryId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "questionId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "recordId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "reviewId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "templateId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "assessorAssignmentId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "enrollmentId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "visitId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "module",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "id",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "documentId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "notificationId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "faqId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "contactEnquiryId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "ruleId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "contractId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "submissionId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "assessorId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "ownerId",
+      "value": "",
+      "secret": false
+    },
+    {
+      "key": "farmerId",
+      "value": "",
+      "secret": false
+    }
+  ]
+}

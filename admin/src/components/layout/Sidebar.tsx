@@ -18,7 +18,6 @@ import {
 import { ROLE_LABELS, type UserRole } from "../../types";
 import { useGetConfigQuery } from "../../store/endpoints/configApi";
 import { usePasSubmissionStatsQuery } from "../../store/endpoints/programAdminSurveyApi";
-import { useLiveData } from "../../lib/useLiveData";
 import { useAuth } from "../../store/useAuth";
 import { canOpen, managedRoles } from "../../lib/access";
 import type { ComponentType, SVGProps } from "react";
@@ -112,11 +111,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
   const onPasSubmissions = location.pathname.startsWith("/survey-submissions");
   const surveyStatus = params.get("status") ?? "";
-  const { data: pasStats, refetch: refetchPasStats } = usePasSubmissionStatsQuery(
+  const { data: pasStats } = usePasSubmissionStatsQuery(
     undefined,
     { skip: !visible("/survey-submissions") }
   );
-  useLiveData(["program_admin_survey"], refetchPasStats);
   const pasCount = (keys: string[]) =>
     keys.reduce((n, k) => n + (pasStats?.[k] ?? 0), 0);
 

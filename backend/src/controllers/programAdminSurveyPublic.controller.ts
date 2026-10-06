@@ -14,7 +14,7 @@ import type {
   SendOtpBody,
   VerifyOtpBody,
 } from "../validators/standalone.schema.js";
-import type { SignContractBody } from "../validators/web.schema.js";
+import type { SignContractBody } from "../validators/contract.schema.js";
 
 // The public survey flow for a program's shareable link. No account, no
 // password: the producer is tracked by email against one program's survey.

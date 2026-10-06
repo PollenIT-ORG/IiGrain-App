@@ -39,6 +39,11 @@ function link(path = ""): string {
   return env.appUrl ? `${env.appUrl}${path}` : "";
 }
 
+// Farmers and assessors work in the mobile app, so their emails point to where it is installed from.
+function appLink(): string {
+  return env.mobileAppUrl;
+}
+
 function layout(bodyHtml: string, preheader = ""): string {
   const name = esc(appName());
   return `<!doctype html>
@@ -319,24 +324,24 @@ export function newProgramEmail(params: {
 
   const body = `
     ${h1("A new program is open")}
-    ${p(`${greet(params.fullName)} a new program has been added and you can enrol your fields in it.`)}
+    ${p(`${greet(params.fullName)} a new program has been added and you can enroll your fields in it.`)}
     ${details(rows)}
-    ${p("Open the app to pick which fields you want to enrol.")}
-    ${button("View program", link("/programs"))}
+    ${p("Open the app to pick which fields you want to enroll.")}
+    ${button("Open the app", appLink())}
   `;
   const text =
     `A new program is open\n\n` +
     `Program: ${params.programName}\n` +
     (when ? `Dates: ${when}\n` : "") +
-    `\nOpen the app to pick which fields you want to enrol.\n`;
+    `\nOpen the app to pick which fields you want to enroll.\n`;
   return {
     subject: `New program available: ${params.programName}`,
-    html: layout(body, `${params.programName} is open for enrolment`),
+    html: layout(body, `${params.programName} is open for enrollment`),
     text,
   };
 }
 
-/* Enrolment confirmed (self-enrolled or added by an admin). */
+/* Enrollment confirmed (self-enrolled or added by an admin). */
 export function enrolledInProgramEmail(params: {
   fullName: string | null;
   programName: string;
@@ -347,13 +352,13 @@ export function enrolledInProgramEmail(params: {
     : "your selected fields";
   const body = `
     ${h1("You're enrolled")}
-    ${p(`${greet(params.fullName)} your enrolment is confirmed.`)}
+    ${p(`${greet(params.fullName)} your enrollment is confirmed.`)}
     ${details([
       { label: "Program", value: params.programName },
       { label: "Fields", value: fields },
     ])}
     ${p("You can start the assessment for these fields from the app.")}
-    ${button("Open app", link(""))}
+    ${button("Open the app", appLink())}
   `;
   const text =
     `You're enrolled\n\n` +
@@ -362,7 +367,7 @@ export function enrolledInProgramEmail(params: {
     `You can start the assessment for these fields from the app.\n`;
   return {
     subject: `You're enrolled in ${params.programName}`,
-    html: layout(body, `Enrolment confirmed for ${params.programName}`),
+    html: layout(body, `Enrollment confirmed for ${params.programName}`),
     text,
   };
 }
@@ -381,7 +386,7 @@ export function assessorAssignedEmail(params: {
     ${h1("An assessor has been assigned")}
     ${p(`${greet(params.fullName)} ${esc(who)} will handle the assessment for your fields. They may visit your farm in person.`)}
     ${details(rows)}
-    ${button("Open app", link(""))}
+    ${button("Open the app", appLink())}
   `;
   const text =
     `An assessor has been assigned\n\n` +
@@ -409,7 +414,7 @@ export function visitStartedEmail(params: {
       { label: "Assessor", value: who },
       { label: "Field", value: params.fieldName },
     ])}
-    ${button("Track the visit", link(""))}
+    ${button("Open the app", appLink())}
   `;
   const text =
     `Your assessor is on the way\n\n` +
@@ -438,7 +443,7 @@ export function assessmentSubmittedEmail(params: {
       { label: "Answered", value: `${params.answered} of ${params.totalQuestions}` },
       { label: "Score", value: `${params.percentage}%` },
     ])}
-    ${button("View in app", link(""))}
+    ${button("Open the app", appLink())}
   `;
   const text =
     `Assessment submitted\n\n` +
@@ -468,7 +473,7 @@ export function assessmentSubmittedNoticeEmail(params: {
       { label: "Field", value: params.fieldName },
       { label: "Farmer's score", value: `${params.percentage}%` },
     ])}
-    ${button("Review it", link(""))}
+    ${button("Open the app", appLink())}
   `;
   const text =
     `A farmer submitted an assessment\n\n` +
@@ -484,7 +489,7 @@ export function assessmentSubmittedNoticeEmail(params: {
 }
 
 /* ------------------------------------------------------------------------- */
-/* Eligibility survey and enrollment (public website flow)                     */
+/* Eligibility survey and enrollment                                          */
 /* ------------------------------------------------------------------------- */
 
 const BAND_LABEL: Record<string, string> = {
@@ -494,8 +499,8 @@ const BAND_LABEL: Record<string, string> = {
   not_qualified: "Not Qualified",
 };
 
-// The status link is only sent for the standalone survey (magic-link tracking).
-// For the website flow it stays undefined and no button is shown.
+// The status link is the survey's magic-link tracking. When it is undefined no
+// button is shown.
 function statusButton(link?: string): string {
   return link ? button("Check your status", esc(link)) : "";
 }
@@ -790,7 +795,7 @@ export function farmSetupEmail(params: {
  * For someone who already has an account, joining a further program. They do
  * not register again and they have already set up their farms and fields, so
  * this says only what changed: the ID for this program, and that they can log
- * in and enrol.
+ * in and enroll.
  */
 export function returningEnrollmentEmail(params: {
   fullName: string | null;
@@ -820,7 +825,7 @@ export function returningEnrollmentEmail(params: {
     ${h1(`Welcome back, ${esc(firstName)}`)}
     ${p(`Your Enrollment ID ${forProgram} has been generated.`)}
     ${details(rows)}
-    ${p("You already have an account, so there is nothing to register again. Log in to the app and enrol in the program.")}
+    ${p("You already have an account, so there is nothing to register again. Log in to the app and enroll in the program.")}
     ${params.appLink ? button("Open the app", esc(params.appLink)) : ""}
   `;
 
@@ -835,7 +840,7 @@ export function returningEnrollmentEmail(params: {
     `Enrollment ID: ${params.enrollmentId}\n` +
     (band ? `Classification: ${band.toUpperCase()}\n` : "") +
     "\nYou already have an account, so there is nothing to register again. " +
-    "Log in to the app and enrol in the program.\n" +
+    "Log in to the app and enroll in the program.\n" +
     (params.appLink ? `\nOpen the app: ${params.appLink}\n` : "");
 
   return {

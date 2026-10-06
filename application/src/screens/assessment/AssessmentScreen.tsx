@@ -166,10 +166,10 @@ const AssessmentScreen: React.FC = () => {
   ]);
 
   useEffect(() => {
-    const { fieldId, programId } = route.params ?? {};
+    const { fieldId, programId, fieldName } = route.params ?? {};
     if (fieldId && programId) {
-      navigation.setParams({ fieldId: undefined, programId: undefined });
-      navigation.navigate('AssessmentFieldSummary', { programId, fieldId });
+      navigation.setParams({ fieldId: undefined, programId: undefined, fieldName: undefined });
+      navigation.navigate('AssessmentFieldSummary', { programId, fieldId, fieldName });
     }
   }, [route.params, navigation]);
 

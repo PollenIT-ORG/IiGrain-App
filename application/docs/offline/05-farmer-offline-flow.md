@@ -146,7 +146,7 @@ be refused on sync after the farmer has been told they are enrolled, and the
 downstream damage is large — assessments are program-scoped, so a failed enrolment
 invalidates every answer captured under it.
 
-`REQUIRES PRODUCT DECISION`: is "enrol later, we will confirm when you are back
+`REQUIRES PRODUCT DECISION`: is "enrolllater, we will confirm when you are back
 online" acceptable copy? If yes, the enrolment can be queued as a *request* with an
 explicitly pending state in the UI. If no, keep it online-only.
 
@@ -206,6 +206,6 @@ exactly where they left off; review their answers.
 
 **Cannot:**
 log in for the first time; see a map basemap or satellite imagery; get a street
-address for a pin; enrol in a program; see an updated RHI or dashboard number;
+address for a pin; enroll in a program; see an updated RHI or dashboard number;
 receive notifications; start or be tracked on a visit; upload a photo (it is
 captured and queued, but not uploaded); see anything another user changed.

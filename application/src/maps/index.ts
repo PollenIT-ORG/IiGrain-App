@@ -38,8 +38,6 @@ export type { UseMapCamera } from './hooks/useMapCamera';
 export { useRouteToDestination } from './hooks/useRouteToDestination';
 export type { UseRouteToDestination } from './hooks/useRouteToDestination';
 
-export { fetchDrivingRoute } from './services/directionsService';
-
 export {
   DEFAULT_FIT_PADDING,
   DEFAULT_MAP_CENTER,

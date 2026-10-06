@@ -122,6 +122,31 @@ api.interceptors.response.use(
   }
 );
 
+/** Fetches a new access token with the refresh token. Resolves null when that is not possible. */
+export function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return Promise.resolve(null);
+  if (isRefreshing) {
+    return new Promise((resolve) => refreshWaiters.push(resolve));
+  }
+  isRefreshing = true;
+  return axios
+    .post<{ data: { token: string } }>(`${API_BASE_URL}/auth/refresh-token`, { refreshToken })
+    .then(({ data }) => {
+      const newToken = data.data.token;
+      localStorage.setItem(TOKEN_KEY, newToken);
+      onRefreshed(newToken);
+      return newToken;
+    })
+    .catch(() => {
+      onRefreshed(null);
+      return null;
+    })
+    .finally(() => {
+      isRefreshing = false;
+    });
+}
+
 export function getApiErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as

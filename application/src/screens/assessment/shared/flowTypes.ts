@@ -109,6 +109,7 @@ export interface AssessmentFlow {
   access: AssessmentAccess;
 
   summary: FieldAssessmentSummary | null;
+  programName: string;
   categories: AssessmentCategorySummary[];
   categoryList: CategoryQuestionList | null;
   questions: AssessmentQuestionListItem[];

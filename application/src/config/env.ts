@@ -1,4 +1,4 @@
-import { API_BASE_URL, API_PREFIX, API_TIMEOUT , MAPS_API_KEY} from '@env';
+import { API_BASE_URL, API_PREFIX, API_TIMEOUT } from '@env';
 
 const REMOTE_HOST = 'https://api.farmer.tcqitsolution.com';
 
@@ -18,7 +18,6 @@ export interface AppEnv {
   readonly API_BASE_URL: string;
   readonly API_TIMEOUT: number;
   readonly IS_DEV: boolean;
-  readonly MAPS_API_KEY: string;
 }
 
 export const Env: AppEnv = Object.freeze({
@@ -27,5 +26,4 @@ export const Env: AppEnv = Object.freeze({
   API_BASE_URL: `${HOST}${PREFIX}`,
   API_TIMEOUT: resolveTimeout(API_TIMEOUT),
   IS_DEV: __DEV__,
-  MAPS_API_KEY: (MAPS_API_KEY ?? '').trim(),
 });

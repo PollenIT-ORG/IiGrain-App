@@ -157,7 +157,7 @@ export async function addProgram(
   const orgId = await getDefaultOrgId();
   if (!orgId) {
     throw ApiError.badRequest(
-      "No organization is configured yet. Create an organization first."
+      "No organization is set up yet. Start the backend once with DB_SEED=true to create it."
     );
   }
   if (input.startDate && input.endDate && input.endDate < input.startDate) {
@@ -621,7 +621,7 @@ export async function enrollFarmer(
     enrolledBy: actor.id,
     note: nn(input.note),
     // Their survey ID when they have one, otherwise a fresh one so a
-    // hand-made enrolment still carries an ID like every other.
+    // hand-made enrollment still carries an ID like every other.
     enrollmentId:
       (await enrollmentIdForProgram(input.farmerId, programId)) ??
       (await issueEnrollmentId()),

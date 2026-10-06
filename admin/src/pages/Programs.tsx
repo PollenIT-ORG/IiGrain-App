@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUrlSearchSync } from "../lib/useUrlSearchSync";
-import { useLiveData } from "../lib/useLiveData";
 import {
   useListProgramsQuery,
   useDeleteProgramMutation,
@@ -107,13 +106,12 @@ export default function Programs() {
   const [status, setStatus] = useState("");
   useUrlSearchSync(setSearchInput);
 
-  const { data, isLoading, isError, error, refetch } = useListProgramsQuery({
+  const { data, isLoading, isError, error } = useListProgramsQuery({
     page,
     limit: PAGE_SIZE,
     status: (status || undefined) as ProgramStatusFilter | undefined,
     search: search || undefined,
   });
-  useLiveData(["programs", "enrollments"], refetch);
   const programs = data?.programs ?? [];
   const meta = data?.meta ?? null;
 
@@ -122,8 +120,7 @@ export default function Programs() {
 
   // Each program can carry one survey (from the Surveys module). The
   // link row holds the shareable public link.
-  const { data: surveyLinks, refetch: refetchLinks } = useListPasProgramsQuery();
-  useLiveData(["program_admin_survey"], refetchLinks);
+  const { data: surveyLinks } = useListPasProgramsQuery();
   const surveyByProgram = useMemo(() => {
     const m = new Map<string, SurveyLink>();
     for (const l of surveyLinks ?? []) if (l.program_id) m.set(l.program_id, l);

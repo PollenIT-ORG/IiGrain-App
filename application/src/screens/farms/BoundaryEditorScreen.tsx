@@ -56,6 +56,7 @@ import { convertArea, type AreaUnit } from '../../maps/utils/geo';
 import { formatAcres, roundAcres } from '../../maps/utils/fieldAcres';
 import { resolveFieldCenter } from '../../maps/utils/fieldCenter';
 import type { Place } from '../../services/geocoding';
+import { logMapKeysDevOnly } from '../../maps/devMapKeysLog';
 import { styles } from './BoundaryEditorScreenStyle';
 
 const SEARCH_ROW_H = scale(54);
@@ -83,6 +84,10 @@ const BoundaryEditorScreen: React.FC<AppScreenProps<'BoundaryEditor'>> = ({
   const { farmId, fieldId, fieldName, latitude, longitude, initialRing, maxAcres, onSave } =
     route.params;
   const isDraft = !fieldId;
+
+  useEffect(() => {
+    logMapKeysDevOnly('BoundaryEditor');
+  }, []);
 
   const dispatch = useAppDispatch();
   const fields = useAppSelector(selectFields);

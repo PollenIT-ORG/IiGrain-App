@@ -8,7 +8,6 @@ import {
 } from "../store/endpoints/usersApi";
 import { showSuccess, showError } from "../lib/toast";
 import { useUrlSearchSync } from "../lib/useUrlSearchSync";
-import { useLiveData } from "../lib/useLiveData";
 import { useConfirmCascadeDelete } from "../lib/confirmDelete";
 import Select from "../components/ui/Select";
 import Loader from "../components/Loader";
@@ -67,7 +66,7 @@ export default function Users() {
 
   const isAllUsersView = !roleFromUrl;
 
-  const { data, isLoading, isFetching, isError, error, refetch } =
+  const { data, isLoading, isFetching, isError, error } =
     useListUsersQuery({
       page,
       limit: PAGE_SIZE,
@@ -75,7 +74,6 @@ export default function Users() {
       status: status || undefined,
       search: search || undefined,
     });
-  useLiveData(["users", "assignments"], refetch);
   const users = data?.users ?? [];
   const meta = data?.meta ?? null;
   // isFetching (not isLoading) so the spinner also shows while a filter/search

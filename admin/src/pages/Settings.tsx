@@ -337,8 +337,8 @@ function OrganizationTab({
         </div>
 
         <p className="rounded-lg bg-gray-100 px-4 py-3 text-xs text-gray-500">
-          The contact email, phone and office hours above are what the public
-          website shows on its contact page. Leave a field empty and the website
+          The contact email, phone and office hours above are what the mobile
+          app shows on its contact screen. Leave a field empty and the app
           falls back to its built-in default.
         </p>
 

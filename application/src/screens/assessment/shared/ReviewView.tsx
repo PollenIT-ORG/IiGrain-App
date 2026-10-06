@@ -17,6 +17,7 @@ import type {
   AssessmentReviewQuestion,
   QuestionScore,
 } from '../../../types/assessment';
+import { toReviewRegenScoring } from '../assessmentPresenter';
 import { styles } from '../AssessmentReviewScreenStyle';
 import { useAssessmentFlow } from './useAssessmentFlow';
 import type { AssessmentRole, FlowNavigation } from './flowTypes';
@@ -336,6 +337,7 @@ const ReviewView: React.FC<ReviewViewProps> = ({ role, params, navigation }) => 
             <FieldRegenIndexCard
               data={regenReady ? regenIndex : null}
               loading={regenIndexLoading}
+              scoring={toReviewRegenScoring(review)}
             />
           </View>
         ) : null}

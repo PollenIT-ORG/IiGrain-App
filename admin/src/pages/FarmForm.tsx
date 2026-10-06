@@ -7,6 +7,7 @@ import {
 } from "../store/endpoints/farmsApi";
 import { useListUsersQuery } from "../store/endpoints/usersApi";
 import { useListOrganizationsQuery } from "../store/endpoints/organizationsApi";
+import { useSeedOnce } from "../lib/useSeedOnce";
 import { showSuccess, showError } from "../lib/toast";
 import {
   required,
@@ -76,6 +77,7 @@ export default function FarmForm() {
   const {
     data: farm,
     isLoading: loading,
+    isFetching: refreshing,
     isError: loadError,
   } = useGetFarmQuery(id ?? "", { skip: !isEdit });
 
@@ -92,22 +94,20 @@ export default function FarmForm() {
     ownerId === farm.owner_id &&
     (farmersData?.users ?? []).every((u) => u.id !== farm.owner_id);
 
-  useEffect(() => {
-    if (farm) {
-      setName(farm.name);
-      setAreaAcres(farm.area_acres ?? "");
-      setLocation(farm.location ?? "");
-      setBusinessEntity(farm.business_entity ?? "");
-      setCoords(
-        farm.latitude != null && farm.longitude != null
-          ? { lat: farm.latitude, lng: farm.longitude }
-          : null
-      );
-      setOwnerId(farm.owner_id);
-      setOrgId(farm.org_id ?? "");
-      setIsActive(farm.is_active);
-    }
-  }, [farm]);
+  useSeedOnce(farm, farm?.id, refreshing, (f) => {
+    setName(f.name);
+    setAreaAcres(f.area_acres ?? "");
+    setLocation(f.location ?? "");
+    setBusinessEntity(f.business_entity ?? "");
+    setCoords(
+      f.latitude != null && f.longitude != null
+        ? { lat: f.latitude, lng: f.longitude }
+        : null
+    );
+    setOwnerId(f.owner_id);
+    setOrgId(f.org_id ?? "");
+    setIsActive(f.is_active);
+  });
 
   useEffect(() => {
     if (loadError) {

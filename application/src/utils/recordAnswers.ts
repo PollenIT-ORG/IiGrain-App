@@ -48,6 +48,14 @@ export const questionsForRecord = (
   });
 };
 
+const FALLBACK_RECORD_NAME = 'Entry';
+
+export const recordName = (categoryName: string): string =>
+  categoryName.trim() || FALLBACK_RECORD_NAME;
+
+export const recordLabel = (categoryName: string, number: number): string =>
+  `${recordName(categoryName)} ${number}`;
+
 export const recordAnsweredCount = (
   questions: AssessmentQuestionDetail[],
   record: AssessmentRecord,

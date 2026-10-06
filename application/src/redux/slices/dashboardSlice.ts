@@ -281,6 +281,17 @@ export const selectSelectedDashboardProgram = createSelector(
 
 export const selectProgramDashboard = (s: HasDashboard): ProgramDashboard | null =>
   s.dashboard.dashboard;
+
+export const selectDashboardProgramName =
+  (programId: string) =>
+  (s: HasDashboard): string => {
+    const listed = s.dashboard.programs.find(p => p.id === programId)?.name.trim();
+    if (listed) {
+      return listed;
+    }
+    const open = s.dashboard.dashboard?.program;
+    return open?.id === programId ? open.name.trim() : '';
+  };
 export const selectDashboardLoading = (s: HasDashboard): boolean =>
   s.dashboard.dashboardLoading;
 export const selectDashboardError = (s: HasDashboard): string | null =>

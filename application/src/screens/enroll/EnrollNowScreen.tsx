@@ -14,6 +14,7 @@ import FieldSelectSheet, {
   type SelectableField,
 } from '../../components/enroll/FieldSelectSheet';
 import EnrollmentIdPass, { copyEnrollmentId } from '../../components/enroll/EnrollmentIdPass';
+import EnrollSuccessModal from '../../components/enroll/EnrollSuccessModal';
 import { EmptyState } from '../../components/farms';
 import {
   AppShimmer,
@@ -53,6 +54,11 @@ import { showSuccess, showToast } from '../../services/toastService';
 import { discardAssessmentThunk } from '../../redux/slices/assessmentSlice';
 import type { TabScreenProps } from '../../navigation/navigationTypes';
 import type { AvailableProgram } from '../../types/enrollment';
+import {
+  toEnrollmentSuccess,
+  type EnrollmentSuccess,
+  type JoinedField,
+} from '../../utils/enrollmentSuccess';
 
 const dateRange = (start: string | null, end: string | null): string | null => {
   if (start && end) {
@@ -107,6 +113,8 @@ const EnrollNowScreen: React.FC<TabScreenProps<'EnrollNow'>> = ({ navigation }) 
   const [discardPrompt, setDiscardPrompt] = useState<DiscardPrompt | null>(null);
   const [errorPrompt, setErrorPrompt] = useState<string | null>(null);
   const [surveyPrompt, setSurveyPrompt] = useState<SurveyPrompt | null>(null);
+  const [enrollSuccess, setEnrollSuccess] = useState<EnrollmentSuccess | null>(null);
+  const [successOpen, setSuccessOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadPrograms = useCallback(
@@ -169,10 +177,14 @@ const EnrollNowScreen: React.FC<TabScreenProps<'EnrollNow'>> = ({ navigation }) 
   const openSheetFor = useCallback((id: string) => {
     setSelectedProgramId(id);
     setSelectedFieldIds([]);
+    setSuccessOpen(false);
     setSheetOpen(true);
   }, []);
 
-  const closeSheet = useCallback(() => setSheetOpen(false), []);
+  const closeSheet = useCallback(() => {
+    setSheetOpen(false);
+    setSuccessOpen(false);
+  }, []);
 
   const toggleField = useCallback((id: string) => {
     setSelectedFieldIds(prev =>
@@ -182,9 +194,20 @@ const EnrollNowScreen: React.FC<TabScreenProps<'EnrollNow'>> = ({ navigation }) 
 
   const hasPrograms = programs.length > 0;
 
-  const goToAssessments = useCallback(
-    () => navigation.navigate('Assessment'),
-    [navigation],
+  const continueToAssessment = useCallback(
+    (field: JoinedField) => {
+      if (!enrollSuccess) {
+        return;
+      }
+      setSheetOpen(false);
+      setSuccessOpen(false);
+      navigation.navigate('Assessment', {
+        programId: enrollSuccess.programId,
+        fieldId: field.fieldId,
+        fieldName: field.fieldName || undefined,
+      });
+    },
+    [navigation, enrollSuccess],
   );
 
   const goToFarms = useCallback(() => {
@@ -243,12 +266,17 @@ const EnrollNowScreen: React.FC<TabScreenProps<'EnrollNow'>> = ({ navigation }) 
     if (!selectedProgramId || newFieldIds.length === 0) {
       return;
     }
-    const wasEnrolled = alreadyEnrolled;
     const surveyUrl = selectedProgram?.surveyUrl ?? null;
+    const request = {
+      programId: selectedProgramId,
+      programName: selectedProgram?.name ?? '',
+      fieldIds: newFieldIds,
+      knownFields: sheetFields,
+    };
     const action = await dispatch(
       enrollSelfThunk({
-        programId: selectedProgramId,
-        input: { fieldIds: newFieldIds },
+        programId: request.programId,
+        input: { fieldIds: request.fieldIds },
       }),
     );
 
@@ -269,21 +297,9 @@ const EnrollNowScreen: React.FC<TabScreenProps<'EnrollNow'>> = ({ navigation }) 
     }
 
     setSelectedFieldIds([]);
-    setSheetOpen(false);
-    showSuccess(
-      wasEnrolled
-        ? 'Fields added — they can now be assessed.'
-        : 'Enrolled successfully — your assessment is ready.',
-    );
-    goToAssessments();
-  }, [
-    dispatch,
-    newFieldIds,
-    alreadyEnrolled,
-    selectedProgramId,
-    selectedProgram,
-    goToAssessments,
-  ]);
+    setEnrollSuccess(toEnrollmentSuccess(action.payload, request));
+    setSuccessOpen(true);
+  }, [dispatch, newFieldIds, selectedProgramId, selectedProgram, sheetFields]);
 
   const runUnenroll = useCallback(
     async (programId: string, fieldId: string): Promise<void> => {
@@ -703,6 +719,15 @@ const EnrollNowScreen: React.FC<TabScreenProps<'EnrollNow'>> = ({ navigation }) 
               onConfirm={() => setErrorPrompt(null)}
               onClose={() => setErrorPrompt(null)}
             />
+
+            {successOpen && enrollSuccess ? (
+              <EnrollSuccessModal
+                programName={enrollSuccess.programName}
+                fields={enrollSuccess.fields}
+                onContinue={continueToAssessment}
+                onClose={closeSheet}
+              />
+            ) : null}
           </>
         }
       />

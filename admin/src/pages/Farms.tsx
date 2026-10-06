@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUrlSearchSync } from "../lib/useUrlSearchSync";
-import { useLiveData } from "../lib/useLiveData";
 import {
   useListFarmsQuery,
   useDeleteFarmMutation,
@@ -83,7 +82,7 @@ export default function Farms() {
     setPage(1);
   }
 
-  const { data, isLoading, isFetching, isError, error, refetch } =
+  const { data, isLoading, isFetching, isError, error } =
     useListFarmsQuery({
       page,
       limit: PAGE_SIZE,
@@ -93,7 +92,6 @@ export default function Farms() {
       sortBy,
       order,
     });
-  useLiveData(["farms"], refetch);
   const farms = data?.farms ?? [];
   const meta = data?.meta ?? null;
 

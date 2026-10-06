@@ -1,7 +1,7 @@
 import prisma from "../db/prisma.js";
 
-// Accounts created on the public website to take the eligibility survey. Kept
-// separate from `users` so a lead who never qualifies is not an app user.
+// Producers who take a program survey. Kept separate from `users` so a lead
+// who never qualifies is not an app user.
 
 export interface PublicWebsiteUser {
   id: string;
@@ -42,30 +42,6 @@ export async function createWebsiteUser(
   });
 }
 
-export async function websiteEmailExists(email: string): Promise<boolean> {
-  const found = await prisma.website_users.findFirst({
-    where: { email: { equals: email, mode: "insensitive" }, deleted_at: null },
-    select: { id: true },
-  });
-  return found !== null;
-}
-
-/** Includes the password hash - only for the login check. */
-export async function findWebsiteUserByEmail(email: string) {
-  return prisma.website_users.findFirst({
-    where: { email: { equals: email, mode: "insensitive" }, deleted_at: null },
-  });
-}
-
-export async function findWebsiteUserById(
-  id: string
-): Promise<PublicWebsiteUser | null> {
-  return prisma.website_users.findFirst({
-    where: { id, deleted_at: null },
-    select: SELECT,
-  });
-}
-
 export async function findWebsiteUserByEmailPublic(
   email: string
 ): Promise<PublicWebsiteUser | null> {
@@ -93,22 +69,4 @@ export async function updateWebsiteUserDetails(
     where: { id, deleted_at: null },
     data: { ...data, updated_at: new Date() },
   });
-}
-
-export async function touchWebsiteLogin(id: string): Promise<void> {
-  await prisma.website_users.updateMany({
-    where: { id, deleted_at: null },
-    data: { last_login_at: new Date(), updated_at: new Date() },
-  });
-}
-
-export async function updateWebsitePassword(
-  id: string,
-  passwordHash: string
-): Promise<boolean> {
-  const { count } = await prisma.website_users.updateMany({
-    where: { id, deleted_at: null },
-    data: { password_hash: passwordHash, updated_at: new Date() },
-  });
-  return count > 0;
 }

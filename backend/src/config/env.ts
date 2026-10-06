@@ -100,13 +100,6 @@ const env: AppEnv = {
   // call-to-action buttons rather than links that go nowhere.
   appUrl: getEnv("APP_URL", { default: "" }).replace(/\/+$/, ""),
 
-  // Public marketing site. Used to build the contract signing link emailed to a
-  // prospective producer.
-  websiteUrl: getEnv("WEBSITE_URL", { default: "http://localhost:3000" }).replace(
-    /\/+$/,
-    ""
-  ),
-
   // Base URL where the public survey lives (the admin app, which serves the
   // survey at /survey). Emails build their survey, status and contract links
   // from this. The survey shares the admin origin, so when SURVEY_APP_URL is

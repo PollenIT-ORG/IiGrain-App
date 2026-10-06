@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useListProgramsQuery } from "../store/endpoints/programsApi";
 import { useListPasProgramsQuery } from "../store/endpoints/programAdminSurveyApi";
 import { errMsg } from "../lib/errMsg";
-import { useLiveData } from "../lib/useLiveData";
 import { useForward } from "../lib/returnTo";
 import Loader from "../components/Loader";
 import Breadcrumbs from "../components/ui/Breadcrumbs";
@@ -20,15 +19,11 @@ export default function NewSurveyProgram() {
   const crumbs = [{ label: "Surveys", to: "/surveys" }, { label: "New survey" }];
   const forward = useForward(crumbs);
 
-  const { data, isLoading, isError, error, refetch } = useListProgramsQuery({
+  const { data, isLoading, isError, error } = useListProgramsQuery({
     page: 1,
     limit: 100,
   });
-  const { data: links, refetch: refetchLinks } = useListPasProgramsQuery();
-  useLiveData(["programs", "program_admin_survey"], () => {
-    void refetch();
-    void refetchLinks();
-  });
+  const { data: links } = useListPasProgramsQuery();
 
   const taken = useMemo(
     () =>

@@ -59,7 +59,6 @@ export interface AppEnv {
   };
 
   appUrl: string;
-  websiteUrl: string;
   surveyAppUrl: string;
   mobileAppUrl: string;
 

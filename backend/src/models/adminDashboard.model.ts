@@ -256,7 +256,7 @@ export async function getProgramKpis(
         FROM programs p
        WHERE p.deleted_at IS NULL ${mine}
     ),
-    enrolments AS (
+    enrollments AS (
       SELECT pe.id, pe.program_id, pe.farmer_id
         FROM program_enrollments pe
         JOIN scoped s ON s.id = pe.program_id
@@ -265,7 +265,7 @@ export async function getProgramKpis(
     enrolled_fields AS (
       SELECT DISTINCT pef.field_id, e.program_id
         FROM program_enrollment_fields pef
-        JOIN enrolments e ON e.id = pef.enrollment_id
+        JOIN enrollments e ON e.id = pef.enrollment_id
        WHERE pef.deleted_at IS NULL
     ),
     submissions AS (
@@ -288,12 +288,12 @@ export async function getProgramKpis(
     )
     SELECT
       (SELECT COUNT(*)::int FROM scoped)                       AS total_programs,
-      (SELECT COUNT(DISTINCT farmer_id)::int FROM enrolments)  AS enrolled_farmers,
+      (SELECT COUNT(DISTINCT farmer_id)::int FROM enrollments)  AS enrolled_farmers,
       (SELECT COUNT(DISTINCT field_id)::int FROM enrolled_fields)
                                                                AS fields_enrolled,
       (SELECT COUNT(*)::int FROM submissions)                  AS assessment_submissions,
       (SELECT COUNT(DISTINCT e.farmer_id)::int
-         FROM enrolments e
+         FROM enrollments e
          JOIN assessor_assignments aa
            ON aa.farmer_id = e.farmer_id AND aa.deleted_at IS NULL)
                                                                AS farmers_with_assessor,

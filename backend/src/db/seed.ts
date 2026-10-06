@@ -31,12 +31,27 @@ export async function runSeed(): Promise<void> {
   }
   logger.info(`✅ Roles ensured (${ROLES.length} total).`);
 
+  await seedOrganization();
   await seedSuperAdmin();
 
   const faqs = await seedFaqs();
   logger.info(
     `✅ Help FAQs ensured (${faqs.created} added, ${faqs.skipped} already there).`
   );
+}
+
+// The platform runs for one organization; it holds the name, logo, clock and contact details. Created only when none exists.
+async function seedOrganization(): Promise<void> {
+  const existing = await prisma.organizations.count({ where: { deleted_at: null } });
+  if (existing > 0) {
+    logger.info("✅ Organization already exists - skipped.");
+    return;
+  }
+  const org = await prisma.organizations.create({
+    data: { name: env.smtp.fromName || "Farmer App", code: "FARMER", is_active: true },
+    select: { name: true },
+  });
+  logger.info(`✅ Organization created: ${org.name}`);
 }
 
 async function seedSuperAdmin(): Promise<void> {

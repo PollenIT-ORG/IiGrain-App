@@ -10,10 +10,6 @@ import type { PublicVisit } from "../models/visit.model.js";
 
 const room = (visitId: string) => `visit:${visitId}`;
 
-function isAdmin(role: string): boolean {
-  return role === "super_admin" || role === "admin";
-}
-
 type Ack = (res: { ok: boolean; visit?: PublicVisit; error?: string }) => void;
 
 export function registerVisitHandlers(io: SocketServer, socket: Socket): void {
@@ -129,10 +125,6 @@ export function registerVisitHandlers(io: SocketServer, socket: Socket): void {
       }
     }
   );
-
-  if (isAdmin(user.role)) {
-    void socket.join("admins");
-  }
 
   logger.debug?.(`visit handlers registered for ${user.email}`);
 }

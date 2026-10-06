@@ -20,6 +20,7 @@ import {
   selectAssessmentCategories,
   selectAssessmentDiscarding,
   selectAssessmentError,
+  selectAssessmentProgramName,
   selectAssessmentRefreshing,
   selectAssessmentReview,
   selectAssessmentSaving,
@@ -48,6 +49,8 @@ import {
   selectResumePoint,
   setResumePoint,
 } from '../../../redux/slices/assessmentProgressSlice';
+import { selectDashboardProgramName } from '../../../redux/slices/dashboardSlice';
+import { selectEnrollmentProgramName } from '../../../redux/slices/enrollmentSlice';
 import {
   resetToAssessmentTab,
   resetToFieldSummary,
@@ -81,6 +84,12 @@ export const useFarmerAssessmentFlow = (
   const dispatch = useAppDispatch();
 
   const summary = useAppSelector(selectAssessmentSummary);
+  const programName = useAppSelector(
+    state =>
+      selectAssessmentProgramName(programId)(state) ||
+      selectDashboardProgramName(programId)(state) ||
+      selectEnrollmentProgramName(programId)(state),
+  );
   const categories = useAppSelector(selectAssessmentCategories);
   const categoryList = useAppSelector(selectCategoryQuestionList);
   const questions = useAppSelector(selectQuestionList);
@@ -294,6 +303,7 @@ export const useFarmerAssessmentFlow = (
     access,
 
     summary,
+    programName,
     categories,
     categoryList,
     questions,

@@ -14,7 +14,6 @@ import {
 } from "../store/endpoints/programAdminSurveyApi";
 import { REFERRAL_SOURCES } from "./survey/states";
 import { errMsg } from "../lib/errMsg";
-import { useLiveData } from "../lib/useLiveData";
 import { scopeFor } from "../lib/programScope";
 import { useHere, type ReturnState } from "../lib/returnTo";
 import { showSuccess, showError } from "../lib/toast";
@@ -170,9 +169,9 @@ export function SurveySubmissionsModule({
     search: filters.search,
   };
 
-  const { data, isLoading, isFetching, isError, error, refetch } =
+  const { data, isLoading, isFetching, isError, error } =
     useListPasSubmissionsQuery({ page, limit: perPage, ...filters });
-  const { data: stats, refetch: refetchStats } =
+  const { data: stats } =
     usePasSubmissionStatsQuery(statsFilters);
   const { data: programs } = useListPasProgramsQuery();
   const [triggerExport] = useLazyListPasSubmissionsQuery();
@@ -191,10 +190,6 @@ export function SurveySubmissionsModule({
     ];
   }, [programs]);
 
-  useLiveData(["program_admin_survey"], () => {
-    void refetch();
-    void refetchStats();
-  });
 
   const submissions = data?.submissions ?? [];
   const meta = data?.meta ?? null;
@@ -349,6 +344,7 @@ export function SurveySubmissionsModule({
             <input
               type="date"
               value={from}
+              max={to || undefined}
               onChange={(e) => setFrom(e.target.value)}
               className="input-field w-[8.75rem] min-w-0"
               aria-label="From date"
@@ -357,6 +353,7 @@ export function SurveySubmissionsModule({
             <input
               type="date"
               value={to}
+              min={from || undefined}
               onChange={(e) => setTo(e.target.value)}
               className="input-field w-[8.75rem] min-w-0"
               aria-label="To date"

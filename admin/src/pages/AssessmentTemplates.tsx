@@ -10,7 +10,6 @@ import {
   useListTemplatesPageQuery,
 } from "../store/endpoints/assessmentApi";
 import { useAuth } from "../store/useAuth";
-import { useLiveData } from "../lib/useLiveData";
 import { showSuccess, showError } from "../lib/toast";
 import { errMsg } from "../lib/errMsg";
 import { isClean } from "../lib/validation";
@@ -66,14 +65,10 @@ export default function AssessmentTemplates() {
   const { user } = useAuth();
   const { confirm } = useDialog();
   // Every template, for the Global default and the copy list; the table reads one page at a time.
-  const { data: templates, refetch } = useListTemplatesQuery();
+  const { data: templates } = useListTemplatesQuery();
   const [updateTemplate] = useUpdateTemplateMutation();
   const [deleteTemplate] = useDeleteTemplateMutation();
   const [makeGlobal] = useMakeTemplateGlobalMutation();
-  useLiveData(["assessments", "programs"], () => {
-    void refetch();
-    void refetchPage();
-  });
 
   const [importTemplateFile, { isLoading: importing }] = useImportTemplateFileMutation();
   const [creatingFrom, setCreatingFrom] = useState<string | null>(null);

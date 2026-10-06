@@ -19,7 +19,7 @@ import QuestionCard from '../../../components/assessment/QuestionCard';
 import SectionHeader from '../../../components/assessment/SectionHeader';
 import CategoryFormView from './CategoryFormView';
 import CategoryRecordsView from './CategoryRecordsView';
-import { questionsForRecord } from '../../../utils/recordAnswers';
+import { questionsForRecord, recordLabel } from '../../../utils/recordAnswers';
 import type { AssessmentQuestion, SaveFormAnswerInput } from '../../../types/assessment';
 import { toCategoryHeaderModel, toQuestionCardItem } from '../assessmentPresenter';
 import { styles } from '../AssessmentCategoryScreenStyle';
@@ -65,6 +65,7 @@ const CategoryView: React.FC<CategoryViewProps> = ({ role, params, navigation })
   } = flow;
 
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [openedNumber, setOpenedNumber] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -128,6 +129,11 @@ const CategoryView: React.FC<CategoryViewProps> = ({ role, params, navigation })
     () => (form ? questionsForRecord(form.questions, editingRecord) : []),
     [form, editingRecord],
   );
+  const recordCategoryName = header?.category.title || categoryName;
+  const openRecordLabel = recordLabel(
+    recordCategoryName,
+    editingRecord?.number ?? openedNumber,
+  );
 
   const reportSaveProblem = useCallback((result: SaveCategoryAnswersResult) => {
     if (result.closed) {
@@ -145,13 +151,15 @@ const CategoryView: React.FC<CategoryViewProps> = ({ role, params, navigation })
   const openRecord = useCallback(
     (recordId: string | null) => {
       if (recordId === null && records.length >= MAX_RECORDS) {
-        showToast(`You can add up to ${MAX_RECORDS} entries here.`, { type: 'error' });
+        showToast(`You can add up to ${MAX_RECORDS} here.`, { type: 'error' });
         return;
       }
+      const existing = recordId ? records.find(r => r.id === recordId) : undefined;
+      setOpenedNumber(existing?.number ?? records.length + 1);
       setEditingRecordId(recordId);
       setFormOpen(true);
     },
-    [records.length],
+    [records],
   );
 
   const closeForm = useCallback(() => {
@@ -188,28 +196,34 @@ const CategoryView: React.FC<CategoryViewProps> = ({ role, params, navigation })
 
   const handleDeleteRecord = useCallback(
     async (recordId: string) => {
+      const removed = records.find(r => r.id === recordId);
       setDeletingId(recordId);
       const result = await deleteCategoryRecord({ programId, fieldId, categoryId, recordId });
       setDeletingId(null);
       if (result.ok) {
-        showSuccess('Entry removed');
+        showSuccess(
+          removed ? `${recordLabel(recordCategoryName, removed.number)} removed` : 'Removed',
+        );
         return;
       }
       reportSaveProblem(result);
     },
-    [deleteCategoryRecord, programId, fieldId, categoryId, reportSaveProblem],
+    [
+      deleteCategoryRecord,
+      programId,
+      fieldId,
+      categoryId,
+      reportSaveProblem,
+      records,
+      recordCategoryName,
+    ],
   );
 
   const handleFormDone = useCallback(() => {
     closeForm();
   }, [closeForm]);
 
-  const headerTitle = useMemo(() => {
-    if (!formOpen) {
-      return categoryName;
-    }
-    return editingRecord ? `Entry ${editingRecord.number}` : 'New entry';
-  }, [formOpen, editingRecord, categoryName]);
+  const headerTitle = formOpen ? openRecordLabel : categoryName;
 
   const handleBack = useCallback(() => {
     if (formOpen) {
@@ -337,7 +351,7 @@ const CategoryView: React.FC<CategoryViewProps> = ({ role, params, navigation })
       if (!formOpen) {
         return (
           <CategoryRecordsView
-            categoryName={header.category.title}
+            categoryName={recordCategoryName}
             questions={form.questions}
             records={records}
             locked={submitted}
@@ -350,7 +364,7 @@ const CategoryView: React.FC<CategoryViewProps> = ({ role, params, navigation })
       return (
         <CategoryFormView
           key={editingRecordId ?? 'new'}
-          categoryName={header.category.title}
+          title={openRecordLabel}
           questions={recordQuestions}
           locked={submitted}
           saving={savingCategoryForm}

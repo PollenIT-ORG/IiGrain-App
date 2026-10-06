@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  RefreshControl,
   ScrollView,
   Share,
   StyleSheet,
@@ -50,7 +51,11 @@ import type { AppScreenProps } from '../../navigation/navigationTypes';
 import { styles } from './FieldDetailsScreenStyle';
 import { AnimatedTabBar } from '../../components/';
 import { FieldLocationPreview } from '../../maps';
-import { BoundaryPreviewMap, useBoundaryPersistence } from '../../maps/boundary';
+import {
+  BoundaryPreviewMap,
+  useBoundaryPersistence,
+  useBoundaryRepository,
+} from '../../maps/boundary';
 import { selectBoundary } from '../../redux/slices/boundarySlice';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import {
@@ -63,6 +68,7 @@ import {
 } from '../../redux/slices/fieldSlice';
 import {
   fetchFarmDetailThunk,
+  refreshFarmDetailThunk,
   selectSelectedFarm,
 } from '../../redux/slices/farmSlice';
 import {
@@ -214,6 +220,7 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
   }, [navigation, farmId, currentField, farm]);
 
   useBoundaryPersistence({ fieldId: currentField?.id ?? '', farmId });
+  const boundaryRepository = useBoundaryRepository(farmId);
 
   const mapFocusRef = useRef<MapFocusHandle | null>(null);
   const focusMap = useCallback(() => mapFocusRef.current?.focus(), []);
@@ -335,6 +342,43 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
   const soilRecordFieldId = useAppSelector(selectSoilFieldId);
   const fieldResetting = useAppSelector(selectFieldResetting);
   const fieldDeleting = useAppSelector(selectFieldDeleting);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    if (!selectedFieldId) {
+      return;
+    }
+    const reloadHistory = activeTab === 'history' || activity !== null;
+    const reloadSoil = activeTab === 'soil' || soil !== null;
+    const reloadSoilRecord = soilRecordFieldId === selectedFieldId;
+    const reloadDocuments = activeTab === 'documents' || documents !== null;
+
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        dispatch(refreshFarmDetailThunk(farmId)),
+        dispatch(refreshFarmFieldsThunk(farmId)),
+        dispatch(fetchFieldOverviewThunk(selectedFieldId)),
+        boundaryRepository.load(selectedFieldId),
+        reloadHistory && dispatch(fetchFieldActivityThunk(selectedFieldId)),
+        reloadSoil && dispatch(fetchFieldSoilThunk(selectedFieldId)),
+        reloadSoilRecord && dispatch(fetchFieldSoilRecordThunk(selectedFieldId)),
+        reloadDocuments && dispatch(fetchFieldDocumentsThunk(selectedFieldId)),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [
+    dispatch,
+    farmId,
+    selectedFieldId,
+    boundaryRepository,
+    activeTab,
+    activity,
+    soil,
+    soilRecordFieldId,
+    documents,
+  ]);
 
   useEffect(() => {
     if (activeTab !== 'overview') {
@@ -967,7 +1011,16 @@ const FieldDetailsScreen: React.FC<AppScreenProps<'FieldDetails'>> = ({
         style={styles.flex}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        scrollEnabled={!mapPanning}>
+        scrollEnabled={!mapPanning}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            enabled={!mapPanning}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }>
         <View style={styles.mapContainer}>
           <View style={styles.heroTopRow}>
             <View style={styles.flex}>
@@ -1088,3 +1141,6 @@ const skStyles = StyleSheet.create({
     marginBottom: spacing[4],
   },
 });
+
+
+ 

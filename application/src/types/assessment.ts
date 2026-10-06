@@ -362,6 +362,8 @@ export interface FieldRegenCategory {
   answered: number;
 }
 
+export type RegenScoring = 'live' | 'after_submit' | 'in_review';
+
 export interface FieldRegenIndex {
   field: AssessmentField;
   regenHealthIndex: number | null;

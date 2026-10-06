@@ -5,7 +5,7 @@ import { dateOnlyField } from "./common.schema.js";
 const dateStr = (label: string) =>
   dateOnlyField(label).nullable().optional().or(z.literal(""));
 
-// A limit of 0 would let nobody enrol, so "no limit" is expressed as null
+// A limit of 0 would let nobody enroll, so "no limit" is expressed as null
 // rather than 0.
 const userLimit = z.coerce
   .number({ error: "User limit must be a number." })

@@ -5,10 +5,14 @@ import type {
   AssessmentProgress,
   AssessmentQuestion,
   AssessmentQuestionListItem,
+  AssessmentReview,
   AssessmentSummary,
   CategoryQuestionList,
   EvidenceFile,
   FieldAssessmentSummary,
+  QuestionType,
+  RegenScoring,
+  ReviewStatus,
 } from '../../types/assessment';
 
 const START_LABEL = 'Start Assessment';
@@ -23,9 +27,16 @@ export const isAssessmentComplete = (summary: FieldAssessmentSummary): boolean =
 
 export interface SummaryCardOptions {
   submitted?: boolean;
+  programName?: string;
 }
 
 const OPENS_SOON_LABEL = 'Opens Soon';
+const SUMMARY_FALLBACK_TITLE = 'Assessment';
+
+export const toSummaryHeaderTitle = (
+  summary: FieldAssessmentSummary | null,
+  fieldName?: string,
+): string => summary?.field.name || fieldName || SUMMARY_FALLBACK_TITLE;
 
 export const toSummaryCardModel = (
   summary: FieldAssessmentSummary,
@@ -46,7 +57,7 @@ export const toSummaryCardModel = (
     : START_LABEL;
   return {
     id: summary.field.id,
-    title: info.title,
+    title: options?.programName?.trim() || info.title,
     status: info.status,
     startedDateISO: '',
     completedQuestions: info.answered,
@@ -56,6 +67,33 @@ export const toSummaryCardModel = (
     reviewStatus: summary.reviewStatus,
     surveyClosed,
   };
+};
+
+const SELF_SCORING_TYPES: ReadonlySet<QuestionType> = new Set(['scored', 'mcq']);
+
+const awaitingReviewScoring = (reviewStatus: ReviewStatus): RegenScoring =>
+  reviewStatus === 'in_review' ? 'in_review' : 'after_submit';
+
+export const toRegenScoring = (summary: FieldAssessmentSummary): RegenScoring => {
+  const { questionKind, answered } = summary.assessment;
+  if (questionKind !== 'input' || summary.reviewStatus === 'approved') {
+    return 'live';
+  }
+  if (summary.reviewStatus === null && answered === 0) {
+    return 'live';
+  }
+  return awaitingReviewScoring(summary.reviewStatus);
+};
+
+export const toReviewRegenScoring = (review: AssessmentReview): RegenScoring => {
+  const { reviewStatus } = review.submission;
+  if (reviewStatus === 'approved') {
+    return 'live';
+  }
+  const scoredInReview = review.categories.some(category =>
+    category.questions.some(question => !SELF_SCORING_TYPES.has(question.questionType)),
+  );
+  return scoredInReview ? awaitingReviewScoring(reviewStatus) : 'live';
 };
 
 const iconForCategory = (name: string): string => {

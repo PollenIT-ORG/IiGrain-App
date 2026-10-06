@@ -19,7 +19,7 @@ import {
   spacing,
 } from '../../../constants';
 import { addAlpha, moderateScale, scale } from '../../../utils';
-import { recordAnsweredCount } from '../../../utils/recordAnswers';
+import { recordAnsweredCount, recordLabel, recordName } from '../../../utils/recordAnswers';
 import type {
   AssessmentQuestionDetail,
   AssessmentRecord,
@@ -72,6 +72,7 @@ const photoCount = (record: AssessmentRecord): number =>
   record.answers.reduce((total, answer) => total + answer.evidenceUrls.length, 0);
 
 interface RecordRowProps {
+  categoryName: string;
   record: AssessmentRecord;
   questions: AssessmentQuestionDetail[];
   locked: boolean;
@@ -80,12 +81,14 @@ interface RecordRowProps {
 }
 
 const RecordRow = React.memo(function RecordRowImpl({
+  categoryName,
   record,
   questions,
   locked,
   onOpen,
   onDelete,
 }: RecordRowProps) {
+  const label = recordLabel(categoryName, record.number);
   const summary = useMemo(() => summaryLine(record, questions), [record, questions]);
   const answered = useMemo(
     () => recordAnsweredCount(questions, record),
@@ -103,7 +106,7 @@ const RecordRow = React.memo(function RecordRowImpl({
     <Pressable
       onPress={open}
       accessibilityRole="button"
-      accessibilityLabel={`Open entry ${record.number}`}
+      accessibilityLabel={`Open ${label}`}
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
       <View style={[styles.accent, { backgroundColor: accent }]} pointerEvents="none" />
 
@@ -119,9 +122,12 @@ const RecordRow = React.memo(function RecordRowImpl({
         </View>
 
         <View style={styles.headTexts}>
-          <AppText style={styles.title} numberOfLines={1}>
-            Entry {record.number}
-          </AppText>
+          <View style={styles.titleRow}>
+            <AppText style={[styles.title, styles.titleName]} numberOfLines={1}>
+              {recordName(categoryName)}
+            </AppText>
+            <AppText style={styles.title}>{record.number}</AppText>
+          </View>
           <AppText style={styles.meta} numberOfLines={1}>
             {answered} of {questions.length} filled in
           </AppText>
@@ -169,7 +175,7 @@ const RecordRow = React.memo(function RecordRowImpl({
             onPress={remove}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel={`Delete entry ${record.number}`}
+            accessibilityLabel={`Delete ${label}`}
             style={styles.removeBtn}>
             <AppIcon name={ICONS.DELETE} size={moderateScale(13)} color={COLORS.danger} />
             <AppText style={styles.removeText}>Remove</AppText>
@@ -201,6 +207,8 @@ const CategoryRecordsView: React.FC<CategoryRecordsViewProps> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const [pendingDelete, setPendingDelete] = useState<AssessmentRecord | null>(null);
+  const pendingLabel = pendingDelete ? recordLabel(categoryName, pendingDelete.number) : '';
+  const addLabel = `Add new ${recordName(categoryName)}`;
 
   const add = useCallback(() => onOpen(null), [onOpen]);
   const openRecord = useCallback((recordId: string) => onOpen(recordId), [onOpen]);
@@ -229,15 +237,13 @@ const CategoryRecordsView: React.FC<CategoryRecordsViewProps> = ({
           <AppText style={styles.meterTitle} numberOfLines={1}>
             {categoryName}
           </AppText>
-          <AppText style={styles.meterCount}>
-            {records.length} {records.length === 1 ? 'entry' : 'entries'}
-          </AppText>
+          <AppText style={styles.meterCount}>{records.length} added</AppText>
         </View>
         <AppProgressBar percent={capacity > 0 ? (filled / capacity) * 100 : 0} />
         <AppText style={styles.meterHint}>
           {locked
-            ? 'This assessment has been submitted. You can open each entry to read it, but not change it.'
-            : 'Fill the form once for each one you have. Add as many entries as you need.'}
+            ? 'This assessment has been submitted. You can open each one to read it, but not change it.'
+            : 'Fill the form once for each one you have. Add as many as you need.'}
         </AppText>
       </View>
     ),
@@ -247,6 +253,7 @@ const CategoryRecordsView: React.FC<CategoryRecordsViewProps> = ({
   const renderItem = useCallback(
     ({ item }: { item: AssessmentRecord }) => (
       <RecordRow
+        categoryName={categoryName}
         record={item}
         questions={questions}
         locked={locked}
@@ -254,7 +261,7 @@ const CategoryRecordsView: React.FC<CategoryRecordsViewProps> = ({
         onDelete={askDelete}
       />
     ),
-    [questions, locked, openRecord, askDelete],
+    [categoryName, questions, locked, openRecord, askDelete],
   );
 
   const keyExtractor = useCallback((item: AssessmentRecord) => item.id, []);
@@ -272,10 +279,10 @@ const CategoryRecordsView: React.FC<CategoryRecordsViewProps> = ({
             title="Nothing added yet"
             message={
               locked
-                ? 'This form was submitted without any entries.'
+                ? 'This form was submitted with nothing added.'
                 : 'Fill the form once for each one you have to record.'
             }
-            actionLabel={locked ? undefined : 'Add entry'}
+            actionLabel={locked ? undefined : 'Add new'}
             onAction={locked ? undefined : add}
           />
         }
@@ -292,11 +299,11 @@ const CategoryRecordsView: React.FC<CategoryRecordsViewProps> = ({
           onPress={add}
           disabled={busy}
           accessibilityRole="button"
-          accessibilityLabel="Add entry"
+          accessibilityLabel={addLabel}
           style={[styles.fab, { bottom: insets.bottom + spacing[4] }, busy && styles.fabBusy]}>
           <AppGradient variant="fab" style={styles.fabInner}>
             <AppIcon name={ICONS.PLUS} size={moderateScale(20)} color={COLORS.white} />
-            <AppText style={styles.fabText}>Add entry</AppText>
+            <AppText style={styles.fabText}>Add new</AppText>
           </AppGradient>
         </TouchableOpacity>
       )}
@@ -304,8 +311,8 @@ const CategoryRecordsView: React.FC<CategoryRecordsViewProps> = ({
       <ConfirmationModal
         visible={!!pendingDelete}
         icon={ICONS.DELETE}
-        title="Delete this entry?"
-        message={`Entry ${pendingDelete?.number ?? ''} and everything filled into it is removed for good.`}
+        title={`Delete ${pendingLabel}?`}
+        message={`${pendingLabel} and everything filled into it is removed for good.`}
         confirmLabel="Delete"
         cancelLabel="Keep it"
         tone="danger"
@@ -375,7 +382,9 @@ const styles = StyleSheet.create({
   },
   leadingText: { ...presets.labelLG },
   headTexts: { flex: 1, gap: scale(2) },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: scale(4) },
   title: { ...presets.labelLG, color: COLORS.gray900 },
+  titleName: { flexShrink: 1 },
   meta: { ...presets.bodyXS, color: COLORS.gray600 },
   tail: { alignItems: 'flex-end', gap: spacing[1] },
   summary: { ...presets.bodyXS, color: COLORS.gray700 },

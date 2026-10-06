@@ -13,15 +13,27 @@ import {
   spacing,
 } from '../../constants';
 import { progressColorForPercent } from '../../constants/gradients';
-import { moderateScale, scale } from '../../utils';
-import type { FieldRegenIndex } from '../../types/assessment';
+import { addAlpha, moderateScale, scale } from '../../utils';
+import type { FieldRegenIndex, RegenScoring } from '../../types/assessment';
 
 interface FieldRegenIndexCardProps {
   data: FieldRegenIndex | null;
   loading: boolean;
+  scoring?: RegenScoring;
 }
 
-const FieldRegenIndexCard: React.FC<FieldRegenIndexCardProps> = ({ data, loading }) => {
+const AWAITING_REVIEW_TEXT: Record<Exclude<RegenScoring, 'live'>, string> = {
+  after_submit:
+    'This assessment is scored by the program office after you submit it. Your Regen Health Index will appear here once it has been reviewed.',
+  in_review:
+    'Your assessment is being reviewed by the program office. Your Regen Health Index will appear here once it has been scored.',
+};
+
+const FieldRegenIndexCard: React.FC<FieldRegenIndexCardProps> = ({
+  data,
+  loading,
+  scoring = 'live',
+}) => {
   const metrics = useMemo(
     () =>
       (data?.categories ?? []).map(c => ({
@@ -33,6 +45,20 @@ const FieldRegenIndexCard: React.FC<FieldRegenIndexCardProps> = ({ data, loading
       })),
     [data],
   );
+
+  if (scoring !== 'live') {
+    return (
+      <View style={styles.card}>
+        <AppText style={styles.title}>Regen Health Index</AppText>
+        <View style={styles.emptyRow}>
+          <View style={[styles.emptyIcon, styles.awaitingIcon]}>
+            <AppIcon name={ICONS.CLOCK} size={moderateScale(22)} color={COLORS.accent} />
+          </View>
+          <AppText style={styles.emptyText}>{AWAITING_REVIEW_TEXT[scoring]}</AppText>
+        </View>
+      </View>
+    );
+  }
 
   if (loading && !data) {
     return (
@@ -100,6 +126,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  awaitingIcon: { backgroundColor: addAlpha(COLORS.accent, 0.12) },
   emptyText: {
     ...presets.bodySM,
     color: COLORS.gray600,

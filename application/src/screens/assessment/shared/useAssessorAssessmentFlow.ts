@@ -27,6 +27,7 @@ import {
   selectAssessorLoadedReviewScope,
   selectAssessorLoadedSummaryScope,
   selectAssessorLocked,
+  selectAssessorProgramName,
   selectAssessorQuestionDetail,
   selectAssessorQuestionList,
   selectAssessorQuestionLoading,
@@ -78,6 +79,7 @@ export const useAssessorAssessmentFlow = (
   const dispatch = useAppDispatch();
 
   const summary = useAppSelector(selectAssessorSummary);
+  const programName = useAppSelector(selectAssessorProgramName(programId));
   const categories = useAppSelector(selectAssessorCategories);
   const categoryList = useAppSelector(selectAssessorCategoryQuestionList);
   const questions = useAppSelector(selectAssessorQuestionList);
@@ -311,6 +313,7 @@ export const useAssessorAssessmentFlow = (
     access,
 
     summary,
+    programName,
     categories,
     categoryList,
     questions,

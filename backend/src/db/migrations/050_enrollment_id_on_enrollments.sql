@@ -1,11 +1,11 @@
 -- An Enrollment ID belongs to one farmer and one program. It is issued when a
 -- survey submission is accepted, and from then on it is what lets that farmer
--- register and enrol in that program.
+-- register and enroll in that program.
 --
 -- Until now the ID only existed on the survey submission. Farmers enrolled
 -- before this rule have no submission at all, so they would be left holding
 -- nothing and the new checks would lock them out. The column below carries the
--- ID on the enrolment itself, and the backfill gives every existing enrolment
+-- ID on the enrollment itself, and the backfill gives every existing enrollment
 -- one, silently.
 ALTER TABLE program_enrollments
   ADD COLUMN IF NOT EXISTS enrollment_id VARCHAR(32);
@@ -60,7 +60,7 @@ BEGIN
   END LOOP;
 END $$;
 
--- One ID, one enrolment. Partial so soft-deleted rows never block a reissue.
+-- One ID, one enrollment. Partial so soft-deleted rows never block a reissue.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_program_enrollments_enrollment_id
   ON program_enrollments (enrollment_id)
   WHERE enrollment_id IS NOT NULL AND deleted_at IS NULL;

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUrlSearchSync } from "../lib/useUrlSearchSync";
-import { useLiveData } from "../lib/useLiveData";
 import {
   useListFieldsQuery,
   useDeleteFieldMutation,
@@ -60,7 +59,7 @@ export default function Fields() {
   const [hasBoundary, setHasBoundary] = useState("");
   useUrlSearchSync(setSearchInput);
 
-  const { data, isLoading, isFetching, isError, error, refetch } = useListFieldsQuery({
+  const { data, isLoading, isFetching, isError, error } = useListFieldsQuery({
     page,
     limit: PAGE_SIZE,
     farmId: farmId || undefined,
@@ -70,7 +69,6 @@ export default function Fields() {
       hasBoundary === "true" ? true : hasBoundary === "false" ? false : undefined,
     search: search || undefined,
   });
-  useLiveData(["fields"], refetch);
   const fields = data?.fields ?? [];
   const meta = data?.meta ?? null;
 
